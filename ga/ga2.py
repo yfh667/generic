@@ -4,14 +4,15 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 from networkx.classes import neighbors
+import genaric.chrom2adjact as c2a
 
-import graph_ga.chrom2adjact as c2a
-import graph_ga.ga.initiallink as initiallink
+import ga.initiallink as initiallink
 # 示例用法
-import graph_ga.adjact2chrom as a2c
-import graph_ga.dijstra as dij
-import graph_ga.chrom2adjact as c2a
-import graph_ga.plotgraph as plotgraph
+import genaric.adjact2chrom as a2c
+import genaric.dijstra as dij
+import genaric.chrom2adjact as c2a
+import genaric.plotgraph as plotgraph
+
 # 定义目标函数
 
 # 参数设置
