@@ -1,9 +1,9 @@
 
 
-import graph_ga.ga.initiallink as initiallink
-import graph_ga.chrom2adjact as c2a
+import ga.initiallink as initiallink
+import genaric.chrom2adjact as c2a
 
-import graph_ga.plotgraph as plotgraph
+import genaric.plotgraph as plotgraph
 
 def initialize_individual(N,P):
     individual = [-1]*(P-1)*N
@@ -14,9 +14,6 @@ def initialize_individual(N,P):
         for j in range(len(nowlink)):
          #   individual[j] = nowlink[j]
             nowlink[j] = (i + 1) * N + nowlink[j]
-
-
-
 
         individual[i*N:(i+1)*N]=nowlink
 
@@ -42,7 +39,7 @@ def initialize_individual2(N,P):
 
 
 
-N = 4
+N = 7
 P=4
 chrom = initialize_individual2(N,P)
 

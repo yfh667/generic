@@ -1,8 +1,8 @@
 
 
-import graph_ga.chrom2adjact as c2a
+import genaric.chrom2adjact as c2a
 
-import graph_ga.plotgraph as plotgraph
+import genaric.plotgraph as plotgraph
 
 N = 4
 P=4

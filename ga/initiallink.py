@@ -115,3 +115,53 @@ def initialize_links2(N, col, P, right_link):
 # for _ in range(5):
 #     result = initialize_links(4, 2)
 #     print(f"连接关系: {result} 唯一性验证: {len(set(result)) == 4}")
+
+def initialize_links3(N, col, P, right_link,own_links):
+    """
+    初始化当前列的右邻居连接
+
+    参数:
+        N: 每列的行数
+        col: 当前列号(0开始)
+        P: 总列数
+        right_link: 记录所有节点右连接的数组
+
+    返回:
+        当前列的右连接列表(长度为N)
+    """
+    links = [-1] * N  # 初始化当前列的连接
+
+    # 定义每行可能的右邻居
+    for row in range(N):
+        if own_links[col*N + row] != -1:
+            links[row] = own_links[col*N + row]
+            continue
+        # 可能的候选邻居
+        candidates = []
+
+        # 下一列的相邻行(上、中、下)
+        next_col = col + 1
+        if next_col < P:
+            candidates.append(next_col * N + (row - 1) % N)  # 上一行
+            candidates.append(next_col * N + row)  # 同一行
+            candidates.append(next_col * N + (row + 1) % N)  # 下一行
+
+            # 如果不是最后一列，还可以考虑下下一列的对应行
+            if next_col + 1 < P:
+                candidates.append((next_col + 1) * N + row)
+
+        # 过滤掉已经被占用的候选
+        available = [n for n in candidates if right_link[n] == -1]
+
+        # available = []
+        # for n in candidates:
+        #     if right_link[n] == -1:
+        #         available.append(n)
+
+        # 随机选择一个可用的
+        if available:
+            chosen = random.choice(available)
+            links[row] = chosen
+            right_link[chosen] = 1  # 标记为已占用
+
+    return links

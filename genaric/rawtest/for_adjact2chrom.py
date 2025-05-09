@@ -1,7 +1,7 @@
 
 #
 
-import graph_ga.adjact2chrom as a2c
+import genaric.adjact2chrom as a2c
 # 定义邻接表（完整连接关系）
 # adjacency_list = {
 #     0: {1, 6},
@@ -25,9 +25,14 @@ adjacency_list = {
     10: {13},
     11: {15}
 }
+base_adjacency_list = c2a.base_chrom2adjacent(chrom, N,P)
 
-N=4
-P=4
+adjacency_list = c2a.full_adjacency_list(base_adjacency_list,N,P)
+
+plotgraph.plot_graph_with_auto_curve(adjacency_list, N, P)
+
+N=36
+P=18
 o =  a2c.adjacent2chrom(adjacency_list, N, P)
 print(o)
 

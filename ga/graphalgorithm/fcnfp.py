@@ -143,3 +143,13 @@ def solve_fixed_charge_network_flow(edges_data, source_node, sink_node, flow_dem
             "total_fixed_cost": None,
             "flow_details": None
         }
+
+
+def get_the_cost(multi_result):
+    if multi_result ==0:
+        print("No solution found")
+        return -1
+    else:
+
+        cost = multi_result['total_fixed_cost']
+        return cost
