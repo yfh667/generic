@@ -85,7 +85,7 @@ N = 36
 P=18
 # distinct = [[17,18,24,25],[31,32,38,39]]
 chrom = initialize_individual(N,P,distinct)
-
+print(chrom)
 base_adjacency_list = c2a.base_chrom2adjacent(chrom, N,P)
 
 adjacency_list = c2a.full_adjacency_list(base_adjacency_list,N,P)

@@ -3,6 +3,47 @@ import genaric.chrom2adjact as c2a
 import genaric.plotgraph as plotgraph
 import satnode.relative_position as relpos
 import ga.graphalgorithm.adjact2weight as a2w
+import os
+import main.snapshotf_romxml as snapshotf_romxml
+
+import random
+import math
+import matplotlib.pyplot as plt
+import random
+import numpy as np
+from networkx.classes import neighbors
+import genaric.chrom2adjact as c2a
+import ga.graphalgorithm.fcnfp_multi as fcnfp_multi
+import genaric.chrom2adjact as c2a
+import genaric.plotgraph as plotgraph
+import satnode.relative_position as relpos
+import ga.graphalgorithm.adjact2weight as a2w
+import ga.initiallink as initiallink
+# 示例用法
+import genaric.adjact2chrom as a2c
+import genaric.dijstra as dij
+import genaric.chrom2adjact as c2a
+import genaric.plotgraph as plotgraph
+
+target_time_step = 0
+dummy_file_name = "E:\code\data\station_visible_satellites.xml"
+# Extract and print the satellite lists for each region from the file
+print(f"\nExtracting data for time step {target_time_step} from '{dummy_file_name}'...")
+region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, target_time_step)
+
+print(f"Satellite groups for time step {target_time_step}:")
+for i, satellite_list in enumerate(region_satellite_groups):
+    print(f"Region {i}: {satellite_list}")
+distinct =  []
+
+
+integer_satellite_groups_0 = [int(satellite_id) for satellite_id in region_satellite_groups[0]]
+
+integer_satellite_groups_1 = [int(satellite_id) for satellite_id in region_satellite_groups[1]]
+
+
+distinct.append(integer_satellite_groups_0)
+distinct.append(integer_satellite_groups_1)
 #
 # adjacency_list = {
 #     0: {7},
@@ -92,10 +133,12 @@ edge =a2w.adjacent2edge(full_adjacency_list,N,inter_link_bandwidth,intra_link_ba
 
 plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list, N, P,distinct)
 
+demand=70
+# SOURCES = {17: 70, 18: 70,24:70,25:70}
+# SINKS = [31, 32,38,39]
+SOURCES = {node_id: demand for node_id in distinct[0]}
 
-SOURCES = {17: 70, 18: 70,24:70,25:70}
-SINKS = [31, 32,38,39]
-
+SINKS = distinct[1]
 # 使用新函数求解
 multi_result = fcnfp_multi.solve_multi_source_sink_with_super_nodes(
     edges_data=edge,

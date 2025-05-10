@@ -23,10 +23,10 @@ import genaric.plotgraph as plotgraph
 #topology
 N = 7
 P=9
-distinct = [[17,18,24,25],[31,32,38,39]]
+distinct = [[17,18,24,25],[36,37,43]]
 
 SOURCES = {17: 70, 18: 70, 24: 70, 25: 70}
-SINKS = [31, 32, 38, 39]
+SINKS = distinct[1]
 
 inter_link_bandwidth = 50
 intra_link_bandwidth = 100

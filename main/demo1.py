@@ -118,8 +118,6 @@ def initialize_individual(N,P,distinct):
                     individual[node] = right_neighbor
 
     for i in range(P - 1):
-        # if individual[i] == -1:
-
         nowlink = initiallink.initialize_links3(N, i, P, right_link,own_link)
 
         individual[i * N:(i + 1) * N] = nowlink
