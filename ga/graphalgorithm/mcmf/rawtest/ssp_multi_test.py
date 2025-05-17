@@ -34,9 +34,6 @@ if __name__ == "__main__":
         sinks=SINKS
     )
 
-
-
-
     if multi_result == 0:
         print("No solution found")
     else:

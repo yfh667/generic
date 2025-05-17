@@ -43,4 +43,5 @@ if __name__ == "__main__":
     print("- 按住左键拖动：旋转")
     print("- 按住中键拖动 (或 Shift + 左键拖动)：平移")
     print("- 滚轮 (或 右键拖动)：缩放")
+
     main_plotter.show(viewup="z", title="可交互3D拓扑图")

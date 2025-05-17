@@ -22,8 +22,9 @@ edge =a2w.adjacent2edge(full_adjacency_list,N,inter_link_bandwidth,intra_link_ba
 
 distinct = [[17,18,24,25],[36,37,43]]
 
-SOURCES = {17: 70, 18: 70, 24: 70, 25: 70}
+SOURCES = {17: 150, 18: 150, 24: 150, 25: 150}
 SINKS = distinct[1]
+
 plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list, N, P,distinct)
 
 # 使用新函数求解
@@ -34,6 +35,10 @@ multi_result = ssp_multi.solve_multi_source_sink_with_super_nodes(
 )
 cost = multi_result['total_cost']
 
+
+print(cost)
+
+
 if multi_result == 0:
     print("No solution found")
 else:
@@ -42,10 +47,11 @@ else:
 
     print("\nMulti-source multi-sink solution via super nodes:")
     print(f"Status: {multi_result['status']}")
-    if multi_result['status'] == "Optimal":
-        print(f"Total Fixed Cost: {multi_result['total_cost']}")
-        if multi_result['flow_details']:
-            print("\nFlow Details (原始网络中的边):")
-            for detail in multi_result['flow_details']:
-                print(f"  Edge ({detail['from']} -> {detail['to']}): "
-                      f"Fixed Cost={detail['cost']}, Flow={detail['flow']}, Capacity={detail['capacity']}")
+   # if multi_result['status'] == "Optimal":
+    print(multi_result['status'] )
+    print(f"Total Fixed Cost: {multi_result['total_cost']}")
+    if multi_result['flow_details']:
+        print("\nFlow Details (原始网络中的边):")
+        for detail in multi_result['flow_details']:
+            print(f"  Edge ({detail['from']} -> {detail['to']}): "
+                  f"Fixed Cost={detail['cost']}, Flow={detail['flow']}, Capacity={detail['capacity']}")
