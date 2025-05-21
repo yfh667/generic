@@ -1,4 +1,6 @@
 from vedo import *
+#from vedo import vtk      # ← 新增
+
 import numpy as np
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
 
@@ -99,8 +101,8 @@ def get_region_color(region_id):
         # 你可以根据需要为其他区域指定颜色
     }
     return color_map.get(region_id, 'purple')  # 默认颜色为紫色
-
-def plot_multi_layer_topology(P, N, t):
+#
+def plot_multi_layer_topology(P, N, t,z_down=True):
     """
     绘制多层拓扑结构，返回绘图对象和所有点的信息
 
@@ -141,6 +143,8 @@ def plot_multi_layer_topology(P, N, t):
                 x = i * SPACING
                 y = j * SPACING
                 z = layer_idx * LAYER_HEIGHT  # 每层高度为 LAYER_HEIGHT 的整数倍
+               # z = -layer_idx * LAYER_HEIGHT if z_down else layer_idx * LAYER_HEIGHT
+
                 points_coords_in_layer.append([x, y, z])
                 all_coordinates.append([x, y, z])  # 存储所有点的坐标
 
@@ -155,10 +159,13 @@ def plot_multi_layer_topology(P, N, t):
         center_x = (N - 1) * SPACING / 2 if N > 0 else 0
         center_y = (P - 1) * SPACING / 2 if P > 0 else 0
         center_z = layer_idx * LAYER_HEIGHT - 0.05 * LAYER_HEIGHT  # 平面略低于点所在的高度，避免Z-fighting
+      #  center_z = (-layer_idx if z_down else layer_idx) * LAYER_HEIGHT - 0.05 * LAYER_HEIGHT
 
         plane = Plane(
             pos=(center_x, center_y, center_z),  # 设置平面位置
             normal=(0, 0, 1),  # 平面法向量朝上 (z轴正方向)
+           # normal=(0, 0, -1 if z_down else 1),
+
             s=(plane_size_x, plane_size_y),  # 平面大小 (x方向尺寸, y方向尺寸)
             c='lightgray',  # 平面颜色
             alpha=0.3,  # 透明度
@@ -179,7 +186,8 @@ def plot_multi_layer_topology(P, N, t):
 
     return plt, all_initial_points_objects, all_coordinates
 
-#
+
+
 # # --- 示例使用 ---
 # if __name__ == "__main__":
 #     # 定义拓扑结构参数

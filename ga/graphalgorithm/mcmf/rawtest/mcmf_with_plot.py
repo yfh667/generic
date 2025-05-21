@@ -55,3 +55,5 @@ else:
         for detail in multi_result['flow_details']:
             print(f"  Edge ({detail['from']} -> {detail['to']}): "
                   f"Fixed Cost={detail['cost']}, Flow={detail['flow']}, Capacity={detail['capacity']}")
+
+
