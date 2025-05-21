@@ -8,3 +8,5 @@ class tegnode:
         #state 1: working
         self.state = state
 
+    def __repr__(self):
+        return f"tegnode(asc_nodes_flag={self.asc_nodes_flag}, rightneighbor={self.rightneighbor}, state={self.state})"

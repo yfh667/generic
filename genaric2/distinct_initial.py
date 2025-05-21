@@ -77,10 +77,10 @@ def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setupt
         for t in range(start_time + 1, start_time + setuptime):
             nodes[(x_start, y_start, t)].state = 1
             nodes[(x_start, y_start, t)].asc_nodes_flag = 1
-        #  nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+            nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
 
         # 设置工作阶段状态
-        for t in range(start_time + setuptime, end_time ):
+        for t in range(start_time + setuptime, end_time+1 ):
             nodes[(x_start, y_start, t)].state = 2
             nodes[(x_start, y_start, t)].asc_nodes_flag = 1
             nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, t)
