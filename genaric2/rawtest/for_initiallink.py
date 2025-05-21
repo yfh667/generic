@@ -1,3 +1,4 @@
+from networkx.classes import neighbors
 
 import main.snapshotf_romxml as snapshotf_romxml
 
@@ -6,57 +7,63 @@ import genaric.chrom2adjact as c2a
 
 import genaric.plotgraph as plotgraph
 
+import ga.graphalgorithm.adjact2weight as a2w
+import os
+import main.snapshotf_romxml as snapshotf_romxml
+import graph.drawall as drawall
+import genaric2.tegnode as tegnode
+import genaric2.dyplot as dyplot
+import graph.time_2d2 as time_2d
+# --- Example Usage ---
+import genaric2.distinct_initial as distinct_initial
+import genaric2.action_table as action_table
 
-
-
-def initialize_individual(P,N,T,distinct):
+def initialize_individual(P,N,T,nodes,left_port):
     # P = 4  # x轴
     # N = 3  # y轴
     # T = 2  # z轴
 
-    #individual = [[[-1 for _ in range(T)] for _ in range(N)] for _ in range(P)]
-    individual = [[[-1 for _ in range(N)] for _ in range(P)] for _ in range(T)]
-    # individual = [-1] * (P - 1) * N
-    # left_link =[0]*(P)*N
-   # right_link =  [[[-1 for _ in range(T)] for _ in range(N)] for _ in range(P-1)]
-    right_link = [[[-1 for _ in range(N)] for _ in range(P)] for _ in range(T)]
-    own_link = [[[-1 for _ in range(N)] for _ in range(P)] for _ in range(T)]
 
-   # own_link =[[[-1 for _ in range(T)] for _ in range(N)] for _ in range(P)]
+    #individual = [[[-1 for _ in range(N)] for _ in range(P)] for _ in range(T)]
+    individual = {
+        (x, y, z): -1
+        for x in range(P)
+        for y in range(N)
+        for z in range(T)
+    }
 
-    for i in range(len(distinct)):
-        regions = distinct[i]
-        for region in regions:
 
-    for dist in distinct:  # 假设 distinct 是一个包含多个节点集合的列表
-        for node in dist:
-            i_node = node // N  # 计算行号
-            j_node = node % N  # 计算列号
 
-            # 检查右邻居是否存在（i_node < N-1 表示不在最右列）
-            if i_node < N - 1:
-                right_neighbor = (i_node + 1) * N + j_node
+    #left_port = [[[-1 for _ in range(N)] for _ in range(P)] for _ in range(T)]
+    # left_port = {
+    #     (x, y, z): -1
+    #     for x in range(P)
+    #     for y in range(N)
+    #     for z in range(T)
+    # }
 
-                # 如果右邻居也在当前集合 dist 中，则建立连接
-                if right_neighbor in dist:
-                    # 初始化 node 的邻接集合（如果不存在）
-                    right_link[right_neighbor] = 1
-                    own_link[node] = right_neighbor
-                    individual[node] = right_neighbor
+
+
+
 
     for i in range(P - 1):
-        # if individual[i] == -1:
+        nowlink = initiallink.initialize_snap_random( i,N, P,T, left_port,setuptime,nodes)
 
-        nowlink = initiallink.initialize_snap(N, i, P, right_link,own_link)
-
-        individual[i * N:(i + 1) * N] = nowlink
+        for j in range(N):
+            for k in range(T):
+                individual[(i,j,k)] = nowlink[(j, k)]
 
     return individual
 
+
+
+
 start_ts = 1500
-end_ts = 1505
+end_ts = 1523
 
 dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
+
+
 
 regions_to_color = {}
 # Iterate over the time steps
@@ -74,13 +81,159 @@ for i in range(len(region_satellite_groups)):
 N = 10
 P=10
 
+T = target_time_step
+setuptime=2
+
+nodes =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
+left_port = {
+    (x, y, z): -1
+    for x in range(P)
+    for y in range(N)
+    for z in range(T)
+}
+
+
+for x in range(P):
+    for y in range(N):
+        for z in range(T):
+            curr_node = (x, y, z)
+
+            # 若状态为 0，表示链路已手动设定，直接记录
+            if nodes[curr_node].state == 0:
+                neighbor = nodes[curr_node].rightneighbor
+
+                left_port[neighbor] = 1
+
+                # 标记设链路期间所占用的时间
+                for dt in range(1, setuptime + 1):
+                    if neighbor[2] - dt >= 0:
+                        left_port[(neighbor[0], neighbor[1], neighbor[2] - dt)] = 1
+                    if z + dt < T:
+                        left_port[(x, y, z + dt)] = 1
+
+            if nodes[curr_node].state != -1:
+                neighbor = nodes[curr_node].rightneighbor
+
+                left_port[neighbor] = 1
 
 
 
-chrom = initialize_individual(P,N,T,regions_to_color)
 
-base_adjacency_list = c2a.base_chrom2adjacent(chrom, N,P)
 
-adjacency_list = c2a.full_adjacency_list(base_adjacency_list,N,P)
+def chrom2nodes(P,N,T,setuptime,nodes,chrom):
+    for i in range(P):
+        for j in range(N):
+            for k in range(T):
+                if chrom[(i,j,k)] !=-1 and chrom[(i,j,k)] !=1:
+                    neighbor = chrom[(i,j,k)]
+                  #  print(neighbor)
+                    nodes[(i,j,k)].state = 0
 
-plotgraph.plot_graph_with_auto_curve(adjacency_list, N, P)
+                    nodes[(i,j,k)].rightneighbor = chrom[(i,j,k)]
+
+                    nowtime = k+1
+                    while 1:
+                        if nowtime >= T:
+                            break
+                        if  chrom[(i,j,nowtime)]==1 :
+                            if nowtime<k+setuptime:
+                                nodes[(i,j,nowtime)].state = 1
+                            else:
+                                nodes[(i,j,nowtime)].state = 2
+                            nodes[(i, j, nowtime)].rightneighbor = chrom[(i, j, k)]
+                            nowtime = nowtime+1
+                        else:
+                            break
+
+
+                    # 标记设链路期间所占用的时间
+
+chrom = initialize_individual(P,N,T,nodes,left_port)
+chrom2nodes(P,N,T,setuptime,nodes,chrom)
+
+connection_list=action_table.action_map2_shanpshots(nodes, P, N, T)
+
+import genaric2.adj2adjacylist as adj2adjaclist
+
+adjacency_list = adj2adjaclist.adj2adjaclist(connection_list, N, P,T)
+
+
+
+import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
+
+
+full_adjacency_list = adjacency_list
+
+inter_link_bandwidth = 50
+intra_link_bandwidth = 100
+
+cost =1
+
+
+# for i in range(2,3):
+#     edge =a2w.adjacent2edge(full_adjacency_list[i],N,inter_link_bandwidth,intra_link_bandwidth,cost)
+#
+#     print(full_adjacency_list[i])
+#     distinct =  regions_to_color[i]
+#     print(distinct)
+#
+#     SOURCES = {}
+#     for i in range(len(distinct[0])):
+#         SOURCES[distinct[0][i]] = 150
+#    # SOURCES = {17: 150, 18: 150, 24: 150, 25: 150}
+#     SINKS = distinct[1]
+#     # 使用新函数求解
+#     multi_result = ssp_multi.solve_multi_source_sink_with_super_nodes(
+#         edges_data=edge,
+#         sources=SOURCES,
+#         sinks=SINKS
+#     )
+#     cost = multi_result['total_cost']
+#
+#
+#
+#     print(cost)
+#
+#
+#     if multi_result == 0:
+#         print("No solution found")
+#     else:
+#         # 输出结果（与原有格式兼容）
+#         cost = multi_result['total_cost']
+#
+#         print("\nMulti-source multi-sink solution via super nodes:")
+#         print(f"Status: {multi_result['status']}")
+#        # if multi_result['status'] == "Optimal":
+#         print(multi_result['status'] )
+#         print(f"Total Fixed Cost: {multi_result['total_cost']}")
+#         if multi_result['flow_details']:
+#             print("\nFlow Details (原始网络中的边):")
+#             for detail in multi_result['flow_details']:
+#                 print(f"  Edge ({detail['from']} -> {detail['to']}): "
+#                       f"Fixed Cost={detail['cost']}, Flow={detail['flow']}, Capacity={detail['capacity']}")
+#     #plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list[i], N, P,distinct)
+#
+#     plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list[i], N, P,distinct)
+
+
+
+
+
+#
+#
+
+
+vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
+vis.show()
+main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
+main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
+connections_list=action_table.action_map2connecttion_list(nodes, P, N, T)
+main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
+
+main_plotter.show(viewup="z", title="Interactive 3D Topology")
+#
+print("1")
+#
+# for coord, node in nodes.items():
+#     print(coord, node)
+#

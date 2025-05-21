@@ -69,7 +69,7 @@ import networkx as nx
 
 
 class DynamicGraphVisualizer:
-    """Time‑series visualiser for satellite topologies."""
+    """Time-series visualiser for satellite topologies with curved edge support."""
 
     _COLORS = [
         "lightcoral", "lightgreen", "plum", "sandybrown",
@@ -93,14 +93,12 @@ class DynamicGraphVisualizer:
         self._rad, self._tol = default_rad, tol
         self._pos = {i: (i // N, i % N) for i in range(N * P)}
 
-        # interactive figure
         self._fig, self._ax = plt.subplots(figsize=(max(6, P * 1.2), max(4, N * 1.2)))
         plt.subplots_adjust(bottom=0.25)
 
         if _INTERACTIVE:
             slider_ax = plt.axes([0.2, 0.1, 0.65, 0.03])
-            self._slider = Slider(slider_ax, "Time‑step", 0, len(self._adj) - 1,
-                                   valinit=0, valstep=1)
+            self._slider = Slider(slider_ax, "Time-step", 0, len(self._adj) - 1, valinit=0, valstep=1)
             self._slider.on_changed(self._update)
         else:
             self._slider = None
@@ -109,9 +107,7 @@ class DynamicGraphVisualizer:
         self._setup_axes()
         self._update(0)
 
-    # ---------- Public ----------
     def show(self, block: bool = False):
-        """Display the window (non‑blocking by default)."""
         if _INTERACTIVE:
             plt.show(block=block)
         else:
@@ -119,7 +115,6 @@ class DynamicGraphVisualizer:
             self._fig.savefig(out, dpi=300)
             print(f"[DynamicGraphVisualizer] Saved first frame to {out.resolve()}")
 
-    # ---------- Helpers ----------
     def _setup_axes(self):
         self._ax.set_xlim(-0.5, self.P - 0.5)
         self._ax.set_ylim(-0.5, self.N - 0.5)
@@ -157,7 +152,12 @@ class DynamicGraphVisualizer:
 
     def _clear(self):
         for art in self._artists:
-            art.remove()
+            if isinstance(art, list):
+                for subart in art:
+                    if hasattr(subart, 'remove'):
+                        subart.remove()
+            elif hasattr(art, 'remove'):
+                art.remove()
         self._artists.clear()
 
     def _update(self, val):
@@ -171,20 +171,32 @@ class DynamicGraphVisualizer:
         if straight:
             art = nx.draw_networkx_edges(g, self._pos, ax=self._ax,
                                           edgelist=straight, edge_color="black", alpha=0.6)
-            self._artists.append(art)
+            if art is not None:
+                self._artists.append(art)
+
         if curved:
-            st = f"arc3,rad={self._rad}"
-            art = nx.draw_networkx_edges(g, self._pos, ax=self._ax, edgelist=curved,
-                                          edge_color="red", connectionstyle=st, width=1.5)
-            self._artists.append(art)
+            connection_style = f"arc3,rad={self._rad}"
+            art = nx.draw_networkx_edges(
+                g, self._pos, ax=self._ax,
+                edgelist=curved, edge_color="red",
+                connectionstyle=connection_style, width=1.5,
+                arrows=True, arrowstyle='-'
+            )
+            if art is not None:
+                self._artists.append(art)
 
-        nodes = nx.draw_networkx_nodes(g, self._pos, ax=self._ax,
-                                        node_color=node_col, node_size=500)
-        self._artists.append(nodes)
-        labels = nx.draw_networkx_labels(g, self._pos, ax=self._ax,
-                                         font_size=8, font_weight="bold")
-        self._artists.extend(labels.values())
+        nodes = nx.draw_networkx_nodes(
+            g, self._pos, ax=self._ax,
+            node_color=node_col, node_size=500
+        )
+        if nodes is not None:
+            self._artists.append(nodes)
 
-        self._ax.set_title(f"Time‑step {step}")
+        labels = nx.draw_networkx_labels(
+            g, self._pos, ax=self._ax,
+            font_size=8, font_weight="bold"
+        )
+        self._artists.extend(label for label in labels.values() if hasattr(label, 'remove'))
+
+        self._ax.set_title(f"Time-step {step}")
         self._fig.canvas.draw_idle()
-

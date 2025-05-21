@@ -41,10 +41,6 @@ for i in range(len(region_satellite_groups)):
         regions_to_color[i] = o  # Corrected append to dictionary assignment
 
 
-main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P_val, N_val, target_time_step)
-
-
-main_plotter = drawall.apply_region_colors(main_plotter, P_val, N_val, target_time_step, regions_to_color, all_coords)
 
 
 
@@ -66,8 +62,8 @@ connections_list=action_table.action_map2connecttion_list(nodes, P, N, T)
 adj_list_array=action_table.action_map2_shanpshots(nodes, P, N, T)
 
 
-
-print(adj_list_array)
+#
+# print(adj_list_array)
 
 
 
@@ -76,6 +72,11 @@ vis.show()
 
 
 # 4. Add dashed connections
+
+main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P_val, N_val, target_time_step)
+
+
+main_plotter = drawall.apply_region_colors(main_plotter, P_val, N_val, target_time_step, regions_to_color, all_coords)
 main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
 print("Vedo window is about to display. Please use the mouse for interaction:")
 print("- Left-click and drag: Rotate")

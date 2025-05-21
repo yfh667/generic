@@ -120,3 +120,5 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
 
 
     return  nodes
+
+
