@@ -83,6 +83,8 @@ def initialize_individual(P,N,T,nodes,left_port):
         for j in range(N):
             for k in range(T):
                 individual[(i,j,k)] = nowlink[(j, k)]
+
+
     #structure2nodes.structure2nodes(P, N, T, setuptime, nodes_copy, individual)
 
     return individual
@@ -161,15 +163,14 @@ for x in range(P):
 ##3.生成初始个体，注意，这个还只是其中一个。
 
 # nodes_copy=initialize_individual.initialize_individual(P,N,T,nodes,left_port,setuptime)
-individual = initialize_individual(P,N,T,nodes,left_port)
+structure = initialize_individual(P,N,T,nodes,left_port)
 
 writetoxml.nodes_to_xml(nodes, "E:\\code\\data\\1\\nodes.xml")
 
 
-## 4.解码，
-# chrom2nodes(P,N,T,setuptime,nodes,individual)
-structure2nodes.structure2nodes(P, N, T, setuptime, nodes, individual)
-
+# 4.解码，
+structure2nodes.structure2nodes(P, N, T, setuptime, nodes, structure)
+#
 nodes_copy=nodes
 
 writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\nodes_copy.xml")

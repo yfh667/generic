@@ -130,8 +130,6 @@ def initialize_snap_random(
 
     for row, t in all_coords:
 
-    # for t in range(T):
-    #     for row in range(N):
             curr_node = (col, row, t)
 
             # 若状态为 0，表示链路已手动设定，直接记录
@@ -193,3 +191,7 @@ def initialize_snap_random(
                         links[(row, t + dt)] = 1
 
     return links
+
+
+
+
