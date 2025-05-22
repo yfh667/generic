@@ -65,29 +65,19 @@ def nodes2structure(P,N,T,nodes):
     return structure
 
 
-def initialize_individual(P,N,T,nodes,left_port):
+def initialize_individual(P,N,T,nodes):
     # P = 4  # x轴
     # N = 3  # y轴
     # T = 2  # z轴
-    individual = {
-        (x, y, z): -1
-        for x in range(P)
-        for y in range(N)
-        for z in range(T)
-    }
+
     nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
-
+    t1 = nodes_copy[(4, 8, 3)]
+    t2 = nodes_copy[(4, 8, 4)]
     for i in range(P - 1):
-        nowlink = initiallink.initialize_snap_random( i,N, P,T, left_port,setuptime,nodes_copy)
-
-        for j in range(N):
-            for k in range(T):
-                individual[(i,j,k)] = nowlink[(j, k)]
+       initiallink.initialize_snap_random_nodes( i,N, P,T,setuptime,nodes_copy)
 
 
-    #structure2nodes.structure2nodes(P, N, T, setuptime, nodes_copy, individual)
-
-    return individual
+    return nodes_copy
 
 
 
@@ -123,38 +113,6 @@ setuptime=2
 nodes =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
 
-left_port = {
-    (x, y, z): -1
-    for x in range(P)
-    for y in range(N)
-    for z in range(T)
-}
-
-
-for x in range(P):
-    for y in range(N):
-        for z in range(T):
-            curr_node = (x, y, z)
-
-            # 若状态为 0，表示链路已手动设定，直接记录
-            if nodes[curr_node].state == 0:
-                neighbor = nodes[curr_node].rightneighbor
-
-                left_port[neighbor] = 1
-
-                # 标记设链路期间所占用的时间
-                for dt in range(1, setuptime + 1):
-                    if neighbor[2] - dt >= 0:
-                        left_port[(neighbor[0], neighbor[1], neighbor[2] - dt)] = 1
-                    if z + dt < T:
-                        left_port[(x, y, z + dt)] = 1
-
-            if nodes[curr_node].state != -1:
-                neighbor = nodes[curr_node].rightneighbor
-
-                left_port[neighbor] = 1
-
-
 
 
 
@@ -163,35 +121,37 @@ for x in range(P):
 ##3.生成初始个体，注意，这个还只是其中一个。
 
 # nodes_copy=initialize_individual.initialize_individual(P,N,T,nodes,left_port,setuptime)
-structure = initialize_individual(P,N,T,nodes,left_port)
 
-writetoxml.nodes_to_xml(nodes, "E:\\code\\data\\1\\nodes.xml")
+nodes_copy = initialize_individual(P,N,T,nodes)
 
-
-# 4.解码，
-structure2nodes.structure2nodes(P, N, T, setuptime, nodes, structure)
+#nodes_copy = nodes
 #
-nodes_copy=nodes
+# writetoxml.nodes_to_xml(nodes, "E:\\code\\data\\1\\nodes.xml")
+#
+#
+# # 4.解码，
+# structure2nodes.structure2nodes(P, N, T, setuptime, nodes, structure)
 
-writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\nodes_copy.xml")
+
+# writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\nodes_copy.xml")
 
 connection_list=action_table.action_map2_shanpshots(nodes_copy, P, N, T)
 
 import genaric2.adj2adjacylist as adj2adjaclist
 
-adjacency_list = adj2adjaclist.adj2adjaclist(connection_list, N, P,T)
-
-
-
-import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
-
-
-full_adjacency_list = adjacency_list
-
-inter_link_bandwidth = 50
-intra_link_bandwidth = 100
-
-cost =1
+# adjacency_list = adj2adjaclist.adj2adjaclist(connection_list, N, P,T)
+#
+#
+#
+# import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
+#
+#
+# full_adjacency_list = adjacency_list
+#
+# inter_link_bandwidth = 50
+# intra_link_bandwidth = 100
+#
+# cost =1
 
 
 # for i in range(2,3):
@@ -249,6 +209,8 @@ cost =1
 
 vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
 vis.show()
+
+
 main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
 main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
 connections_list=action_table.action_map2connecttion_list(nodes_copy, P, N, T)
@@ -258,6 +220,6 @@ main_plotter.show(viewup="z", title="Interactive 3D Topology")
 #
 print("1")
 #
-for coord, node in nodes.items():
+for coord, node in nodes_copy.items():
     print(coord, node)
 #

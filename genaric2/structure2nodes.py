@@ -1,6 +1,7 @@
 
 
 def find_end(time_now, node_id, neighbor_id,setuptime):
+    pass
 
 
 

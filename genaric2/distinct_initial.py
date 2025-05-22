@@ -63,27 +63,83 @@ def find_the_start(time_now, node_id, neighbor_id, group_idx, region_satellite_g
 #         nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
 #         nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
 
+def initialize_establish(N,nodes,start_node_id, end_node_id,start_time,setuptime,hotflag=False):
+    # 设置设置阶段状态
+    # STARTTIME:代表开始开始建链
+    #end time:代表这条链路完成了，也就是到这个时间点过后，链路不确定了
+    x_start, y_start = divmod(start_node_id, N)
+    x_end, y_end = divmod(end_node_id, N)
+
+
+    nodes[(x_start, y_start, start_time)].state = 0
+    if hotflag:
+        nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
+    nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
+    nodes[(x_end, y_end, start_time)].leftneighbor = (x_start, y_end, start_time)
+
+
+
+    for t in range(start_time + 1, start_time + setuptime):
+        nodes[(x_start, y_start, t)].state = 1
+        if hotflag:
+            nodes[(x_start, y_start, t)].asc_nodes_flag = 1
+        nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start, t)
+
+    nodes[(x_start, y_start, start_time + setuptime)].state = 2
+
+
+    if hotflag:
+            nodes[(x_start, y_start, start_time + setuptime)].asc_nodes_flag = 1
+
+    nodes[(x_start, y_start, start_time + setuptime)].rightneighbor = (x_end, y_end, start_time + setuptime)
+    nodes[(x_end, y_end, start_time + setuptime)].leftneighbor = (x_start, y_start, start_time + setuptime)
+
+
+
+    for t in range( setuptime):
+        nowtime =start_time-t-1
+        if nowtime < 0:
+            break
+        if nodes[(x_start, y_start, nowtime)].state == 2 :
+            break
+        nodes[(x_start, y_start, nowtime)].state = -2
+        if hotflag:
+            nodes[(x_start, y_start, nowtime)].asc_nodes_flag = 1
+
+
+
+
+
+
+
 def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setuptime, N):
     if end_time - start_time > setuptime:
         x_start, y_start = divmod(start_node_id, N)
         x_end, y_end = divmod(end_node_id, N)
 
         # 设置链接建立时刻
-        nodes[(x_start, y_start, start_time)].state = 0
-        nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
-        nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        # nodes[(x_start, y_start, start_time)].state = 0
+        # nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
+        # nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        # nodes[(x_end, y_end, start_time )].leftneighbor = (x_start, y_end, start_time)
 
         # 设置设置阶段状态
-        for t in range(start_time + 1, start_time + setuptime):
-            nodes[(x_start, y_start, t)].state = 1
-            nodes[(x_start, y_start, t)].asc_nodes_flag = 1
-            nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        initialize_establish(N, nodes, start_node_id, end_node_id, start_time, setuptime,1)
+
+
+        # for t in range(start_time + 1, start_time + setuptime):
+        #     nodes[(x_start, y_start, t)].state = 1
+        #     nodes[(x_start, y_start, t)].asc_nodes_flag = 1
+        #     nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        #     nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start,t)
 
         # 设置工作阶段状态
-        for t in range(start_time + setuptime, end_time+1 ):
+        for t in range(start_time + setuptime+1, end_time+1 ):
             nodes[(x_start, y_start, t)].state = 2
             nodes[(x_start, y_start, t)].asc_nodes_flag = 1
             nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, t)
+            nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start, t)
 
 
 def distinct_initial(P,N,T,setuptime,regions_to_color):
@@ -99,6 +155,7 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
                 nodes[(x, y, z)] = tegnode.tegnode(
                     asc_nodes_flag=False,  # 或初始为None等你自己定义
                     rightneighbor=None,
+                    leftneighbor=None,
                     state=-1  # 默认初始为free
                 )
 
