@@ -12,7 +12,7 @@ import os
 import main.snapshotf_romxml as snapshotf_romxml
 import graph.drawall as drawall
 import genaric2.tegnode as tegnode
-import genaric2.dyplot as dyplot
+
 import graph.time_2d2 as time_2d
 # --- Example Usage ---
 import genaric2.distinct_initial as distinct_initial

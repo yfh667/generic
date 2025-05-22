@@ -259,7 +259,13 @@ def initialize_snap_seq_nodes(
 
     return nodes
 
-
+def no_left(nodes,candidate_node,setuptime):
+    flag = 1
+    for i in range(setuptime + 1):
+        if nodes[candidate_node[0], candidate_node[1], candidate_node[2] - i].leftneighbor:
+            flag = 0
+            break
+    return flag
 
 def initialize_snap_random_nodes(
     col: int,
@@ -314,8 +320,16 @@ def initialize_snap_random_nodes(
 
             available = []
             for k in range(len(candidates)):
+                candidate_node = candidates[k]
+                # flag=1
+                # for i in range(setuptime+1):
+                #     if nodes[candidate_node[0],candidate_node[1],candidate_node[2]-i].leftneighbor:
+                #         flag=0
+                #         break
 
-                if not nodes[candidates[k]].leftneighbor:
+
+
+                if no_left(nodes,candidate_node,setuptime):
                     available.append(candidates[k])
 
             if available:
@@ -323,7 +337,7 @@ def initialize_snap_random_nodes(
                 start_node_id =  col*N+row
                 end_node_id = chosen[0]*N+chosen[1]
                 start_time = t
-                distinct_initial.initialize_establish(N,nodes,start_node_id, end_node_id,start_time,setuptime)
+                distinct_initial.initialize_establish(N,T,nodes,start_node_id, end_node_id,start_time,setuptime)
 
 
     return nodes

@@ -14,7 +14,7 @@ import genaric2.initialize_individual as initialize_individual
 
 
 
-
+import genaric2.cross as cross
 
 
 ##1.我们先获得原始的卫星分布数据，主要是热点区域的拓扑序列数据
@@ -43,26 +43,11 @@ for i in range(len(region_satellite_groups)):
 
 T = target_time_step
 setuptime=2
-nodes =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
+base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
-nodes_copy = initialize_individual.initialize_individual(P,N,T,nodes,setuptime)
+individual1 = initialize_individual.initialize_individual(P,N,T,base,setuptime)
 
+individual2 = initialize_individual.initialize_individual(P,N,T,base,setuptime)
 
-
-
-connection_list=action_table.action_map2_shanpshots(nodes_copy, P, N, T)
-
-
-vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
-vis.show()
-
-
-main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
-main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
-connections_list=action_table.action_map2connecttion_list(nodes_copy, P, N, T)
-main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
-
-main_plotter.show(viewup="z", title="Interactive 3D Topology")
-
-for coord, node in nodes_copy.items():
-    print(coord, node)
+writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\1\\individual1.xml")
+writetoxml.nodes_to_xml(individual2, "E:\\code\\data\\1\\individual2.xml")

@@ -48,22 +48,9 @@ def find_the_start(time_now, node_id, neighbor_id, group_idx, region_satellite_g
         return node1_time
 
 
- #   return node1_time, node2_time
 
 
-# 分配状态：设定链接、工作状态、设置右邻居指向等
-# def assign_state(nodes,node1_time, node2_time, T,start_node_id, end_node_id, setuptime, N):
-#     if 0<=node1_time<T and 0<=node2_time<T:
-#
-#         x_start, y_start = divmod(start_node_id, N)
-#         x_end, y_end = divmod(end_node_id, N)
-#
-#         # 设置链接建立时刻
-#         nodes[(x_start, y_start, start_time)].state = 0
-#         nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
-#         nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
-
-def initialize_establish(N,nodes,start_node_id, end_node_id,start_time,setuptime,hotflag=False):
+def initialize_establish(N,T,nodes,start_node_id, end_node_id,start_time,setuptime,hotflag=False):
     # 设置设置阶段状态
     # STARTTIME:代表开始开始建链
     #end time:代表这条链路完成了，也就是到这个时间点过后，链路不确定了
@@ -80,32 +67,24 @@ def initialize_establish(N,nodes,start_node_id, end_node_id,start_time,setuptime
 
 
     for t in range(start_time + 1, start_time + setuptime):
-        nodes[(x_start, y_start, t)].state = 1
+        if t<T:
+            nodes[(x_start, y_start, t)].state = 1
+            if hotflag:
+                nodes[(x_start, y_start, t)].asc_nodes_flag = 1
+            nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+            nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start, t)
+
+    if start_time + setuptime<T:
+
+
+        nodes[(x_start, y_start, start_time + setuptime)].state = 2
+
+
         if hotflag:
-            nodes[(x_start, y_start, t)].asc_nodes_flag = 1
-        nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
-        nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start, t)
+                nodes[(x_start, y_start, start_time + setuptime)].asc_nodes_flag = 1
 
-    nodes[(x_start, y_start, start_time + setuptime)].state = 2
-
-
-    if hotflag:
-            nodes[(x_start, y_start, start_time + setuptime)].asc_nodes_flag = 1
-
-    nodes[(x_start, y_start, start_time + setuptime)].rightneighbor = (x_end, y_end, start_time + setuptime)
-    nodes[(x_end, y_end, start_time + setuptime)].leftneighbor = (x_start, y_start, start_time + setuptime)
-
-
-
-    for t in range( setuptime):
-        nowtime =start_time-t-1
-        if nowtime < 0:
-            break
-        if nodes[(x_start, y_start, nowtime)].state == 2 :
-            break
-        nodes[(x_start, y_start, nowtime)].state = -2
-        if hotflag:
-            nodes[(x_start, y_start, nowtime)].asc_nodes_flag = 1
+        nodes[(x_start, y_start, start_time + setuptime)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        nodes[(x_end, y_end, start_time + setuptime)].leftneighbor = (x_start, y_start, start_time + setuptime)
 
 
 
@@ -113,7 +92,9 @@ def initialize_establish(N,nodes,start_node_id, end_node_id,start_time,setuptime
 
 
 
-def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setuptime, N):
+
+
+def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setuptime, N,T):
     if end_time - start_time > setuptime:
         x_start, y_start = divmod(start_node_id, N)
         x_end, y_end = divmod(end_node_id, N)
@@ -125,7 +106,7 @@ def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setupt
         # nodes[(x_end, y_end, start_time )].leftneighbor = (x_start, y_end, start_time)
 
         # 设置设置阶段状态
-        initialize_establish(N, nodes, start_node_id, end_node_id, start_time, setuptime,1)
+        initialize_establish(N,T,nodes, start_node_id, end_node_id, start_time, setuptime,1)
 
 
         # for t in range(start_time + 1, start_time + setuptime):
@@ -133,6 +114,13 @@ def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setupt
         #     nodes[(x_start, y_start, t)].asc_nodes_flag = 1
         #     nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
         #     nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start,t)
+        for t in range(setuptime):
+            nowtime = start_time - t - 1
+            if nowtime < 0:
+                break
+
+
+            nodes[(x_start, y_start, nowtime)].asc_nodes_flag = 1
 
         # 设置工作阶段状态
         for t in range(start_time + setuptime+1, end_time+1 ):
@@ -172,7 +160,7 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
                         neighbor_id = (x_node + 1) * N + y_node
                         if neighbor_id in region:
                             start_time = find_the_start(t - 1, node_id, neighbor_id, group_idx, regions_to_color,setuptime)
-                            assign_state(nodes, start_time +1,t, node_id, neighbor_id, setuptime, N)
+                            assign_state(nodes,start_time +1,t, node_id, neighbor_id, setuptime, N,T)
 
 
 

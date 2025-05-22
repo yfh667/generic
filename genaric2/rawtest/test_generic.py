@@ -6,18 +6,8 @@ import numpy as np
 from networkx.classes import neighbors
 import genaric.chrom2adjact as c2a
 import ga.graphalgorithm.fcnfp_multi as fcnfp_multi
-import genaric.chrom2adjact as c2a
-import genaric.plotgraph as plotgraph
-import satnode.relative_position as relpos
-import ga.graphalgorithm.adjact2weight as a2w
 
-# 示例用法
-import genaric.adjact2chrom as a2c
-import genaric.dijstra as dij
-import genaric.chrom2adjact as c2a
-import genaric.plotgraph as plotgraph
-from networkx.classes import neighbors
-
+import genaric2.initialize_individual as initialize_individual
 import main.snapshotf_romxml as snapshotf_romxml
 import copy
 
@@ -31,13 +21,13 @@ import os
 import main.snapshotf_romxml as snapshotf_romxml
 import graph.drawall as drawall
 import genaric2.tegnode as tegnode
-import genaric2.dyplot as dyplot
+
 import graph.time_2d2 as time_2d
 # --- Example Usage ---
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 # 定义目标函数
-
+import genaric2.cross as cross
 # 参数设置
 #topology
 N = 7
@@ -84,37 +74,16 @@ def get_fixed_right_neighbor(N,distinct):
                     fixed_right_neighbor.append(node)
     return fixed_right_neighbor
 
-def initialize_individual(P,N,T,nodes,left_port,setuptime):
-    # P = 4  # x轴
-    # N = 3  # y轴
-    # T = 2  # z轴
-    individual = {
-        (x, y, z): -1
-        for x in range(P)
-        for y in range(N)
-        for z in range(T)
-    }
-    for i in range(P - 1):
-        nowlink = initiallink.initialize_snap_random( i,N, P,T, left_port,setuptime,nodes)
-
-        for j in range(N):
-            for k in range(T):
-                individual[(i,j,k)] = nowlink[(j, k)]
-
-    return individual
-
 
 
 
 # 初始化种群
-def initialize_population(P,N,T,nodes,left_port,setuptime):
+def initialize_population(P,N,T,nodes,setuptime):
     chromosome = []
     for i in range(population_size):
         nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
-        left_port_copy = copy.deepcopy(left_port)
-        chromosome.append(initialize_individual(P, N, T, nodes_copy, left_port_copy,setuptime))
 
-
+        chromosome.append(   initialize_individual.initialize_individual(P, N, T, nodes_copy,setuptime))
 
     return chromosome
 
@@ -217,81 +186,6 @@ def selection(population):
     return new_population
 
 
-	# 交叉操作
-# 这里，我们要注意，可能
-def crossover_wenti(p1_left, p2_right, point, N, T):
-    """
-    处理交叉后可能出现的重复连接问题
-    规则：如果发现重复连接，使p2_right中的连接设为-1
-
-    参数:
-        p1_left: 父代1的左部分染色体
-        p2_right: 父代2的右部分染色体
-        point: 交叉点层数
-        N: 拓扑宽度
-        T: 总层数
-
-    返回:
-        处理后的染色体
-    """
-    # 创建标记字典
-    left_port = {
-        (y, z): -1
-        for y in range(N)
-        for z in range(T)
-    }
-
-    # 标记p1_left中从point层到point+2层的连接
-    for k, v in p1_left.items():
-        if k[0] == point and v != -1:  # 起点在point层且是有效连接
-            if v[0] == point + 2:  # 终点在point+2层
-                left_port[(v[1], v[2])] = 1  # 标记该目标位置已被占用
-
-    # 创建p2_right的深拷贝以避免修改原始数据
-    modified_p2_right = {k: v for k, v in p2_right.items()}
-
-    # 处理p2_right中的冲突连接
-    for k, v in modified_p2_right.items():
-        if k[0] == point + 1 and v != -1:  # 起点在point+1层且是有效连接
-            if v[0] == point + 2:  # 终点在point+2层
-                if left_port[(v[1], v[2])] == 1:  # 如果目标位置已被p1_left占用
-                    modified_p2_right[k] = -1  # 使p2_right中的该连接无效
-
-    # 合并两部分染色体（使用字典更新方式）
-    child = p1_left.copy()
-    child.update(modified_p2_right)
-
-    return child
-
-
-
-
-def crossover(parent1, parent2,N,T):
-
-    point = random.randint(0, P - 2)
-
-    if point != P-2:
-
-        pass
-    else:
-        # 分割父代个体
-        p1_left = {k: v for k, v in parent1.items() if k[0] <= point}
-        p1_right = {k: v for k, v in parent1.items() if k[0] > point}
-
-        p2_left = {k: v for k, v in parent2.items() if k[0] <= point}
-        p2_right = {k: v for k, v in parent2.items() if k[0] > point}
-
-
-
-
-
-
-    child1 = crossover_wenti(p1_left, p2_right, point, N, T)
-    child2 = crossover_wenti(p2_left, p1_right, point, N, T)
-    # 这里，我们开始进行处理冲突点
-   # return crossover_wenti(child1), crossover_wenti(child2)
-
-    return child1, child2
 # 变异操作
 def mutate(individual,fixed_right_neighbor):
     individual_copy = individual.copy()  # 创建副本
@@ -360,38 +254,9 @@ def genetic_algorithm():
     # left_port 是所有个体随机生成的限制，可以认为，每个个体必须要满足同样的核心结构，就类似，每个个体可以长相不一样，基本上都要相同数量的骨头
     nodes = distinct_initial.distinct_initial(P, N, T, setuptime, regions_to_color)
 
-    left_port = {
-        (x, y, z): -1
-        for x in range(P)
-        for y in range(N)
-        for z in range(T)
-    }
 
-    for x in range(P):
-        for y in range(N):
-            for z in range(T):
-                curr_node = (x, y, z)
 
-                # 若状态为 0，表示链路已手动设定，直接记录
-                if nodes[curr_node].state == 0:
-                    neighbor = nodes[curr_node].rightneighbor
-
-                    left_port[neighbor] = 1
-
-                    # 标记设链路期间所占用的时间
-                    for dt in range(1, setuptime + 1):
-                        if neighbor[2] - dt >= 0:
-                            left_port[(neighbor[0], neighbor[1], neighbor[2] - dt)] = 1
-                        if z + dt < T:
-                            left_port[(x, y, z + dt)] = 1
-
-                if nodes[curr_node].state != -1:
-                    neighbor = nodes[curr_node].rightneighbor
-
-                    left_port[neighbor] = 1
-
-    population = initialize_population(P,N,T,nodes,left_port,setuptime)
-
+    population =initialize_population(P,N,T,nodes,setuptime)
     best_solution = None
     best_fitness = float('inf')
     fitness_history = []
@@ -419,7 +284,7 @@ def genetic_algorithm():
                 parent2_id = crossarrary[i + 1]
                 parent1 = population[parent1_id]
                 parent2 = population[parent2_id % len(population)]
-                child1, child2 = crossover(parent1, parent2,N,T)
+                child1, child2 = cross.crossover(parent1, parent2,P,N,T,setuptime)
 
         ## 变异, 我们针对的是父代变异
         mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
