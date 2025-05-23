@@ -48,11 +48,12 @@ base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
 individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
 individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+#
 
 
+child1, child2 = cross.crossover(individual2, individual1, P, N, T, setuptime)
 
-child1, child2 = cross.crossover(individual1, individual2, P, N, T, setuptime)
-
+# writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
 
 print(1)
 
