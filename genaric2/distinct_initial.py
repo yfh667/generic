@@ -62,7 +62,8 @@ def initialize_establish(N,T,nodes,start_node_id, end_node_id,start_time,setupti
     if hotflag:
         nodes[(x_start, y_start, start_time)].asc_nodes_flag = 1
     nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
-    nodes[(x_end, y_end, start_time)].leftneighbor = (x_start, y_end, start_time)
+
+    nodes[(x_end, y_end, start_time)].leftneighbor = (x_start, y_start, start_time)
 
 
 

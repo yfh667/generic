@@ -3,6 +3,8 @@ import random
 import genaric2.distinct_initial as distinct_initial
 	# 交叉操作
 # 这里，我们要注意，可能
+
+
 def crossover_wenti(p1_left, p2_right, point, N, T,setuptime):
     """
     处理交叉后可能出现的重复连接问题
@@ -47,6 +49,15 @@ def crossover_wenti(p1_left, p2_right, point, N, T,setuptime):
         leftnode = p2_right[afect_region[i]].leftneighbor
         if leftnode:
             if leftnode[0]==point+1:
+                #首先，原来p2right 内部配对的的区域，就是指被链接一方，需要抹除所有与链接以防的行为
+                #下面表明，当它的邻居处于开始建链时，那么就说明，被链接一方也要抹除自己的所有行为
+                if  modified_p2_right[leftnode].state ==0:
+                    t = leftnode[2]
+                    x=afect_region[i][0]
+                    y=afect_region[i][1]
+                    for timesump in range(setuptime+1):
+                        modified_p2_right[x,y,t+timesump].leftneighbor=None
+                #其次，p2right作为链接一方，也要抹除所有与链接的行为，这里是不用循环的，原因在于大循环会自动找到所有连接方行为的。
                 modified_p2_right[leftnode].rightneighbor = None
                 modified_p2_right[leftnode].state = -1
 
