@@ -172,13 +172,10 @@ def crossover_wenti2(p1_left, p2_right, point, N, T, setuptime):
 
 
     for i in range(N):
-        if i==8:
-            print(1)
+
         for j in range(T):
-            if j==10:
-                print(1)
-            if (point+1,i,j)==(1,8,10):
-                print(1)
+
+
             rightneighbor = merged_dict[(point+1,i,j)].rightneighbor
             if not rightneighbor:
                 continue
