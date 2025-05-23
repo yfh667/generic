@@ -45,9 +45,24 @@ T = target_time_step
 setuptime=2
 base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
-individual1 = initialize_individual.initialize_individual(P,N,T,base,setuptime)
 
-individual2 = initialize_individual.initialize_individual(P,N,T,base,setuptime)
+individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
+individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
 
-writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\1\\individual1.xml")
-writetoxml.nodes_to_xml(individual2, "E:\\code\\data\\1\\individual2.xml")
+
+
+child1, child2 = cross.crossover(individual1, individual2, P, N, T, setuptime)
+
+
+print(1)
+
+connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)
+vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
+vis.show()
+
+# 3D 拓扑图可视化
+main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
+main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
+connections_list = action_table.action_map2connecttion_list(individual1, P, N, T)
+main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
+main_plotter.show(viewup="z", title="Interactive 3D Topology")

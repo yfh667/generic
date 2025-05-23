@@ -1,5 +1,5 @@
 # 从XML读取节点数据
-import main.snapshotf_romxml as snapshotf_romxml
+import draw.snapshotf_romxml as snapshotf_romxml
 import graph.drawall as drawall
 
 import graph.time_2d2 as time_2d
@@ -40,10 +40,10 @@ for i in range(len(region_satellite_groups)):
         regions_to_color[i] = o  # Corrected append to dictionary assignment
 
 
-individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
 print(1)
 
 
+individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
 connection_list=action_table.action_map2_shanpshots(individual1, P, N, T)
 vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
 vis.show()
@@ -53,3 +53,6 @@ connections_list=action_table.action_map2connecttion_list(individual1, P, N, T)
 main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
 
 main_plotter.show(viewup="z", title="Interactive 3D Topology")
+
+
+

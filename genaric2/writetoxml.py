@@ -26,6 +26,7 @@ def nodes_to_xml(nodes_data, filename):
         # 添加节点属性
         node_elem.set("asc_nodes_flag", str(node.asc_nodes_flag))
         node_elem.set("rightneighbor", str(node.rightneighbor))
+        node_elem.set("leftneighbor", str(node.leftneighbor))
         node_elem.set("state", str(node.state))
 
     # 生成XML字符串
@@ -83,7 +84,10 @@ def xml_to_nodes(filename):
                 asc_nodes_flag=bool(node_elem.get('asc_nodes_flag') == 'True'),
                 rightneighbor=eval(node_elem.get('rightneighbor')) if node_elem.get(
                     'rightneighbor') != 'None' else None,
-                leftneighbor=None,  # 原始保存时没有这个属性
+                leftneighbor=eval(node_elem.get('leftneighbor')) if node_elem.get(
+                    'leftneighbor') != 'None' else None,
+
+              #  leftneighbor=None,  # 原始保存时没有这个属性
                 state=int(node_elem.get('state', -1))
             )
 

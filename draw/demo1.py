@@ -1,5 +1,5 @@
 import os
-import main.snapshotf_romxml as snapshotf_romxml
+import draw.snapshotf_romxml as snapshotf_romxml
 
 import random
 import math

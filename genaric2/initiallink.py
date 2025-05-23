@@ -262,7 +262,19 @@ def initialize_snap_seq_nodes(
 def no_left(nodes,candidate_node,setuptime):
     flag = 1
     for i in range(setuptime + 1):
-        if nodes[candidate_node[0], candidate_node[1], candidate_node[2] - i].leftneighbor:
+        if nodes[(candidate_node[0], candidate_node[1], candidate_node[2] - i)].leftneighbor:
+            flag = 0
+            break
+    return flag
+
+
+def can_begin(nodes,T,startnodes,setuptime):
+    flag = 1
+    for i in range(setuptime + 1):
+        if startnodes[2] + i>=T:
+            flag = 0
+            break
+        if nodes[(startnodes[0], startnodes[1], startnodes[2] + i)].state != -1:
             flag = 0
             break
     return flag
@@ -303,6 +315,8 @@ def initialize_snap_random_nodes(
 
             if nodes[curr_node].asc_nodes_flag == 1:
                 continue
+            if not  can_begin(nodes,T,curr_node,setuptime):
+                continue
             # 搜索候选右邻居
             candidates = []
             next_col = col + 1
@@ -321,13 +335,6 @@ def initialize_snap_random_nodes(
             available = []
             for k in range(len(candidates)):
                 candidate_node = candidates[k]
-                # flag=1
-                # for i in range(setuptime+1):
-                #     if nodes[candidate_node[0],candidate_node[1],candidate_node[2]-i].leftneighbor:
-                #         flag=0
-                #         break
-
-
 
                 if no_left(nodes,candidate_node,setuptime):
                     available.append(candidates[k])

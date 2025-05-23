@@ -26,17 +26,23 @@ def crossover_wenti(p1_left, p2_right, point, N, T,setuptime):
 
     modified_p2_right = {k: v for k, v in p2_right.items()}
 
-    afect_region =[]
+    afect_region = set()
+
     p1_xianxin =[]
     for k, v in p1_left.items():
         if k[0] == point :
             if v.rightneighbor:#
                     if v.rightneighbor[0]==point+2:# 终点在point+2层
-                        afect_region.append(v.rightneighbor)
+                        afect_region.add(v.rightneighbor)
+
                         p1_xianxin.append(k)
+                        if v.rightneighbor == (2,4,21):
+                            print(1)
 
 # 接下来，affection region 内的点只能由p1进行控制也就是p2_right的第point+1层要取消所有对point+2的动作
     #包括，建链动作，建链准备动作，工作动作，不可建链动作。也就是把上述所有行为都转为自由状态
+    afect_region = list(afect_region)
+
     for i in range(len(afect_region)):
         leftnode = p2_right[afect_region[i]].leftneighbor
         if leftnode:
@@ -66,7 +72,8 @@ def crossover_wenti(p1_left, p2_right, point, N, T,setuptime):
 import copy
 def crossover(parent1, parent2,P,N,T,setuptime):
 
-    point = random.randint(0, P - 2)
+   # point = random.randint(0, P - 2)
+    point=0
     parent1_copy = copy.deepcopy(parent1)
     parent2_copy = copy.deepcopy(parent2)
 

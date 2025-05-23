@@ -1,6 +1,6 @@
 from networkx.classes import neighbors
 
-import main.snapshotf_romxml as snapshotf_romxml
+import draw.snapshotf_romxml as snapshotf_romxml
 
 import genaric2.initiallink as initiallink
 import genaric.chrom2adjact as c2a
@@ -9,7 +9,7 @@ import genaric.plotgraph as plotgraph
 
 import ga.graphalgorithm.adjact2weight as a2w
 import os
-import main.snapshotf_romxml as snapshotf_romxml
+import draw.snapshotf_romxml as snapshotf_romxml
 import graph.drawall as drawall
 import genaric2.tegnode as tegnode
 

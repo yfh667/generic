@@ -4,7 +4,7 @@ import genaric.plotgraph as plotgraph
 import satnode.relative_position as relpos
 import ga.graphalgorithm.adjact2weight as a2w
 import os
-import main.snapshotf_romxml as snapshotf_romxml
+import draw.snapshotf_romxml as snapshotf_romxml
 
 import random
 import math
