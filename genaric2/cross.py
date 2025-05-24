@@ -206,7 +206,7 @@ import copy
 def crossover(parent1, parent2,P,N,T,setuptime):
 
    # point = random.randint(0, P - 2)
-    point=3
+    point=1
     parent1_copy = copy.deepcopy(parent1)
     parent2_copy = copy.deepcopy(parent2)
 
