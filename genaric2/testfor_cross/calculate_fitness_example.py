@@ -3,19 +3,17 @@ import genaric2.writetoxml as writetoxml
 import genaric.plotgraph as plotgraph
 import ga.graphalgorithm.adjact2weight as a2w
 import draw.snapshotf_romxml as snapshotf_romxml
-
+import utilis.adjacency as adjacency
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
-import genaric2.cross as cross
+
 import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
+import score.BFS.BFS as BFS
 inter_link_bandwidth = 50
 intra_link_bandwidth = 100
 cost =1
 demand= 30
-import sys
 
-
-import genaric2.testfor_cross.bfs_fitness as bfs_fitness
 
 def test_plot(adjacency_list,distinct,cost):
     edge = a2w.adjacent2edge(adjacency_list , N, inter_link_bandwidth, intra_link_bandwidth, cost)
@@ -53,7 +51,7 @@ def test_plot(adjacency_list,distinct,cost):
                       f"Fixed Cost={detail['cost']}, Flow={detail['flow']}, Capacity={detail['capacity']}")
     # plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list[i], N, P,distinct)
 
-    plotgraph.plot_graph_with_auto_curve_distinct(adjacency_list[i], N, P, distinct)
+    plotgraph.plot_graph_with_auto_curve_distinct(adjacency_list, N, P, distinct)
 
 
 def decode_chromosome(P, N, T,chromosome):
@@ -63,6 +61,35 @@ def decode_chromosome(P, N, T,chromosome):
 
     return adjacency_list
 
+
+def cauculate_one_snap_fitness(adjacency_list, N, inter_link_bandwidth, intra_link_bandwidth, cost,distinct):
+    edge = a2w.adjacent2edge(adjacency_list, N, inter_link_bandwidth, intra_link_bandwidth, cost)
+
+  #  distinct = regions_to_color[i]
+   # path = BFS.shortest_path(adjacency_list, start, end)
+    complet_adjacency_list  = adjacency.complete_undirected_graph(adjacency_list)
+    SOURCES = {}
+    for i in range(len(distinct[0])):
+        SOURCES[distinct[0][i]] = demand
+
+    # SOURCES = {17: 150, 18: 150, 24: 150, 25: 150}
+    SINKS = distinct[1]
+    # 使用新函数求解
+    multi_result = ssp_multi.solve_multi_source_sink_with_super_nodes(
+        edges_data=edge,
+        sources=SOURCES,
+        sinks=SINKS
+    )
+
+    if multi_result == 0:
+        onecost=-1
+        print("No solution found")
+    else:
+        # 输出结果（与原有格式兼容）
+        onecost = multi_result['total_cost']
+    test_plot(adjacency_list, distinct, cost)
+
+    return onecost
 
 
 
@@ -77,15 +104,38 @@ def fitness_function(P,N,T,population):
     for adjacency_list in decoded_values:
         indictor=0
         for i in range(3,T-2):
+            # edge = a2w.adjacent2edge(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost)
+            #
+            # distinct = regions_to_color[i]
+            #
+            # SOURCES = {}
+            # for i in range(len(distinct[0])):
+            #     SOURCES[distinct[0][i]] = demand
+            #
+            # # SOURCES = {17: 150, 18: 150, 24: 150, 25: 150}
+            # SINKS = distinct[1]
+            # # 使用新函数求解
+            # multi_result = ssp_multi.solve_multi_source_sink_with_super_nodes(
+            #     edges_data=edge,
+            #     sources=SOURCES,
+            #     sinks=SINKS
+            # )
+            #
+            #
+            # if multi_result == 0:
+            #     print("No solution found")
+            # else:
+            #     # 输出结果（与原有格式兼容）
+            #     onecost = multi_result['total_cost']
+            #     indictor += onecost
 
-            onecost = bfs_fitness.cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost,
-                                                 regions_to_color[i])
-            if onecost == -1:
-                print("No solution found")
-                sys.exit()  # Terminate the program
+           onecost= cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost, regions_to_color[i])
+           if onecost == -1:
+               print("No solution found")
+           else:
+               indictor=indictor+onecost
 
-            else:
-                indictor = indictor + onecost
+
 
         indictors.append(indictor)
     #  print(indictor)
@@ -123,27 +173,5 @@ setuptime=2
 base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
 individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
-individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
-#
-
-
-
-
-child1, child2 = cross.crossover(individual1, individual2, P, N, T, setuptime)
-
-population = [individual1,individual2,child1,child2]
-fitness = fitness_function(P, N, T, population)
-print(fitness)
-
-connection_list=action_table.action_map2_shanpshots(individual1, P, N, T)
-# vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
-# vis.show()
-# main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
-# main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
-# connections_list=action_table.action_map2connecttion_list(individual1, P, N, T)
-# main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
-#
-# main_plotter.show(viewup="z", title="Interactive 3D Topology")
-#
-# for coord, node in individual1.items():
-#     print(coord, node)
+fitness = fitness_function(P, N, T, [individual1])
+print("1")

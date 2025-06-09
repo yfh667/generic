@@ -105,7 +105,6 @@ adjacency_list = {2: {1, 3, 12},
              95: {94, 96},
              96: {95, 97},
              97: {96, 98}}
-
 N=10
 P=10
 
@@ -120,10 +119,10 @@ edge =a2w.adjacent2edge(full_adjacency_list,N,inter_link_bandwidth,intra_link_ba
 
 
 
-distinct =[[2, 12, 88, 98], [58]]
+distinct = [[2, 12, 88, 98], [58]]
 
 
-SOURCES = {2: 30, 12: 30, 88: 30, 98: 30}
+SOURCES =  {2: 150, 12: 150, 88: 150, 98: 150}
 SINKS = distinct[1]
 
 plotgraph.plot_graph_with_auto_curve_distinct(full_adjacency_list, N, P,distinct)
