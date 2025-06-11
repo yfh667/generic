@@ -41,7 +41,7 @@ def main(individual_file):
     main_plotter.show(viewup="z", title="Interactive 3D Topology")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Visualize satellite topology and regions.")
+    parser = argparse.ArgumentParser(description="Visualize satellite topology_prof and regions.")
     parser.add_argument("--input", type=str, required=True, help="Path to individual1.xml")
     args = parser.parse_args()
     main(args.input)

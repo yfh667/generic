@@ -6,7 +6,7 @@ import genaric.plotgraph as plotgraph
 distinct = [[17,18,24,25],[31,32,38,39]]
 
 
-# 1first we need arrage the simplest topology for the intra-distinct
+# 1first we need arrage the simplest topology_prof for the intra-distinct
 #it is simple ,we just use the adjcnct link for every node in the distinct.
 
 N = 7

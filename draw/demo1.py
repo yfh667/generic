@@ -45,7 +45,7 @@ distinct.append(integer_satellite_groups_1)
 # 定义目标函数
 
 # 参数设置
-#topology
+#topology_prof
 N = 36
 P=18
 

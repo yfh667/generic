@@ -44,7 +44,7 @@ import networkx as nx
 import graph.time_2d as time_2d
 #
 # class DynamicGraphVisualizer:
-#     """Interactive time-series visualisation for satellite topology graphs."""
+#     """Interactive time-series visualisation for satellite topology_prof graphs."""
 #
 #     _DISTINCT_COLOURS = [
 #         "lightcoral",

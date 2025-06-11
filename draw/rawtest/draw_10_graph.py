@@ -47,7 +47,7 @@ for i in range(len(region_satellite_groups)):
 #     o = [u,v]
 #     regions_to_color[i] = o  # Corrected append to dictionary assignment
 
-# 1. Create the basic multi-layer topology
+# 1. Create the basic multi-layer topology_prof
 # plot_multi_layer_topology returns the plotter object, original point objects, and all coordinates
 main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P_val, N_val, target_time_step)
 

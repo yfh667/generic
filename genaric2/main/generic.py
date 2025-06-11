@@ -33,7 +33,7 @@ import genaric2.action_table as action_table
 import genaric2.cross as cross
 import genaric2.testfor_cross.bfs_fitness as bfs_fitness
 # 参数设置
-#topology
+#topology_prof
 
 
 

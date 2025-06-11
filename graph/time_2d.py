@@ -44,7 +44,7 @@ import networkx as nx
 
 
 class DynamicGraphVisualizer:
-    """Interactive time-series visualisation for satellite topology graphs."""
+    """Interactive time-series visualisation for satellite topology_prof graphs."""
 
     _DISTINCT_COLOURS = [
         "lightcoral",

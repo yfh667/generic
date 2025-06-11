@@ -20,7 +20,7 @@ import genaric.plotgraph as plotgraph
 # 定义目标函数
 
 # 参数设置
-#topology
+#topology_prof
 N = 7
 P=9
 distinct = [[17,18,24,25],[36,37,43]]

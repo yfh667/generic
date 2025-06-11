@@ -16,7 +16,7 @@ import genaric.plotgraph as plotgraph
 # 定义目标函数
 
 # 参数设置
-#topology
+#topology_prof
 N=10
 P=10
 

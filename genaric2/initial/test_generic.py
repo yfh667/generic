@@ -2,13 +2,11 @@ import random
 import math
 import matplotlib.pyplot as plt
 import random
-import genaric2.adj2adjacylist as adj2adjaclist
-
 import numpy as np
 from networkx.classes import neighbors
 import genaric.chrom2adjact as c2a
 import ga.graphalgorithm.fcnfp_multi as fcnfp_multi
-import genaric2.writetoxml as writetoxml
+
 import genaric2.initialize_individual as initialize_individual
 import draw.snapshotf_romxml as snapshotf_romxml
 import copy
@@ -16,7 +14,6 @@ import copy
 import genaric2.initiallink as initiallink
 import genaric.chrom2adjact as c2a
 
-import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
 import genaric.plotgraph as plotgraph
 
 import ga.graphalgorithm.adjact2weight as a2w
@@ -32,7 +29,7 @@ import genaric2.action_table as action_table
 # 定义目标函数
 import genaric2.cross as cross
 # 参数设置
-#topology
+#topology_prof
 N = 7
 P=9
 distinct = [[17,18,24,25],[36,37,43]]
@@ -45,40 +42,37 @@ intra_link_bandwidth = 100
 
 cost =1
 population_size = 50  # 种群大小
-generations = 100  # 最大迭代代数
+generations = 5  # 最大迭代代数
 mutation_rate = 0.2  # 变异概率
 crossover_rate = 0.25  # 交叉概率
 chromosome_length = N*(P-1)  # 二进制染色体长度（22位）
-N = 10
-P = 10
-start_ts = 1500
-end_ts = 1523
 
-dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
-
-regions_to_color = {}
-# Iterate over the time steps
-region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
-target_time_step = len(region_satellite_groups)
-T = target_time_step
-for i in range(len(region_satellite_groups)):
-    region_satellite_group = [[int(point) for point in region] for region in region_satellite_groups[i]]
-    u = region_satellite_group[0]
-    v = region_satellite_group[3]
-    o = [u, v]
-    regions_to_color[i] = o  # Corrected append to dictionary assignment
 
 
 # 将二进制染色体转换为十进制数值
-def decode_chromosome(P, N, T,chromosome):
-    connection_list = action_table.action_map2_shanpshots(chromosome, P, N, T)
-    adjacency_list = adj2adjaclist.adj2adjaclist(connection_list, N, P, T)
-
-
+def decode_chromosome(chromosome):
+    base_adjacency_list = c2a.base_chrom2adjacent(chromosome, N, P)
+    adjacency_list = c2a.full_adjacency_list(base_adjacency_list, N, P)
     return adjacency_list
 
 
 
+def get_fixed_right_neighbor(N,distinct):
+    fixed_right_neighbor = []
+    for dist in distinct:  # 假设 distinct 是一个包含多个节点集合的列表
+        for node in dist:
+            i_node = node // N  # 计算行号
+            j_node = node % N  # 计算列号
+
+            # 检查右邻居是否存在（i_node < N-1 表示不在最右列）
+            if i_node < N - 1:
+                right_neighbor = (i_node + 1) * N + j_node
+
+                # 如果右邻居也在当前集合 dist 中，则建立连接
+                if right_neighbor in dist:
+                    # 初始化 node 的邻接集合（如果不存在）
+                    fixed_right_neighbor.append(node)
+    return fixed_right_neighbor
 
 
 
@@ -97,39 +91,37 @@ def initialize_population(P,N,T,nodes,setuptime):
 
 
 # 计算种群适应度
-def fitness_function(P,N,T,population):
+def fitness_function(population):
     indictors = []
-    decoded_values = [decode_chromosome(P,N,T,ind) for ind in population]
+    decoded_values = [decode_chromosome(ind) for ind in population]
     for adjacency_list in decoded_values:
-        indictor=0
-        for i in range(2,T-2):
-            edge = a2w.adjacent2edge(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost)
 
-            distinct = regions_to_color[i]
-
-            SOURCES = {}
-            for i in range(len(distinct[0])):
-                SOURCES[distinct[0][i]] = 150
-            # SOURCES = {17: 150, 18: 150, 24: 150, 25: 150}
-            SINKS = distinct[1]
-            # 使用新函数求解
-            multi_result = ssp_multi.solve_multi_source_sink_with_super_nodes(
-                edges_data=edge,
-                sources=SOURCES,
-                sinks=SINKS
-            )
+        full_adjacency_list = c2a.full_adjacency_list(adjacency_list, N, P)
 
 
-            if multi_result == 0:
-                print("No solution found")
-            else:
-                # 输出结果（与原有格式兼容）
-                onecost = multi_result['total_cost']
-                indictor += onecost
+        edge = a2w.adjacent2edge(full_adjacency_list, N, inter_link_bandwidth, intra_link_bandwidth, cost)
+
+
+
+
+        # 使用新函数求解
+        multi_result = fcnfp_multi.solve_multi_source_sink_with_super_nodes(
+            edges_data=edge,
+            sources=SOURCES,
+            sinks=SINKS
+        )
+        indictor = multi_result['total_fixed_cost']
+
+
+
+
+
+
 
         indictors.append(indictor)
     #  print(indictor)
 
+    # Rastrigin函数（多峰函数，常用于测试优化算法）
 
     return indictors
 
@@ -173,8 +165,10 @@ def filter_and_replenish(population, fitness):
 
 # 选择操作（轮盘赌选择）
 def selection(population):
-    fitness = fitness_function(P,N,T,population)
-
+    fitness = fitness_function(population)
+ #   valid_pop = filter_and_replenish(population, fitness)
+  #  fitness = fitness_function(valid_pop)
+   # here we need delete some dead individual
 
     total_fitness = sum(fitness)
 
@@ -221,6 +215,9 @@ def mutate(individual,fixed_right_neighbor):
             if   individual_copy[nodeid] ==individual_copy[random_index]:
                  individual_copy[nodeid] =-1
 
+  #  tmp = individual_copy[random_numbers[0]]
+  #  individual_copy[random_numbers[0]] = individual_copy[random_numbers[1]]
+   # individual_copy[random_numbers[1]] = tmp
 
 
     return individual_copy
@@ -229,7 +226,24 @@ def mutate(individual,fixed_right_neighbor):
 # 遗传算法主流程
 def genetic_algorithm():
     ##1.我们先获得原始的卫星分布数据，主要是热点区域的拓扑序列数据
+    N = 10
+    P = 10
+    start_ts = 1500
+    end_ts = 1523
 
+    dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
+
+    regions_to_color = {}
+    # Iterate over the time steps
+    region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
+    target_time_step = len(region_satellite_groups)
+    T = target_time_step
+    for i in range(len(region_satellite_groups)):
+        region_satellite_group = [[int(point) for point in region] for region in region_satellite_groups[i]]
+        u = region_satellite_group[0]
+        v = region_satellite_group[3]
+        o = [u, v]
+        regions_to_color[i] = o  # Corrected append to dictionary assignment
 
     ##2. 完成对热点区域预建链安排
 
@@ -246,7 +260,7 @@ def genetic_algorithm():
     best_solution = None
     best_fitness = float('inf')
     fitness_history = []
-
+    fixed_right_neighbor = get_fixed_right_neighbor(N,distinct)
 
 
     for generation in range(generations):
@@ -273,43 +287,41 @@ def genetic_algorithm():
                 child1, child2 = cross.crossover(parent1, parent2,P,N,T,setuptime)
 
         ## 变异, 我们针对的是父代变异
-        # mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
-        # mutate_arrary = []
-        # for i in range(len(mutate_random_array)):
-        #     if (mutate_random_array[i] < mutation_rate):
-        #         mutate_arrary.append(i)
-        #
-        # # here we need mutate the raw population
-        # mutate_population = []
-        # for i in range(len(mutate_arrary)):
-        #     individual = population[mutate_arrary[i]]
-        #     mutate_individual = mutate(individual,distinct)
-        #
-        #     mutate_population.append(mutate_individual)
+        mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
+        mutate_arrary = []
+        for i in range(len(mutate_random_array)):
+            if (mutate_random_array[i] < mutation_rate):
+                mutate_arrary.append(i)
 
-        population = population + next_population
+        # here we need mutate the raw population
+        mutate_population = []
+        for i in range(len(mutate_arrary)):
+            individual = population[mutate_arrary[i]]
+            mutate_individual = mutate(individual,distinct)
+
+            mutate_population.append(mutate_individual)
+
+        population = population + next_population + mutate_population
 
         population = selection(population)
 
-        fitness = fitness_function(P,N,T,population)
+        fitness = fitness_function(population)
 
         best_idx = fitness.index(min(fitness))
         if fitness[best_idx] < best_fitness:
             best_fitness = fitness[best_idx]
-            best_solution = population[best_idx]
-         #   best_solution = decode_chromosome(P,N,T,population[best_idx])
+            best_solution = decode_chromosome(population[best_idx])
 
         fitness_history.append(best_fitness)
 
-        print(f"Generation {generation}: Best Fitness = {best_fitness:.4f},")
+        print(f"Generation {generation}: Best Fitness = {best_fitness:.4f}, Best Solution = {best_solution},")
 
     return best_solution, best_fitness, fitness_history
 
 
 # 执行遗传算法
 best_x, best_y, fitness_history = genetic_algorithm()
-writetoxml.nodes_to_xml(best_x, "E:\\code\\data\\1\\best.xml")
-print(f"Optimal solution: x = {best_x}")
+print(f"Optimal solution: x = {best_x}, f(x) = { best_y}")
 
 # 绘制适应度历史曲线
 reciprocal_history = [1.0 / fitness for fitness in fitness_history]
