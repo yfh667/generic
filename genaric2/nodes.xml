@@ -1,0 +1,5 @@
+<?xml version="1.0" ?>
+<Nodes>
+  <Node cordination="1,0,1" asc_nodes_flag="False" rightneighbor="(2, 0, 1)" leftneighbor="None" state="0"/>
+  <Node cordination="2,0,1" asc_nodes_flag="False" rightneighbor="None" leftneighbor="(1, 0, 1)" state="-1"/>
+</Nodes>
