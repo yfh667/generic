@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "pythonPath": "C:\\Users\\yfh\\anaconda3\\envs\\test\\python.exe",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

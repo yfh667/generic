@@ -1,11 +1,15 @@
 
 
+import sys
+sys.path.append('e:\\code\\graph_ga')
 import genaric2.writetoxml as writetoxml
+
 import draw.snapshotf_romxml as snapshotf_romxml
 import graph.time_2d2 as time_2d
 import genaric2.action_table as action_table
 import graph.drawall as drawall
 import genaric2.mutation.mutate1 as mutate1
+
 
 if __name__ == '__main__':
     N = 10

@@ -6,7 +6,7 @@ import graph.time_2d2 as time_2d
 import genaric2.action_table as action_table
 import graph.drawall as drawall
 import genaric2.mutation.mutate2 as mutate
-
+import genaric2.TopoSeqValidator as TopoSeqValidator
 if __name__ == '__main__':
     N = 10
     P=10
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     start_ts = 1500
     end_ts = 1523
     dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
-
+    setuptime=2
     # 提取区域信息
     regions_to_color = {}
     region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
@@ -26,7 +26,7 @@ if __name__ == '__main__':
         v = region_satellite_group[3]
         o = [u, v]
         regions_to_color[i] = o
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
@@ -34,6 +34,8 @@ if __name__ == '__main__':
     mutate.maintenance_mutate((0, 1, 2), individual1, P, N, T)
     ##------------------------------##
 
+    flag1,connection1_test,connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
+    writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\1\\individual2_mutate2.xml")
 
     connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)
     # print("uptime", uptime)

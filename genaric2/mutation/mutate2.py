@@ -25,18 +25,28 @@ def find_next_setup_time(coordinate,chromosome ,P, N, T):
     x = coordinate[0]
     y = coordinate[1]
     t = coordinate[2]
-    start_time = 0
+    start_time = t
 
+
+    flag=2
+    flag2=1
     # Loop through time steps to find the next establishment
-    while t + 1 < T :
+    while t + 1 < T and flag :
         t += 1
         if chromosome[(x, y, t)].state == 0:  # Node is setting up the link
-            break
+            if flag2:
+                start_time = t
+                flag2 = 0
+            flag=flag-1
+
+
         elif chromosome[(x, y, t)].state == 2:
             continue
-        elif chromosome[(x, y, t)].state == -1:
-            start_time = t
-            continue
+        elif chromosome[(x, y, t)].state != 1 and chromosome[(x, y, t)].state != 2 :
+            if flag2:
+                start_time = t
+                flag2 = 0
+
 
     # The time when the node starts setting up the link
 
