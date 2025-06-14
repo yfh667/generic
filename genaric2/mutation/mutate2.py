@@ -1,5 +1,6 @@
+import genaric2.mutation.basic_mutate_func as basic_mutate_func
 
-def maintenance_mutate(coordinate,chromosome,P, N, T):
+def maintenance_mutate(coordinate,chromosome,P, N, T,setuptime):
     x = coordinate[0]
     y = coordinate[1]
     t = coordinate[2]
@@ -9,8 +10,35 @@ def maintenance_mutate(coordinate,chromosome,P, N, T):
     start,end= find_next_setup_time(coordinate, chromosome, P, N, T)
 
     for i in range(start,end+1):
+
+        if chromosome[(x, y, i)].state==0:
+            # this is to delet the raw rightneighbor's left neighbor
+            right_neighbor = chromosome[x, y, i].rightneighbor
+            x2,y2,t2=right_neighbor
+            for j in range(i,i+setuptime):
+               chromosome[x2, y2, j].leftneighbor=None
+
+
+        elif chromosome[(x, y, i)].state==2:
+            right_neighbor = chromosome[x, y, i].rightneighbor
+            basic_mutate_func.clear_leftneighbor(right_neighbor, chromosome)
+
+
+
+
+        # then we need modify the objetct node
+        objetct_node = (now_right_neighbor[0], now_right_neighbor[1], i)
+
+        objetct_node_leftneighbor = chromosome[objetct_node].leftneighbor
+
+        if objetct_node_leftneighbor:
+            basic_mutate_func.clear_state(objetct_node_leftneighbor, chromosome, P, N, T, setuptime)
+
+
         chromosome[(x, y, i)].state = 2
+
         chromosome[(x, y, i)].rightneighbor = (now_right_neighbor[0], now_right_neighbor[1], i)
+
         chromosome[(now_right_neighbor[0], now_right_neighbor[1], i)].leftneighbor = (x, y, i)
 
 
@@ -28,7 +56,7 @@ def find_next_setup_time(coordinate,chromosome ,P, N, T):
     start_time = t
 
 
-    flag=2
+    flag=1
     flag2=1
     # Loop through time steps to find the next establishment
     while t + 1 < T and flag :

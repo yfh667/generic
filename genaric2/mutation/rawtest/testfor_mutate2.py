@@ -31,7 +31,7 @@ if __name__ == '__main__':
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
     #usage
-    mutate.maintenance_mutate((0, 1, 2), individual1, P, N, T)
+    mutate.maintenance_mutate((1, 0, 3), individual1, P, N, T,setuptime)
     ##------------------------------##
 
     flag1,connection1_test,connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
@@ -40,12 +40,12 @@ if __name__ == '__main__':
     connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)
     # print("uptime", uptime)
     # print("down_time", down_time)
-    vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
+    vis = time_2d.DynamicGraphVisualizer(connection2_test, regions_to_color, N, P)
     vis.show()
 
     # 3D 拓扑图可视化
     main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
     main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
 
-    main_plotter = drawall.add_dashed_connections(main_plotter, connection_list)
+    main_plotter = drawall.add_dashed_connections(main_plotter, connection2_test)
     main_plotter.show(viewup="z", title="Interactive 3D Topology")
