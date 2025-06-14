@@ -1,4 +1,4 @@
-from networkx.classes import neighbors
+
 
 import draw.snapshotf_romxml as snapshotf_romxml
 
@@ -18,7 +18,7 @@ import graph.time_2d2 as time_2d
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 import copy
-import genaric2.structure2nodes as structure2nodes
+
 
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
@@ -168,7 +168,7 @@ writetoxml.nodes_to_xml(nodes, "E:\\code\\data\\1\\nodes.xml")
 
 ## 4.解码，
 # chrom2nodes(P,N,T,setuptime,nodes,individual)
-structure2nodes.structure2nodes(P, N, T, setuptime, nodes, individual)
+
 
 nodes_copy=nodes
 

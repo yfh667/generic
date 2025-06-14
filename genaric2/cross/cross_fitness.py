@@ -15,7 +15,7 @@ demand= 30
 import sys
 
 
-import genaric2.testfor_cross.bfs_fitness as bfs_fitness
+import genaric2.cross.bfs_fitness as bfs_fitness
 
 def test_plot(adjacency_list,distinct,cost):
     edge = a2w.adjacent2edge(adjacency_list , N, inter_link_bandwidth, intra_link_bandwidth, cost)

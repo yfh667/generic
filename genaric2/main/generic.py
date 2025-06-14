@@ -31,7 +31,7 @@ import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 # 定义目标函数
 import genaric2.cross as cross
-import genaric2.testfor_cross.bfs_fitness as bfs_fitness
+import genaric2.cross.bfs_fitness as bfs_fitness
 # 参数设置
 #topology_prof
 
@@ -155,7 +155,13 @@ def selection(population):
 
 # 变异操作
 def mutate(individual,fixed_right_neighbor):
+
+
+
     individual_copy = individual.copy()  # 创建副本
+
+    #here we should do a direct mutation.
+
     #random_index = random.sample(range(len(individual_copy)), 1)
     random_index = random.choice(range(len(individual_copy)))
 
@@ -234,19 +240,21 @@ def genetic_algorithm():
                 child1, child2 = cross.crossover(parent1, parent2,P,N,T,setuptime)
 
         ## 变异, 我们针对的是父代变异
-        # mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
-        # mutate_arrary = []
-        # for i in range(len(mutate_random_array)):
-        #     if (mutate_random_array[i] < mutation_rate):
-        #         mutate_arrary.append(i)
-        #
-        # # here we need mutate the raw population
-        # mutate_population = []
-        # for i in range(len(mutate_arrary)):
-        #     individual = population[mutate_arrary[i]]
-        #     mutate_individual = mutate(individual,distinct)
-        #
-        #     mutate_population.append(mutate_individual)
+        mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
+        mutate_arrary = []
+        for i in range(len(mutate_random_array)):
+            if (mutate_random_array[i] < mutation_rate):
+                mutate_arrary.append(i)
+
+        # here we need mutate the raw population
+        mutate_population = []
+        for i in range(len(mutate_arrary)):
+            individual = population[mutate_arrary[i]]
+
+
+            mutate_individual = mutate(individual,distinct)
+
+            mutate_population.append(mutate_individual)
 
         population = population + next_population
 

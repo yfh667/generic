@@ -8,14 +8,21 @@ import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 import copy
 
-
+import genaric2.TopoSeqValidator as TopoSeqValidator
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
 
 
 
-import genaric2.cross as cross
+import genaric2.cross.cross as cross
 
+import genaric2.writetoxml as writetoxml
+import draw.snapshotf_romxml as snapshotf_romxml
+import graph.time_2d2 as time_2d
+import genaric2.action_table as action_table
+import graph.drawall as drawall
+import genaric2.mutation.mutate3 as mutate
+import genaric2.TopoSeqValidator as TopoSeqValidator
 
 ##1.我们先获得原始的卫星分布数据，主要是热点区域的拓扑序列数据
 N = 10
@@ -51,12 +58,22 @@ individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
 #
 
 
-child1, child2 = cross.crossover(individual2, individual1, P, N, T, setuptime)
+child1, child2 = cross.crossover(individual1,individual2, P, N, T, setuptime,1)
+
+
+
+flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T,setuptime)
+
+writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
+
+writetoxml.nodes_to_xml(child2, "E:\\code\\data\\1\\child2.xml")
 
 # writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
 
-print(1)
 
+
+
+# 2D 动态图可视化
 connection_list = action_table.action_map2_shanpshots(child1, P, N, T)
 vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
 vis.show()
@@ -64,6 +81,6 @@ vis.show()
 # 3D 拓扑图可视化
 main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
 main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
-connections_list = action_table.action_map2connecttion_list(child1, P, N, T)
+connections_list = action_table.action_map2connecttion_list(individual1, P, N, T)
 main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
 main_plotter.show(viewup="z", title="Interactive 3D Topology")

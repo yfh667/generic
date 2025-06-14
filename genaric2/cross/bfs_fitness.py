@@ -41,16 +41,20 @@ def cauculate_one_snap_fitness(adjacency_list, N, inter_link_bandwidth, intra_li
     all_hops = 0
     hops_num =0
     flag=1
+   # hops_seq=[]
     for source in start:
         for destination in end:
             path = BFS.shortest_path(complet_adjacency_list, source, destination)
             if path:
                 hops_len = len(path)-1
                 all_hops += hops_len
+             #   hops_seq.append(hops_len)
                 hops_num+=1
+
             else:
                 # if there is no path, we could just think this hop is 30 hops.
                 all_hops += maxhop
+              #  hops_seq.append(maxhop)
                 hops_num+=1
             #    flag=-1
     if flag==1:
@@ -71,10 +75,11 @@ def fitness_function(P,N,T,population,regions_to_color):
     for ind in population:
         adjacency_list = decode_chromosome(P,N,T,ind)
         decoded_values.append(adjacency_list)
-
+    indictors_seq=[]
    # decoded_values = [decode_chromosome(P,N,T,ind) for ind in population]
     for adjacency_list in decoded_values:
         indictor=0
+        seq = []
         for i in range(3,T-2):
 
 
@@ -83,14 +88,16 @@ def fitness_function(P,N,T,population,regions_to_color):
                print("No solution found")
            else:
                indictor=indictor+onecost
+               seq.append(onecost)
 
 
 
         indictors.append(indictor)
+        indictors_seq.append(seq)
 
 
 
-    return indictors
+    return indictors,indictors_seq
 
 if __name__ == '__main__':
     ##1.我们先获得原始的卫星分布数据，主要是热点区域的拓扑序列数据
@@ -121,6 +128,7 @@ if __name__ == '__main__':
     setuptime=2
     base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\best.xml")
-    fitness = fitness_function(P, N, T, [individual1],regions_to_color)
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+
+    fitness,indictors_seq = fitness_function(P, N, T, [individual1],regions_to_color)
     print("1")
