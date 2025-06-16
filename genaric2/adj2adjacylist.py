@@ -24,8 +24,7 @@ def full_adjacency_list(adjacency_list, P, N):
         x = i // N  # current row
         y = i % N  # current column
 
-        if x == 3 and y == 2:
-            print(1)
+
 
         # up neighbor (same row, next column)
         up_neighbor = x * N + (y + 1) % N

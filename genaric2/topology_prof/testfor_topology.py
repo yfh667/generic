@@ -29,7 +29,7 @@ if __name__ == '__main__':
         regions_to_color[i] = o
 
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent1.xml")
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
@@ -44,12 +44,12 @@ if __name__ == '__main__':
 
     # print("uptime", uptime)
     # print("down_time", down_time)
-    # vis = time_2d.DynamicGraphVisualizer(connection2_test, regions_to_color, N, P)
-    # vis.show()
-    #
-    # # 3D 拓扑图可视化
-    # main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
-    # main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
-    #
-    # main_plotter = drawall.add_dashed_connections(main_plotter, connection2_test)
-    # main_plotter.show(viewup="z", title="Interactive 3D Topology")
+    vis = time_2d.DynamicGraphVisualizer(connection1_test, regions_to_color, N, P)
+    vis.show()
+
+    # 3D 拓扑图可视化
+    main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
+    main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
+
+    main_plotter = drawall.add_dashed_connections(main_plotter, connection1_test)
+    main_plotter.show(viewup="z", title="Interactive 3D Topology")

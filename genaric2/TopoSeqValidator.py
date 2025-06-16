@@ -22,7 +22,12 @@ def SeqTopologyChecker_leftneighbor(nodes: Dict[Tuple[int, int, int], tegnode.te
             for j in range(N):
                 node = nodes[(i, j, t)]
 
+                #
+                # if (i, j, t) == (3,8, 12):
+                #     print(1)
+
                 leftneighbor_id=node.leftneighbor
+
 
 
                 if leftneighbor_id is None:
@@ -55,6 +60,10 @@ def SeqTopologyChecker_leftneighbor(nodes: Dict[Tuple[int, int, int], tegnode.te
                         # . we need check the leftneighbor 's rightneighbor it is the node
                         if leftneighbor_node.rightneighbor != (i, j, t):
                             print(f"leftneighbor's rightneighbor is not the node,{(i, j, t)}")
+                            flag = 0
+                    else:
+                        if leftneighbor_node.rightneighbor==None:
+                            print(f"leftneighbor's rightneighbor is not the node,{(i, j, t)},it should not be none")
                             flag = 0
     return  flag
 
@@ -164,10 +173,11 @@ def TologialSequenceValidator(Sequence, P, N, T,setuptime):
     flag1 = SeqTopologyChecker_nownodes(Sequence, P, N, T,setuptime)
 
     flag2=SeqTopologyChecker_leftneighbor(Sequence, P, N, T,setuptime)
+
     if not  flag1&flag2:
         print("the basic topology is false")
 
-        return -1,-1,-1
+        return 0,-1,-1
 
 
 
@@ -182,12 +192,12 @@ def TologialSequenceValidator(Sequence, P, N, T,setuptime):
         print(f"时间片数量不一致! list1={len(connection_list1)}, list2={len(connection_list2)}")
 
 
-        return -1,-1,-1
+        return 0,-1,-1
 
     # 按时间片比较连接
     all_missing, all_extra = find_connection_differences_per_timestep(connection_list1, connection_list2, T)
 
-    has_differences = False
+    has_differences = 0
 
     # 打印每个时间片的差异
     for t in range(T):
@@ -195,7 +205,7 @@ def TologialSequenceValidator(Sequence, P, N, T,setuptime):
         extra_t = all_extra[t][1]
 
         if missing_t or extra_t:
-            has_differences = True
+            has_differences = 1
             print(f"\n时间片 {t} 的差异:")
 
             if missing_t:
@@ -208,11 +218,13 @@ def TologialSequenceValidator(Sequence, P, N, T,setuptime):
                 for conn in extra_t:
                     print(f"    {conn[0]} -> {conn[1]}")
 
+
+
     # 如果没有差异但之前的比较显示不等，可能是顺序问题
-    if has_differences:
-        print("\n左右邻居生成的拓扑不一致。")
-    else:
-        print("\n拓扑序列正确")
+    # if has_differences:
+    #     print("\n左右邻居生成的拓扑不一致。")
+    # else:
+    #     print("\n拓扑序列正确")
 
     return not has_differences,connection_list1,connection_list2
 

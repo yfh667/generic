@@ -53,20 +53,22 @@ setuptime=2
 base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
 
-individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
-individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent1.xml")
+individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent2.xml")
 #
 
 
-child1, child2 = cross.crossover(individual1,individual2, P, N, T, setuptime,1)
+child1, child2,_ = cross.crossover(individual1,individual2, P, N, T, setuptime,1)
 
 
 
 flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T,setuptime)
 
-writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
 
-writetoxml.nodes_to_xml(child2, "E:\\code\\data\\1\\child2.xml")
+#
+# writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
+#
+# writetoxml.nodes_to_xml(child2, "E:\\code\\data\\1\\child2.xml")
 
 # writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
 

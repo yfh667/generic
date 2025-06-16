@@ -12,7 +12,7 @@ import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
 import draw.snapshotf_romxml as snapshotf_romxml
 import copy
-
+import  genaric2.mutation.mutate as mutate
 import genaric2.initiallink as initiallink
 import genaric.chrom2adjact as c2a
 
@@ -30,8 +30,11 @@ import graph.time_2d2 as time_2d
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 # 定义目标函数
-import genaric2.cross as cross
-import genaric2.cross.bfs_fitness as bfs_fitness
+import genaric2.cross.cross as cross
+# import genaric2.cross.bfs_fitness as bfs_fitness
+import genaric2.fitness.fitness as fitnessfuc
+import genaric2.TopoSeqValidator as TopoSeqValidator
+
 # 参数设置
 #topology_prof
 
@@ -43,8 +46,8 @@ inter_link_bandwidth = 50
 intra_link_bandwidth = 100
 
 cost =1
-population_size = 50  # 种群大小
-generations = 10  # 最大迭代代数
+population_size = 100  # 种群大小
+generations = 100  # 最大迭代代数
 mutation_rate = 0.2  # 变异概率
 crossover_rate = 0.25  # 交叉概率
 
@@ -67,14 +70,6 @@ for i in range(len(region_satellite_groups)):
     o = [u, v]
     regions_to_color[i] = o  # Corrected append to dictionary assignment
 
-
-# 将二进制染色体转换为十进制数值
-def decode_chromosome(P, N, T,chromosome):
-    connection_list = action_table.action_map2_shanpshots(chromosome, P, N, T)
-    adjacency_list = adj2adjaclist.adj2adjaclist(connection_list, N, P, T)
-
-
-    return adjacency_list
 
 
 
@@ -132,17 +127,26 @@ def filter_and_replenish(population, fitness):
     return valid_pop
 
 
-# 选择操作（轮盘赌选择）
-def selection(population):
-    fitness = bfs_fitness.fitness_function(P,N,T,population,regions_to_color)
 
+import sys
+def selection(population, population_size,setuptime):
+    # 原始适应度：值越小越好
+    fitness, _ = fitnessfuc.fitness_function(population, regions_to_color, intra_link_bandwidth, inter_link_bandwidth, cost, P, N, T)
 
-    total_fitness = sum(fitness)
+    # 防止 fitness 值全为 0 或过小导致除法出错，做一次反向变换（越小越好 → 越大越好）
+    max_fit = max(fitness)
+    min_fit = min(fitness)
 
+    # 转换为“越大越好”的得分值（+1是防止除0）
+    fitness_scores = [max_fit - f + 1e-6 for f in fitness]
 
-    probabilities = [f / total_fitness for f in fitness]
+    total_score = sum(fitness_scores)
+    probabilities = [score / total_score for score in fitness_scores]
+
+    # 构建累积概率
     cumulative_probabilities = [sum(probabilities[:i + 1]) for i in range(len(probabilities))]
 
+    # 轮盘赌选择
     new_population = []
     for _ in range(population_size):
         r = random.random()
@@ -150,48 +154,20 @@ def selection(population):
             if r <= cp:
                 new_population.append(population[i])
                 break
+
+
+    #
+    for i in population:
+        flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(i, P, N, T,     setuptime)
+        if not flag1:
+            print("cuowu ")
+            os._exit(1)
+            try:
+                sys.exit("程序终止：存在非法拓扑结构。")
+            except SystemExit as e:
+                raise e  # 强制抛出，不让 IDE 忽略
+
     return new_population
-
-
-# 变异操作
-def mutate(individual,fixed_right_neighbor):
-
-
-
-    individual_copy = individual.copy()  # 创建副本
-
-    #here we should do a direct mutation.
-
-    #random_index = random.sample(range(len(individual_copy)), 1)
-    random_index = random.choice(range(len(individual_copy)))
-
-    if random_index in fixed_right_neighbor:
-        return individual_copy
-
-    colid =random_index//N
-    rowid = random_index%N
-   # candidates = [{(i - 1) % N, i % N, (i + 1) % N} for i in range(N)]
-    random_neighbors_id = random.choice(range(3))  # 从 0, 1, 2 中随机选
-
-    #random_neighbors_id =  random.choice(3)
-    #neighbors_row_id = candidates[rowid][random_neighbors_id]
-
-    neighbors_id = (colid+1)*N + (random_neighbors_id-1+rowid)%N
-
-    individual_copy[random_index]=neighbors_id
-
-
-# 处理冲突的
-    for  j in range(N):
-        nodeid = colid*N + j
-        if nodeid !=random_index:
-            if   individual_copy[nodeid] ==individual_copy[random_index]:
-                 individual_copy[nodeid] =-1
-
-
-
-    return individual_copy
-
 
 # 遗传算法主流程
 def genetic_algorithm():
@@ -209,10 +185,26 @@ def genetic_algorithm():
 
 
 
+
+
+
     population =initialize_population(P,N,T,nodes,setuptime)
     best_solution = None
     best_fitness = float('inf')
     fitness_history = []
+
+
+    #
+    # for i in population:
+    #     flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(i, P, N, T, setuptime)
+    #     if not flag1:
+    #         print("initial cuowu  ")
+    #         os._exit(1)
+    #         try:
+    #             sys.exit("程序终止：存在非法拓扑结构。")
+    #         except SystemExit as e:
+    #             raise e  # 强制抛出，不让 IDE 忽略
+
 
 
 
@@ -237,9 +229,67 @@ def genetic_algorithm():
                 parent2_id = crossarrary[i + 1]
                 parent1 = population[parent1_id]
                 parent2 = population[parent2_id % len(population)]
-                child1, child2 = cross.crossover(parent1, parent2,P,N,T,setuptime)
+                child1, child2,point = cross.crossover(parent1,parent2, P, N, T, setuptime)
+                next_population.append(child1)
+                next_population.append(child2)
+
+
+
+
+                flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T,
+                                                                                                       setuptime)
+
+                flag2, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child2, P, N, T,
+                                                                                                       setuptime)
+                if  flag1==0 or flag2==0:
+                    print(" zajiao cuowu ")
+                    print(f"zajiao point{point} ")
+                    writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\child1.xml")
+                    writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2.xml")
+                    writetoxml.nodes_to_xml(parent1, "E:\\code\\data\\2\\parent1.xml")
+                    writetoxml.nodes_to_xml(parent2, "E:\\code\\data\\2\\parent2.xml")
+                    os._exit(1)
+                    try:
+                        sys.exit("程序终止：存在非法拓扑结构。")
+                    except SystemExit as e:
+                        raise e  # 强制抛出，不让 IDE 忽略
+
+                # try:
+                #     # 尝试验证并保存数据
+                #     flag1, conn1_test, conn2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T, setuptime)
+                #     flag2, conn1_test, conn2_test = TopoSeqValidator.TologialSequenceValidator(child2, P, N, T, setuptime)
+                #
+                #     if flag1 == 0 or flag2 == 0:
+                #         raise ValueError("非法拓扑结构")  # 主动抛出异常进入except块
+                #
+                # except Exception as e:  # 捕获所有可能的错误（包括验证器内部的报错）
+                #     # 保存关键数据（确保即使验证崩溃也能保存）
+                #     writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\child1_debug.xml")
+                #     writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2_debug.xml")
+                #     writetoxml.nodes_to_xml(parent1, "E:\\code\\data\\2\\parent1_debug.xml")
+                #     writetoxml.nodes_to_xml(parent2, "E:\\code\\data\\2\\parent2_debug.xml")
+                #
+                #     # 打印错误信息
+                #     print(f"【致命错误】{str(e)}", flush=True)
+                #     print(f"交叉点: {point}", flush=True)
+                #
+                #     # 立即终止程序
+                #     import os
+                #     os._exit(1)  # 强制退出，避免任何可能的阻塞
+
+        for i in next_population:
+            flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(i, P, N, T,     setuptime)
+            if  flag1==0:
+                print(" cross cuowu ")
+                os._exit(1)
+                try:
+                    sys.exit("程序终止：存在非法拓扑结构。")
+                except SystemExit as e:
+                    raise e  # 强制抛出，不让 IDE 忽略
 
         ## 变异, 我们针对的是父代变异
+
+
         mutate_random_array = [random.uniform(0, 1) for _ in range(len(population))]
         mutate_arrary = []
         for i in range(len(mutate_random_array)):
@@ -252,15 +302,64 @@ def genetic_algorithm():
             individual = population[mutate_arrary[i]]
 
 
-            mutate_individual = mutate(individual,distinct)
 
-            mutate_population.append(mutate_individual)
 
-        population = population + next_population
+            mutate_individual,mutate_node = mutate.mutate_f(individual, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N,    T, setuptime)
 
-        population = selection(population)
+            if mutate_individual!=individual:
 
-        fitness = bfs_fitness.fitness_function(P,N,T,population,regions_to_color)
+                flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(mutate_individual, P, N, T,     setuptime)
+
+                if flag1 == 0:
+                    print("mutate cuowu ")
+                    print(f"mutat node {mutate_node}")
+                    writetoxml.nodes_to_xml(individual, "E:\\code\\data\\2\\para.xml")
+                    writetoxml.nodes_to_xml(mutate_individual, "E:\\code\\data\\2\\child.xml")
+
+
+                    try:
+                        sys.exit("程序终止：存在非法拓扑结构。")
+                    except SystemExit as e:
+                        raise e  # 强制抛出，不让 IDE 忽略
+
+
+                mutate_population.append(mutate_individual)
+
+
+
+
+
+
+        for i in mutate_population:
+            flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(i, P, N, T,     setuptime)
+            if  flag1==0:
+                print(" ,mutate cuowu ")
+                os._exit(1)
+
+                writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\child1.xml")
+                writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2.xml")
+                writetoxml.nodes_to_xml(parent1, "E:\\code\\data\\2\\parent1.xml")
+                writetoxml.nodes_to_xml(parent2, "E:\\code\\data\\2\\parent2.xml")
+
+
+
+                try:
+                    sys.exit("程序终止：存在非法拓扑结构。")
+                except SystemExit as e:
+                    raise e  # 强制抛出，不让 IDE 忽略
+
+
+
+
+        population = population + next_population+mutate_population
+
+        population = selection(population,population_size,setuptime)
+
+
+        print(f"populatetion nume={len(population)}")
+        fitness, _ = fitnessfuc.fitness_function(population, regions_to_color, intra_link_bandwidth,  inter_link_bandwidth, cost, P, N, T)
+
+        # fitness = bfs_fitness.fitness_function(P,N,T,population,regions_to_color)
 
         best_idx = fitness.index(min(fitness))
         if fitness[best_idx] < best_fitness:
@@ -271,6 +370,9 @@ def genetic_algorithm():
         fitness_history.append(best_fitness)
 
         print(f"Generation {generation}: Best Fitness = {best_fitness:.4f},")
+        fitness_sorted = sorted(fitness)
+
+        print(f"Generation {generation}: all_fitness={fitness_sorted}")
 
     return best_solution, best_fitness, fitness_history
 
@@ -291,5 +393,5 @@ plt.legend()
 plt.grid()
 plt.show()
 
-plotgraph.plot_graph_with_auto_curve_distinct(best_x,N,P,distinct)
+# plotgraph.plot_graph_with_auto_curve_distinct(best_x,N,P,distinct)
 

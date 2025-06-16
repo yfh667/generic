@@ -69,6 +69,8 @@ def clear_state(coordinate,chromosome ,P, N, T,setuptime):
                 clear_leftneighbor(rightneighbor, chromosome)
 
                 chromosome[(x, y, t)].rightneighbor = None
+
+
     elif chromosome[coordinate].state == 1 or chromosome[coordinate].state == 2:
         # Start with the current time step
         uptime = t
@@ -89,12 +91,12 @@ def clear_state(coordinate,chromosome ,P, N, T,setuptime):
         if rightneighbor:
             x2, y2, t2 = rightneighbor
             for i in range(setuptime):
-                chromosome[(x2, y2, t2 - i - 1)].leftneighbor = -1
+                chromosome[(x2, y2, t2 - i - 1)].leftneighbor = None
 
         chromosome[(x, y, t)].rightneighbor = None
         while t + 1 < T:
             t += 1
-            if chromosome[(x, y, t)].state == -1:  # Node is setting up the link
+            if chromosome[(x, y, t)].state == -1 or  chromosome[(x, y, t)].state==0 :  # Node is setting up the link
                 break
             else:
                 chromosome[(x, y, t)].state = -1
@@ -103,3 +105,5 @@ def clear_state(coordinate,chromosome ,P, N, T,setuptime):
                 clear_leftneighbor(rightneighbor, chromosome)
 
                 chromosome[(x, y, t)].rightneighbor = None
+
+

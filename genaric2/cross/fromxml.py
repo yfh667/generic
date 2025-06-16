@@ -36,8 +36,8 @@ def main(individual_file):
     # 3D 拓扑图可视化
     main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
     main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
-    connections_list = action_table.action_map2connecttion_list(individual1, P, N, T)
-    main_plotter = drawall.add_dashed_connections(main_plotter, connections_list)
+
+    main_plotter = drawall.add_dashed_connections(main_plotter, connection_list)
     main_plotter.show(viewup="z", title="Interactive 3D Topology")
 
 if __name__ == "__main__":

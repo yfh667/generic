@@ -19,7 +19,7 @@ import graph.drawall as drawall
 import genaric2.mutation.mutate3 as mutate
 import genaric2.TopoSeqValidator as TopoSeqValidator
 from genaric2.TopoSeqValidator import leftneighbor
-
+import genaric2.mutation.basic_mutate_func as  basic_fuc
 
 def crossover_wenti(p1_left, p2_right, point, N, T,setuptime):
     """
@@ -235,7 +235,7 @@ def write_state_to_rightneighbor(p1_left, point, i, j, t, x2, y2, rightneighbor,
         modified_p2_right[rightneighbor].leftneighbor = (point - 1 + i, j, t)
 
 
-def crossover_wenti2(p1_left, p2_right, point, N, T, setuptime):
+def crossover_wenti2(p1_left, p2_right, point,P, N, T, setuptime):
     """
     处理交叉后可能出现的重复连接问题
     规则：如果发现重复连接，使p2_right中的连接设为-1
@@ -261,7 +261,6 @@ def crossover_wenti2(p1_left, p2_right, point, N, T, setuptime):
     for t in range(T):
         for j in range(N):
             modified_p2_right[point+1,j,t].leftneighbor=None
-    print("1")
 
     #individual1 = merge_node_dicts_safe(p1_left, modified_p2_right)
     # connection2_test = action_table.action_map2_shanpshots(individual1, P, N, T)
@@ -282,6 +281,147 @@ def crossover_wenti2(p1_left, p2_right, point, N, T, setuptime):
 
 
 # we need use the p1_left to write to p2_right
+
+
+
+
+
+
+    # test = merge_node_dicts_safe(p1_left, modified_p2_right)
+    #flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(test, P, N, T,    setuptime)
+
+    if point<P-2:
+    # we need clear all the nodes in the p2_right,which leftneighbor is in point,because p2_right point col is dropped
+    #2. we need change the point+2's state for the afect_region
+        afect_region = set()
+        for t in range(T):
+                for j in range(N):
+                    rightneighbor = p1_left[(point, j, t)].rightneighbor
+                    if rightneighbor:
+                        x2, y2, t2 = rightneighbor
+                        if x2 == point + 2:
+                            if p1_left[(point, j, t)].state == 0:
+                                for k in range(t, t + setuptime + 1):
+
+                                  #  modified_p2_right[x2, y2, k].leftneighbor = (point, j, k)
+                                    afect_region.add((x2, y2, k))
+
+                            elif p1_left[(point, j, t)].state == 2:
+                                afect_region.add(rightneighbor)
+                           #     modified_p2_right[rightneighbor].leftneighbor = (point, j, t)
+
+                # 假设 afect_region 是包含三元组 (x, y, t) 的集合
+
+        glag=1
+        for coord in afect_region:
+            x, y, t = coord  # 解包坐标
+
+            # if coord==(6,4,6):
+            #     print(1)
+
+            leftneighbor = p2_right[coord].leftneighbor
+
+
+
+            # 在这里执行你的操作，例如：
+            if leftneighbor:
+                x2,y2,t2=leftneighbor
+                if x2==point+1:
+
+                    basic_fuc.clear_state(leftneighbor, modified_p2_right, P, N, T, setuptime)
+
+                    #
+                    # if p2_right[leftneighbor].state == 0:#that means we need delete all the state for this link
+                    #     for k in range(t2, t2 + setuptime + 1):
+                    #
+                    #
+                    #         modified_p2_right[( x2,y2,k)].state = -1
+                    #         modified_p2_right[(x2, y2, k)].rightneighbor = None
+                    # elif p2_right[leftneighbor].state == 1:
+                    #     # up
+                    #
+                    #
+                    #     modified_p2_right[leftneighbor].state = -1
+                    #     modified_p2_right[leftneighbor].rightneighbor = None
+                    #     uptime=leftneighbor[2]
+                    #     while uptime-1>=0:
+                    #         uptime=uptime-1
+                    #         if p2_right[(x2,y2,uptime)].state == 0 or p2_right[(x2,y2,uptime)].state == 1:
+                    #
+                    #
+                    #
+                    #             modified_p2_right[(x2,y2,uptime)].state = -1
+                    #             modified_p2_right[(x2,y2,uptime)].rightneighbor = None
+                    #         else:
+                    #             break
+                    #
+                    #     downtime = leftneighbor[2]
+                    #     while downtime + 1 < T:
+                    #         downtime = downtime + 1
+                    #         if p2_right[(x2, y2, downtime)].state == 2 or p2_right[(x2, y2, downtime)].state == 1:
+                    #
+                    #
+                    #
+                    #
+                    #             modified_p2_right[(x2, y2, downtime)].state = -1
+                    #             modified_p2_right[(x2, y2, downtime)].rightneighbor = None
+                    #         else:
+                    #             break
+                    #
+                    # elif p2_right[leftneighbor].state == 2:
+                    #
+                    #     modified_p2_right[leftneighbor].state = -1
+                    #     modified_p2_right[leftneighbor].rightneighbor = None
+                    #     uptime = leftneighbor[2]
+                    #
+                    #
+                    #     # we need find the zhouqi
+                    #     flag=1
+                    #     while uptime - 1 >= 0 and flag:
+                    #         uptime = uptime - 1
+                    #
+                    #         if p2_right[(x2, y2, uptime)].state == 0:
+                    #             flag=flag-1
+                    #
+                    #
+                    #
+                    #
+                    #
+                    #         modified_p2_right[(x2, y2, uptime)].state = -1
+                    #         modified_p2_right[(x2, y2, uptime)].rightneighbor = None
+
+            # if modified_p2_right[5,4,7].rightneighbor==None:
+            #             print(1)
+        for t in range(T):
+                for j in range(N):
+                    leftneighbor=p2_right[(point+2, j, t)].leftneighbor
+                    if leftneighbor:
+                        x2, y2, t2 = leftneighbor
+                        if x2 == point :
+
+                            modified_p2_right[(point+2, j, t)].leftneighbor = None
+
+
+        for t in range(T):
+                for j in range(N):
+                    rightneighbor = p1_left[(point, j, t)].rightneighbor
+                    if rightneighbor:
+                        x2, y2, t2 = rightneighbor
+                        if x2 == point + 2:
+                            if p1_left[(point, j, t)].state == 0:
+                                for k in range(t, t + setuptime + 1):
+
+                                    modified_p2_right[x2, y2, k].leftneighbor = (point, j, k)
+
+
+                            elif p1_left[(point, j, t)].state == 2:
+
+                                modified_p2_right[rightneighbor].leftneighbor = (point, j, t)
+    # test = merge_node_dicts_safe(p1_left, modified_p2_right)
+    # flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(test, P, N, T,    setuptime)
+    #    writetoxml.nodes_to_xml(test, "E:\\code\\data\\1\\test.xml")
+
+    #3. we need change the affect region
     for i in range(2):
         for t in range(T):
             for j in range(N):
@@ -295,125 +435,8 @@ def crossover_wenti2(p1_left, p2_right, point, N, T, setuptime):
                         if x2==point+1:
                             write_state_to_rightneighbor(p1_left, point, i, j, t, x2, y2, rightneighbor, modified_p2_right,
                                                          setuptime)
-    # individual1 = merge_node_dicts_safe(p1_left, modified_p2_right)
-    #flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T,    setuptime)
 
 
-# we need clear all the nodes in the p2_right,which leftneighbor is in point,because p2_right point col is dropped
-    for t in range(T):
-            for j in range(N):
-                leftneighbor=p2_right[(point+2, j, t)].leftneighbor
-                if leftneighbor:
-                    x2, y2, t2 = leftneighbor
-                    if x2 == point :
-                        modified_p2_right[(point+2, j, t)].leftneighbor = None
-
-
-
-#2. we need change the point+2's state for the afect_region
-    afect_region = set()
-    for t in range(T):
-            for j in range(N):
-                rightneighbor = p1_left[(point, j, t)].rightneighbor
-                if rightneighbor:
-                    x2, y2, t2 = rightneighbor
-                    if x2 == point + 2:
-                        if p1_left[(point, j, t)].state == 0:
-                            for k in range(t, t + setuptime + 1):
-
-                                modified_p2_right[x2, y2, k].leftneighbor = (point, j, k)
-                                afect_region.add((x2, y2, k))
-
-                        elif p1_left[(point, j, t)].state == 2:
-                            afect_region.add(rightneighbor)
-                            modified_p2_right[rightneighbor].leftneighbor = (point, j, t)
-
-            # 假设 afect_region 是包含三元组 (x, y, t) 的集合
-    for coord in afect_region:
-        x, y, t = coord  # 解包坐标
-
-
-        leftneighbor = p2_right[coord].leftneighbor
-
-        if leftneighbor == (2, 0, 2):
-            print("1")
-        # 在这里执行你的操作，例如：
-        if leftneighbor:
-            x2,y2,t2=leftneighbor
-            if x2==point+1:
-                if p2_right[leftneighbor].state == 0:#that means we need delete all the state for this link
-                    for k in range(t2, t2 + setuptime + 1):
-                        if ( x2,y2,k) == (2, 0, 2):
-                            print("1")
-
-                        modified_p2_right[( x2,y2,k)].state = -1
-                        modified_p2_right[(x2, y2, k)].rightneighbor = None
-                elif p2_right[leftneighbor].state == 1:
-                    # up
-                    if leftneighbor == (2, 0, 2):
-                        print("1")
-
-                    modified_p2_right[leftneighbor].state = -1
-                    modified_p2_right[leftneighbor].rightneighbor = None
-                    uptime=leftneighbor[2]
-                    while uptime-1>=0:
-                        uptime=uptime-1
-                        if p2_right[(x2,y2,uptime)].state == 0 or p2_right[(x2,y2,uptime)].state == 1:
-
-                            if (x2, y2, uptime) == (2, 0, 2):
-                                print("1")
-
-                            modified_p2_right[(x2,y2,uptime)].state = -1
-                            modified_p2_right[(x2,y2,uptime)].rightneighbor = None
-                        else:
-                            break
-
-                    downtime = leftneighbor[2]
-                    while downtime + 1 < T:
-                        downtime = downtime + 1
-                        if p2_right[(x2, y2, downtime)].state == 2 or p2_right[(x2, y2, downtime)].state == 1:
-
-                            if (x2, y2, downtime) == (2, 0, 2):
-                                print("1")
-
-
-                            modified_p2_right[(x2, y2, downtime)].state = -1
-                            modified_p2_right[(x2, y2, downtime)].rightneighbor = None
-                        else:
-                            break
-
-                elif p2_right[leftneighbor].state == 2:
-                    if leftneighbor== (2, 0, 2):
-                        print("1")
-                    modified_p2_right[leftneighbor].state = -1
-                    modified_p2_right[leftneighbor].rightneighbor = None
-                    uptime = leftneighbor[2]
-
-
-                    # we need find the zhouqi
-                    flag=1
-                    while uptime - 1 >= 0 and flag:
-                        uptime = uptime - 1
-
-                        if p2_right[(x2, y2, uptime)].state == 0:
-                            flag=flag-1
-
-
-                        if (x2, y2, uptime) == (2, 0, 2):
-                                        print("1")
-
-                        modified_p2_right[(x2, y2, uptime)].state = -1
-                        modified_p2_right[(x2, y2, uptime)].rightneighbor = None
-
-
-
-    # test = merge_node_dicts_safe(p1_left, modified_p2_right)
-    # flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(test, P, N, T,    setuptime)
-    #    writetoxml.nodes_to_xml(test, "E:\\code\\data\\1\\test.xml")
-
-    #3. we need change the affect region
-
-    # print("1")
     child = merge_node_dicts_safe(p1_left, modified_p2_right)
     return child
 
@@ -425,7 +448,7 @@ def crossover(parent1, parent2,P,N,T,setuptime,test=0):
     if not test:
         point = random.randint(0, P - 2)
     else:
-        point=1
+        point=5
    # point = random.randint(0, P - 2)
 
 
@@ -439,25 +462,25 @@ def crossover(parent1, parent2,P,N,T,setuptime,test=0):
     p2_left = {k: v for k, v in parent2_copy.items() if k[0] <= point}
     p2_right = {k: v for k, v in parent2_copy.items() if k[0] > point}
 
-    if point == P-2:
-
-        # 3. 拼接 modified_p2_right 和 p1_left
-        child1 = {}
-        child1.update(p1_left)  # 添加 p1_left 的所有节点
-        child1.update(p2_right)  # 添加处理后的 p2_right 节点
-
-        child2 = {}
-        child2.update(p2_left)  # 添加 p1_left 的所有节点
-        child2.update(p1_right)  # 添加处理后的 p2_right 节点
-
-    else:
+    # if point == P-2:
+    #
+    #     # 3. 拼接 modified_p2_right 和 p1_left
+    #     child1 = {}
+    #     child1.update(p1_left)  # 添加 p1_left 的所有节点
+    #     child1.update(p2_right)  # 添加处理后的 p2_right 节点
+    #
+    #     child2 = {}
+    #     child2.update(p2_left)  # 添加 p1_left 的所有节点
+    #     child2.update(p1_right)  # 添加处理后的 p2_right 节点
+    #
+    # else:
         # 分割父代个体
-        child1 = crossover_wenti2(p1_left, p2_right, point, N, T,setuptime)
-        child2 = crossover_wenti2(p2_left, p1_right, point, N, T,setuptime)
+    child1 = crossover_wenti2(p1_left, p2_right, point,P, N, T,setuptime)
+    child2 = crossover_wenti2(p2_left, p1_right, point, P,N, T,setuptime)
     # 这里，我们开始进行处理冲突点
 
 
-    return child1, child2
+    return child1, child2,point
 
 if __name__ == '__main__':
 
@@ -487,8 +510,8 @@ if __name__ == '__main__':
     setuptime = 2
     base = distinct_initial.distinct_initial(P, N, T, setuptime, regions_to_color)
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual1.xml")
-    individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent1.xml")
+    individual2 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent2.xml")
 
 
 
@@ -497,7 +520,7 @@ if __name__ == '__main__':
 
     #
 ##usage
-    child1, child2 = crossover(individual1, individual2, P, N, T, setuptime, 1)
+    child1, child2,_ = crossover(individual1, individual2, P, N, T, setuptime, 1)
     #attebntion ,if it is not test , just use
     #child1, child2 = crossover(individual1, individual2, P, N, T, setuptime)
 ###
@@ -513,10 +536,10 @@ if __name__ == '__main__':
 
 
     flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T, setuptime)
+    #
+    writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\child1.xml")
 
-    writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
-
-    writetoxml.nodes_to_xml(child2, "E:\\code\\data\\1\\child2.xml")
+    writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2.xml")
 
     # writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
 
