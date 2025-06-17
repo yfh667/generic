@@ -67,6 +67,8 @@ def xml_to_nodes(filename):
         for node_elem in root.findall('Node'):
             # 获取坐标字符串并转换为元组
             coord_str = node_elem.get('cordination')
+            # if coord_str=='(0, 1, 16)':
+            #     print(1)
             try:
                 # 处理不同格式的坐标字符串
                 if coord_str.startswith('(') and coord_str.endswith(')'):
@@ -81,7 +83,7 @@ def xml_to_nodes(filename):
 
             # 创建tegnode对象
             node = tegnode.tegnode(
-                asc_nodes_flag=bool(node_elem.get('asc_nodes_flag') == 'True'),
+                asc_nodes_flag=bool(node_elem.get('asc_nodes_flag') == "1"),
                 rightneighbor=eval(node_elem.get('rightneighbor')) if node_elem.get(
                     'rightneighbor') != 'None' else None,
                 leftneighbor=eval(node_elem.get('leftneighbor')) if node_elem.get(

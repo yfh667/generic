@@ -206,11 +206,11 @@ if __name__ == '__main__':
     setuptime=2
     base =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\127.22\\best.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\best.xml")
 
 
 
-    fitness, _ = fitnessfuc.calculate_fitness_test(individual1, regions_to_color, intra_link_bandwidth, inter_link_bandwidth, cost,
+    fitness, seq = fitnessfuc.calculate_fitness_test(individual1, regions_to_color, intra_link_bandwidth, inter_link_bandwidth, cost,
                                              P, N, T)
 
     print(1)

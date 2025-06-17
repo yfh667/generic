@@ -46,8 +46,8 @@ def calculate_fitness_test(individual,regions_to_color,inter_link_bandwidth,intr
 
     indictor = 0
     seq = []
-    for i in range(3, T - 2):
-        if i==7:
+    for i in range(2, T ):
+        if i==20:
             print(1)
         onecost = cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost,
                                              regions_to_color[i])

@@ -29,7 +29,8 @@ import genaric2.TopoSeqValidator as TopoSeqValidator
 
 # 参数设置
 #topology_prof
-#this function ,we use cross2, it won't clear all lifecycle in cross section,
+#this function ,based on generic2.
+
 
 
 
