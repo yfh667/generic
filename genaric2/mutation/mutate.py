@@ -69,7 +69,7 @@ def mutate_f_test(individual,regions_to_color,inter_link_bandwidth, intra_link_b
 #     mutate_node = (x_mutate_index,y_mutate_index,min_index)
 
 
-    mutate_node=(0, 7, 18)
+    mutate_node=(3, 0, 5)
 
     if individual_copy[mutate_node].state==0:
         mutate1.establishment_mutate(mutate_node, individual_copy, P, N, T, setuptime)

@@ -83,6 +83,9 @@ def find_next_setup_time(coordinate,chromosome ,P, N, T):
     else:
      down_time = t - 1
 
+    if start_time==coordinate[2]:
+        #imply that there is no next settp time
+        start_time=down_time
 
 
     return start_time, down_time

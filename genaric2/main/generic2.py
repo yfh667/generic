@@ -40,7 +40,7 @@ intra_link_bandwidth = 100
 cost =1
 population_size = 200  # 种群大小
 generations = 500  # 最大迭代代数
-mutation_rate = 0.05  # 变异概率
+mutation_rate = 0.3  # 变异概率
 crossover_rate = 0.15  # 交叉概率
 
 N = 10
@@ -292,9 +292,6 @@ def genetic_algorithm():
         mutate_population = []
         for i in range(len(mutate_arrary)):
             individual = population[mutate_arrary[i]]
-
-
-
 
             mutate_individual,mutate_node = mutate.mutate_f(individual, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N,    T, setuptime)
 
