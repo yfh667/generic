@@ -31,7 +31,8 @@ if __name__ == '__main__':
         v = region_satellite_group[3]
         o = [u, v]
         regions_to_color[i] = o
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\best.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\best.xml",regions_to_color)
+    #
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##

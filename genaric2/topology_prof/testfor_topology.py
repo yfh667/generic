@@ -29,7 +29,7 @@ if __name__ == '__main__':
         regions_to_color[i] = o
 
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\parent1.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\hot.xml")
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##

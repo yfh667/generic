@@ -106,6 +106,68 @@ def xml_to_nodes(filename):
     return nodes
 
 
+
+
+
+def xml_to_nodes_region(filename,region):
+    """
+    从XML文件读取节点数据，返回nodes字典
+
+    参数:
+        filename: XML文件名
+
+    返回:
+        nodes: 字典格式为 {(x,y,z): tegnode对象}
+    """
+    # 初始化nodes字典
+    nodes = {}
+
+    try:
+        # 解析XML文件
+        tree = ET.parse(filename)
+        root = tree.getroot()
+
+        # 遍历所有Node元素
+        for node_elem in root.findall('Node'):
+            # 获取坐标字符串并转换为元组
+            coord_str = node_elem.get('cordination')
+            # if coord_str=='(0, 1, 16)':
+            #     print(1)
+            try:
+                # 处理不同格式的坐标字符串
+                if coord_str.startswith('(') and coord_str.endswith(')'):
+                    # 格式为"(x, y, z)"
+                    coords = tuple(map(int, coord_str[1:-1].split(',')))
+                else:
+                    # 格式为"x,y,z"
+                    coords = tuple(map(int, coord_str.split(',')))
+            except Exception as e:
+                print(f"坐标解析错误: {coord_str}, 错误: {e}")
+                continue
+
+            # 创建tegnode对象
+            node = tegnode.tegnode(
+                asc_nodes_flag=bool(node_elem.get('asc_nodes_flag') == "1"),
+                rightneighbor=eval(node_elem.get('rightneighbor')) if node_elem.get(
+                    'rightneighbor') != 'None' else None,
+                leftneighbor=eval(node_elem.get('leftneighbor')) if node_elem.get(
+                    'leftneighbor') != 'None' else None,
+
+              #  leftneighbor=None,  # 原始保存时没有这个属性
+                state=int(node_elem.get('state', -1))
+            )
+
+            # 添加到字典
+            nodes[coords] = node
+
+    except ET.ParseError as e:
+        print(f"XML解析错误: {e}")
+        return None
+    except Exception as e:
+        print(f"其他错误: {e}")
+        return None
+
+    return nodes
 # # 使用示例
 # if __name__ == "__main__":
 #     # 示例数据 (需要替换为您的实际数据)

@@ -155,6 +155,11 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
         for group_idx, region in enumerate(region_groups):
             for node_id in region:
                 x_node, y_node = divmod(node_id, N)
+
+                # here we need assgin the node to hot region
+                nodes[(  x_node, y_node ,t)].asc_nodes_flag = 1
+
+
                 if nodes[(x_node, y_node, t)].state == -1:
                     # 检查是否有右邻居（非最右列）
                     if x_node < P - 1:

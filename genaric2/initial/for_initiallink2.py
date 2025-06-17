@@ -43,12 +43,14 @@ for i in range(len(region_satellite_groups)):
 
 T = target_time_step
 setuptime=2
+
+
 nodes =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
 
 
 nodes_copy = initialize_individual.initialize_individual(P,N,T,nodes,setuptime)
 
-writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\individual2.xml")
+writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\hot.xml")
 
 
 connection_list=action_table.action_map2_shanpshots(nodes_copy, P, N, T)
