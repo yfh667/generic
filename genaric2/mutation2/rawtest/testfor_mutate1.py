@@ -31,14 +31,29 @@ if __name__ == '__main__':
         v = region_satellite_group[3]
         o = [u, v]
         regions_to_color[i] = o
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\best.xml",regions_to_color)
+
+
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\hot.xml")
     #
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
     #usage#
 
-    mutate1.establishment_mutate((5, 8, 3), individual1, P, N, T,setuptime)
+    mutate_node = (6, 8, 6)
+
+    region_distinct = regions_to_color[mutate_node[2]]
+
+    nowdistinct = []
+    for distinct in region_distinct:
+        for nodes in distinct:
+            x = nodes // N
+            y = nodes % N
+            if nodes == (mutate_node[0], mutate_node[1]):
+                nowdistinct = distinct
+
+
+    mutate1.establishment_mutate(mutate_node, individual1,nowdistinct, P, N, T,setuptime,1)
     ##------------------------------##
     flag1,connection1_test,connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
 

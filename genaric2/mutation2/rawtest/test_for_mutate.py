@@ -1,26 +1,28 @@
-import genaric2.adj2adjacylist as adj2adjaclist
+
 import genaric2.writetoxml as writetoxml
-# import genaric.plotgraph as plotgraph
-import ga.graphalgorithm.adjact2weight as a2w
+
 import draw.snapshotf_romxml as snapshotf_romxml
-import utilis.adjacency as adjacency
+
+
+
+import draw.snapshotf_romxml as snapshotf_romxml
+import graph.drawall as drawall
+import genaric2.tegnode as tegnode
+
+import graph.time_2d2 as time_2d
+# --- Example Usage ---
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
+import copy
 
-import genaric2.mutation.mutate1 as mutate1
-import genaric2.mutation.mutate2 as mutate2
-import genaric2.mutation.mutate3 as mutate3
 
-import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
-import score.BFS.BFS as BFS
+import genaric2.writetoxml as writetoxml
+import genaric2.initialize_individual as initialize_individual
 
-import genaric2.fitness.fitness as fitnessfuc
-
-import genaric2.mutation.mutate as mutate
 
 import random
 import genaric2.TopoSeqValidator as TopoSeqValidator
-
+import genaric2.mutation2.mutate as mutate
 inter_link_bandwidth = 50
 intra_link_bandwidth = 100
 cost = 1
@@ -53,20 +55,34 @@ if __name__ == '__main__':
 
     T = target_time_step
     setuptime = 2
-    base = distinct_initial.distinct_initial(P, N, T, setuptime, regions_to_color)
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\para.xml")
+
+    #nodes_copy = initialize_individual.initialize_individual_region(regions_to_color,P, N, T, setuptime)
+
+
+
+
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\hot.xml")
     # fitness, indictors_seq = fitness_function(P, N, T, [individual1], regions_to_color)
 
 
-    child1,_ = mutate.mutate_f_test(individual1, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N, T,
+    child1,_ = mutate.mutate_f(individual1, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N, T,
                              setuptime)
 
-    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
+
+    # flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
 
 
     flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T, setuptime)
     writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\mutate_child2.xml")
 
+    vis = time_2d.DynamicGraphVisualizer(connection1_test, regions_to_color, N, P)
+    vis.show()
 
+    main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
+    main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
+
+    main_plotter = drawall.add_dashed_connections(main_plotter, connection1_test)
+
+    main_plotter.show(viewup="z", title="Interactive 3D Topology")
     print("1")

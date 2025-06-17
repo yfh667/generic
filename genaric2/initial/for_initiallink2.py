@@ -46,9 +46,12 @@ setuptime=2
 
 
 nodes =distinct_initial.distinct_initial(P,N,T,setuptime,regions_to_color)
-
-
 nodes_copy = initialize_individual.initialize_individual(P,N,T,nodes,setuptime)
+
+# or we can just use  below method
+#nodes_copy = initialize_individual.initialize_individual_region(regions_to_color, P, N, T, setuptime)
+
+
 
 writetoxml.nodes_to_xml(nodes_copy, "E:\\code\\data\\1\\hot.xml")
 

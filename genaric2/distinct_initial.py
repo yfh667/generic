@@ -91,7 +91,40 @@ def initialize_establish(N,T,nodes,start_node_id, end_node_id,start_time,setupti
 
 
 
+def initialize_establish_lifecycle(N,T,nodes,start_node_id, end_node_id,start_time,endtime,setuptime):
+    # 设置设置阶段状态
+    # STARTTIME:代表开始开始建链
+    #end time:代表这条链路完成了，也就是到这个时间点过后，链路不确定了
+    x_start, y_start = divmod(start_node_id, N)
+    x_end, y_end = divmod(end_node_id, N)
 
+
+    nodes[(x_start, y_start, start_time)].state = 0
+
+
+    nodes[(x_start, y_start, start_time)].rightneighbor = (x_end, y_end, start_time + setuptime)
+
+    nodes[(x_end, y_end, start_time)].leftneighbor = (x_start, y_start, start_time)
+
+
+
+    for t in range(start_time + 1, start_time + setuptime):
+        if t<T:
+            nodes[(x_start, y_start, t)].state = 1
+
+            nodes[(x_start, y_start, t)].rightneighbor = (x_end, y_end, start_time + setuptime)
+            nodes[(x_end, y_end, t)].leftneighbor = (x_start, y_start, t)
+
+    if start_time + setuptime<T:
+        nodes[(x_start, y_start, start_time + setuptime)].state = 2
+        nodes[(x_start, y_start, start_time + setuptime)].rightneighbor = (x_end, y_end, start_time + setuptime)
+        nodes[(x_end, y_end, start_time + setuptime)].leftneighbor = (x_start, y_start, start_time + setuptime)
+
+    for i in range(start_time + setuptime + 1, endtime + 1):
+        if i<T:
+            nodes[(x_start, y_start, i)].state = 2
+            nodes[(x_start, y_start, i)].rightneighbor = (x_end, y_end, i)
+            nodes[(x_end, y_end, i)].leftneighbor = (x_start, y_start, i)
 
 
 

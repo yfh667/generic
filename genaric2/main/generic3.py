@@ -5,25 +5,19 @@ import random
 
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
-import draw.snapshotf_romxml as snapshotf_romxml
-import copy
-import  genaric2.mutation.mutate as mutate
-import genaric2.initiallink as initiallink
-import genaric.chrom2adjact as c2a
 
-import ga.graphalgorithm.mcmf.ssp_multi as ssp_multi
-import genaric.plotgraph as plotgraph
+import  genaric2.mutation2.mutate as mutate
 
-import ga.graphalgorithm.adjact2weight as a2w
+
 import os
 import draw.snapshotf_romxml as snapshotf_romxml
 
 # --- Example Usage ---
 import genaric2.distinct_initial as distinct_initial
-import genaric2.action_table as action_table
+
 # 定义目标函数
 import genaric2.cross.cross2 as cross
-# import genaric2.cross.bfs_fitness as bfs_fitness
+
 import genaric2.fitness.fitness as fitnessfuc
 import genaric2.TopoSeqValidator as TopoSeqValidator
 
@@ -71,12 +65,12 @@ for i in range(len(region_satellite_groups)):
 
 
 # 初始化种群
-def initialize_population(P,N,T,nodes,setuptime):
+def initialize_population(P,N,T,region,setuptime):
     chromosome = []
     for i in range(population_size):
-        nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
+    #    nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
 
-        chromosome.append(   initialize_individual.initialize_individual(P, N, T, nodes_copy,setuptime))
+        chromosome.append(   initialize_individual.initialize_individual_region(region,P, N, T, setuptime))
 
     return chromosome
 
@@ -181,7 +175,7 @@ def genetic_algorithm():
 
 
 
-    population =initialize_population(P,N,T,nodes,setuptime)
+    population =initialize_population(P,N,T,regions_to_color,setuptime)
     best_solution = None
     best_fitness = float('inf')
     fitness_history = []

@@ -3,10 +3,12 @@ import genaric2.fitness.fitness as fitnessfuc
 
 import random
 
-import genaric2.mutation.mutate1 as mutate1
-import genaric2.mutation.mutate2 as mutate2
-import genaric2.mutation.mutate3 as mutate3
+import genaric2.mutation2.mutate1 as mutate1
+import genaric2.mutation2.mutate2 as mutate2
+import genaric2.mutation2.mutate3 as mutate3
 import copy
+
+
 
 
 def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwidth, cost,P, N, T,setuptime ):
@@ -30,11 +32,26 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
 # first we need detele the region-to-color
     region_distinct= regions_to_color[min_index]
 
+
+
+
+
     delete_nodes = []
     for distinct in region_distinct:
         for nodes in distinct:
-            if individual_copy[nodes].asc_nodes_flag==True:
-                delete_nodes.append(nodes)
+            x = nodes // N
+            y = nodes % N
+
+            coordinate = (x, y, min_index)
+
+            right_neighbor = individual_copy[coordinate].rightneighbor
+
+            if right_neighbor:
+                if individual_copy[right_neighbor].asc_nodes_flag==True:
+                    delete_nodes.append(nodes)
+
+            # if individual_copy[coordinate].asc_nodes_flag==True:
+            #     delete_nodes.append(nodes)
 
 
     # 获取所有合法的 index，去除 delete_nodes
@@ -49,11 +66,20 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
     # 从剩余合法索引中随机选择一个
     mutate_index = random.choice(valid_indices)
 
+
+
     x_mutate_index = mutate_index // N
     y_mutate_index = mutate_index % N
 
 
 #
+    nowdistinct = []
+    for distinct in region_distinct:
+        for nodes in distinct:
+            x = nodes // N
+            y = nodes % N
+            if nodes==(x_mutate_index,y_mutate_index):
+                nowdistinct=distinct
 # mutate_index = random.randint(0, P * N - 1)
 #
 #     x_mutate_index = mutate_index // N
@@ -62,7 +88,7 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
 # so we nned mutate individual[x_mutate_index,y_mutate_index,min_index]
     mutate_node = (x_mutate_index,y_mutate_index,min_index)
     if individual_copy[mutate_node].state==0:
-        mutate1.establishment_mutate(mutate_node, individual_copy, P, N, T, setuptime)
+        mutate1.establishment_mutate(mutate_node, individual_copy, nowdistinct,P, N, T, setuptime)
     elif individual_copy[mutate_node].state==2:
         mutate2.maintenance_mutate(mutate_node, individual_copy, P, N, T, setuptime)
     elif  individual_copy[mutate_node].state==-1:
@@ -97,10 +123,21 @@ def mutate_f_test(individual,regions_to_color,inter_link_bandwidth, intra_link_b
 #     mutate_node = (x_mutate_index,y_mutate_index,min_index)
 
 
-    mutate_node=(3, 0, 5)
+    mutate_node=(6, 8, 6)
+
+
+    region_distinct = regions_to_color[mutate_node[2]]
+
+    nowdistinct = []
+    for distinct in region_distinct:
+        for nodes in distinct:
+            x = nodes // N
+            y = nodes % N
+            if nodes==(mutate_node[0],mutate_node[1]):
+                nowdistinct=distinct
 
     if individual_copy[mutate_node].state==0:
-        mutate1.establishment_mutate(mutate_node, individual_copy, P, N, T, setuptime)
+        mutate1.establishment_mutate(mutate_node, individual_copy,nowdistinct, P, N, T, setuptime,1)
     elif individual_copy[mutate_node].state==2:
         mutate2.maintenance_mutate(mutate_node, individual_copy, P, N, T, setuptime)
     elif  individual_copy[mutate_node].state==-1:

@@ -33,7 +33,10 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
     delete_nodes = []
     for distinct in region_distinct:
         for nodes in distinct:
-            if individual_copy[nodes].asc_nodes_flag==True:
+            x = nodes//N
+            y = nodes%N
+            coordinate=(x,y,min_index)
+            if individual_copy[nodes].asc_nodes_flag==1:
                 delete_nodes.append(nodes)
 
 

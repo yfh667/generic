@@ -8,10 +8,9 @@ import sys
 import genaric2.writetoxml as writetoxml
 
 import draw.snapshotf_romxml as snapshotf_romxml
-import graph.time_2d2 as time_2d
+
 import genaric2.action_table as action_table
-import graph.drawall as drawall
-import genaric2.mutation.mutate1 as mutate1
+
 
 # below the SeqTopologyChecker_leftneighbor and SeqTopologyChecker_nownodes are basic topology check
 # it is a simple checker from the node's leftneighbor view
@@ -23,7 +22,7 @@ def SeqTopologyChecker_leftneighbor(nodes: Dict[Tuple[int, int, int], tegnode.te
                 node = nodes[(i, j, t)]
 
                 #
-                # if (i, j, t) == (3,8, 12):
+                # if (i, j, t) == (8,8, 6):
                 #     print(1)
 
                 leftneighbor_id=node.leftneighbor

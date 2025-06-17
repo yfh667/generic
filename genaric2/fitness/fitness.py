@@ -2,12 +2,11 @@
 
 maxhop=30
 import genaric2.adj2adjacylist as adj2adjaclist
-import genaric2.writetoxml as writetoxml
-# import genaric.plotgraph as plotgraph
+
 import ga.graphalgorithm.adjact2weight as a2w
-import draw.snapshotf_romxml as snapshotf_romxml
+
 import utilis.adjacency as adjacency
-import genaric2.distinct_initial as distinct_initial
+
 import genaric2.action_table as action_table
 
 
