@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
-    #usage
+    #usage#
 
     mutate1.establishment_mutate((5, 8, 3), individual1, P, N, T,setuptime)
     ##------------------------------##
