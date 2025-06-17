@@ -77,6 +77,12 @@ def find_next_setup_time(coordinate,chromosome ,P, N, T):
     # The time when the node starts setting up the link
 
     # The time when the node stops setting up the link
-    down_time = t - 1
+
+    if t==T-1:
+        down_time=t
+    else:
+     down_time = t - 1
+
+
 
     return start_time, down_time

@@ -55,7 +55,7 @@ if __name__ == '__main__':
     setuptime = 2
     base = distinct_initial.distinct_initial(P, N, T, setuptime, regions_to_color)
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\para.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\mutate_pare1.xml")
     # fitness, indictors_seq = fitness_function(P, N, T, [individual1], regions_to_color)
 
 
@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
 
     flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(child1, P, N, T, setuptime)
-
+    writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\mutate_child2.xml")
 
 
     print("1")

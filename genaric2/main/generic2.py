@@ -2,12 +2,7 @@ import random
 import math
 import matplotlib.pyplot as plt
 import random
-import genaric2.adj2adjacylist as adj2adjaclist
 
-import numpy as np
-from networkx.classes import neighbors
-import genaric.chrom2adjact as c2a
-import ga.graphalgorithm.fcnfp_multi as fcnfp_multi
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
 import draw.snapshotf_romxml as snapshotf_romxml
@@ -22,15 +17,12 @@ import genaric.plotgraph as plotgraph
 import ga.graphalgorithm.adjact2weight as a2w
 import os
 import draw.snapshotf_romxml as snapshotf_romxml
-import graph.drawall as drawall
-import genaric2.tegnode as tegnode
 
-import graph.time_2d2 as time_2d
 # --- Example Usage ---
 import genaric2.distinct_initial as distinct_initial
 import genaric2.action_table as action_table
 # 定义目标函数
-import genaric2.cross.cross as cross
+import genaric2.cross.cross2 as cross
 # import genaric2.cross.bfs_fitness as bfs_fitness
 import genaric2.fitness.fitness as fitnessfuc
 import genaric2.TopoSeqValidator as TopoSeqValidator

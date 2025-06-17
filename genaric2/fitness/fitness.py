@@ -41,7 +41,23 @@ def calculate_fitness(individual,regions_to_color,inter_link_bandwidth,intra_lin
     return indictor, seq
 
 
+def calculate_fitness_test(individual,regions_to_color,inter_link_bandwidth,intra_link_bandwidth,cost,P, N, T ):
+    adjacency_list = decode_chromosome(P, N, T, individual)
 
+    indictor = 0
+    seq = []
+    for i in range(3, T - 2):
+        if i==7:
+            print(1)
+        onecost = cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost,
+                                             regions_to_color[i])
+        if onecost == -1:
+            print("No solution found")
+        else:
+            indictor = indictor + onecost
+            seq.append(onecost)
+
+    return indictor, seq
 
 def cauculate_one_snap_fitness(adjacency_list, N, inter_link_bandwidth, intra_link_bandwidth, cost,distinct):
     edge = a2w.adjacent2edge(adjacency_list, N, inter_link_bandwidth, intra_link_bandwidth, cost)

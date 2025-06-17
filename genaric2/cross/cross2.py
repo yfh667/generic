@@ -293,7 +293,13 @@ def crossover_wenti2(p1_left, p2_right, point,P, N, T, setuptime):
     if point<P-2:
     # we need clear all the nodes in the p2_right,which leftneighbor is in point,because p2_right point col is dropped
     #2. we need change the point+2's state for the afect_region
-
+        for t in range(T):
+            for j in range(N):
+                leftneighbor = p2_right[(point + 2, j, t)].leftneighbor
+                if leftneighbor:
+                    x2, y2, t2 = leftneighbor
+                    if x2 == point:
+                        modified_p2_right[(point + 2, j, t)].leftneighbor = None
 
         afect_region = set()
         for t in range(T):
@@ -330,20 +336,14 @@ def crossover_wenti2(p1_left, p2_right, point,P, N, T, setuptime):
                 x2,y2,t2=leftneighbor
                 if x2==point+1:
 
-                    basic_fuc.clear_state(leftneighbor, modified_p2_right, P, N, T, setuptime)
+                    basic_fuc.clear_state2(leftneighbor, modified_p2_right, P, N, T, setuptime)
 
 
             # if modified_p2_right[5,4,7].rightneighbor==None:
             #             print(1)
 
         #here is the basic code to delete the raw state for p2_right.
-        for t in range(T):
-            for j in range(N):
-                leftneighbor = p2_right[(point + 2, j, t)].leftneighbor
-                if leftneighbor:
-                    x2, y2, t2 = leftneighbor
-                    if x2 == point:
-                        modified_p2_right[(point + 2, j, t)].leftneighbor = None
+
 
         for t in range(T):
                 for j in range(N):
