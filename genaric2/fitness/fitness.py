@@ -22,12 +22,12 @@ def decode_chromosome(P, N, T,chromosome):
     return adjacency_list
 
 
-def calculate_fitness(individual,regions_to_color,inter_link_bandwidth,intra_link_bandwidth,cost,P, N, T ):
+def calculate_fitness_onedividual(individual,regions_to_color,inter_link_bandwidth,intra_link_bandwidth,cost,P, N, T ):
     adjacency_list = decode_chromosome(P, N, T, individual)
 
     indictor = 0
     seq = []
-    for i in range(3, T - 2):
+    for i in range(2, T ):
 
         onecost = cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost,
                                              regions_to_color[i])
@@ -97,7 +97,7 @@ def cauculate_one_snap_fitness(adjacency_list, N, inter_link_bandwidth, intra_li
 def calculate_fitness_min(adjacency_list,regions_to_color,intra_link_bandwidth, inter_link_bandwidth,cost,P,N,T):
     indictor = 0
     seq = []
-    for i in range(3, T - 2):
+    for i in range(2, T ):
 
         onecost = cauculate_one_snap_fitness(adjacency_list[i], N, inter_link_bandwidth, intra_link_bandwidth, cost,
                                              regions_to_color[i])

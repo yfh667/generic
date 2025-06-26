@@ -17,7 +17,7 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
    # individual_copy = individual.copy()  # 创建副本
     individual_copy = copy.deepcopy(individual)
 
-    fitness, indictors_seq = fitnessfuc.calculate_fitness(individual_copy,regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost,P, N, T )
+    fitness, indictors_seq = fitnessfuc.calculate_fitness_onedividual(individual_copy,regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost,P, N, T )
 
 
     min_value = min(indictors_seq)
@@ -28,39 +28,39 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
 
 
 # first we need detele the region-to-color
-    region_distinct= regions_to_color[min_index]
-
-    delete_nodes = []
-    for distinct in region_distinct:
-        for nodes in distinct:
-            x = nodes//N
-            y = nodes%N
-            coordinate=(x,y,min_index)
-            if individual_copy[nodes].asc_nodes_flag==1:
-                delete_nodes.append(nodes)
-
-
-    # 获取所有合法的 index，去除 delete_nodes
-    all_indices = set(range(P * N))
-    delete_indices = set(delete_nodes)
-    valid_indices = list(all_indices - delete_indices)
-
-    # 判断是否还有可用 index
-    if not valid_indices:
-        raise ValueError("No valid indices left for mutation after excluding delete_nodes.")
-
-    # 从剩余合法索引中随机选择一个
-    mutate_index = random.choice(valid_indices)
-
-    x_mutate_index = mutate_index // N
-    y_mutate_index = mutate_index % N
-
-
+#     region_distinct= regions_to_color[min_index]
 #
-# mutate_index = random.randint(0, P * N - 1)
+#     delete_nodes = []
+#     for distinct in region_distinct:
+#         for nodes in distinct:
+#             x = nodes//N
+#             y = nodes%N
+#             coordinate=(x,y,min_index)
+#             if individual_copy[nodes].asc_nodes_flag==1:
+#                 delete_nodes.append(nodes)
+#
+#
+#     # 获取所有合法的 index，去除 delete_nodes
+#     all_indices = set(range(P * N))
+#     delete_indices = set(delete_nodes)
+#     valid_indices = list(all_indices - delete_indices)
+#
+#     # 判断是否还有可用 index
+#     if not valid_indices:
+#         raise ValueError("No valid indices left for mutation after excluding delete_nodes.")
+#
+#     # 从剩余合法索引中随机选择一个
+#     mutate_index = random.choice(valid_indices)
 #
 #     x_mutate_index = mutate_index // N
-#     y_mutate_index=mutate_index%N
+#     y_mutate_index = mutate_index % N
+
+
+#
+    mutate_index = random.randint(0, P * N - 1)
+
+    x_mutate_index = mutate_index // N
+    y_mutate_index=mutate_index%N
 
 # so we nned mutate individual[x_mutate_index,y_mutate_index,min_index]
     mutate_node = (x_mutate_index,y_mutate_index,min_index)

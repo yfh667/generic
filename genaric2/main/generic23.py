@@ -35,7 +35,7 @@ intra_link_bandwidth = 100
 cost =1
 population_size = 200  # 种群大小
 generations = 300  # 最大迭代代数
-mutation_rate = 0.05  # 变异概率
+mutation_rate = 0.3  # 变异概率
 crossover_rate = 0.15  # 交叉概率
 
 N = 10
@@ -288,29 +288,30 @@ def genetic_algorithm():
         for i in range(len(mutate_arrary)):
             individual = population[mutate_arrary[i]]
 
-            mutate_individual,mutate_node = mutate.mutate_f(individual, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N,    T, setuptime)
+            # 随机选择 mutate.mutate_f 或 mutate_raw.mutate_f
+            if random.random() < 0.5:  # 50%的概率
+                mutate_individual, mutate_node = mutate.mutate_f(individual, regions_to_color, inter_link_bandwidth,
+                                                                 intra_link_bandwidth, cost, P, N, T, setuptime)
+            else:
+                mutate_individual, mutate_node = mutate_raw.mutate_f(individual, regions_to_color, inter_link_bandwidth,
+                                                                     intra_link_bandwidth, cost, P, N, T, setuptime)
 
-
-
-            if mutate_individual!=individual:
-
-                flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(mutate_individual, P, N, T,     setuptime)
+            if mutate_individual != individual:
+                flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(
+                    mutate_individual, P, N, T, setuptime)
 
                 if flag1 == 0:
                     print("mutate cuowu ")
-                    print(f"mutat node {mutate_node}")
+                    print(f"mutate node {mutate_node}")
                     writetoxml.nodes_to_xml(individual, "E:\\code\\data\\2\\para.xml")
                     writetoxml.nodes_to_xml(mutate_individual, "E:\\code\\data\\2\\child.xml")
-
 
                     try:
                         sys.exit("程序终止：存在非法拓扑结构。")
                     except SystemExit as e:
                         raise e  # 强制抛出，不让 IDE 忽略
 
-
                 mutate_population.append(mutate_individual)
-
 
 
 
@@ -365,7 +366,7 @@ def genetic_algorithm():
 
 # 执行遗传算法
 best_x, best_y, fitness_history = genetic_algorithm()
-writetoxml.nodes_to_xml(best_x, "E:\\code\\data\\1\\generic3.xml")
+writetoxml.nodes_to_xml(best_x, "E:\\code\\data\\1\\best.xml")
 # print(f"Optimal solution: x = {best_x}")
 
 # 绘制适应度历史曲线

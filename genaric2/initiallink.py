@@ -351,3 +351,52 @@ def initialize_snap_random_nodes(
 
 
 
+
+
+
+def initialize_snap_grid_nodes(
+
+
+
+    P: int,
+
+        N: int,
+        T: int,
+    #port: Dict[Tuple[int, int, int], int],
+    setuptime: int,
+    nodes:Dict[Tuple[int, int, int], tegnode.tegnode]
+) :
+    """
+    初始化当前列的右邻居连接。
+
+    参数:
+        col: 当前列编号（x轴）
+        N: 每列的行数（y轴）
+        P: 总列数
+        T: 时间层数（z轴）
+        port: 所有节点的端口占用情况
+        setuptime: 设置链路所需时间延迟
+        nodes: 所有节点对象
+
+    返回:
+        links: Dict[(row, t)] -> Tuple[next_x, next_y, next_t] 或 1
+    """
+   # links = {(row, t): -1 for row in range(N) for t in range(T)}
+    all_coords = [(row, t) for t in range(T) for row in range(N)]
+    random.shuffle(all_coords)
+
+
+    for x in range(P-1):
+        for y in range(N):
+            start_node_id =x*N+y
+            end_node_id = (x+1)*N+y
+            distinct_initial.initialize_establish_lifecycle(N, T, nodes, start_node_id, end_node_id, 0,T-1,
+                                                            setuptime)
+
+
+
+
+    return nodes
+
+
+

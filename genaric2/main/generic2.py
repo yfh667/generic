@@ -39,7 +39,7 @@ intra_link_bandwidth = 100
 
 cost =1
 population_size = 200  # 种群大小
-generations = 100  # 最大迭代代数
+generations = 300  # 最大迭代代数
 mutation_rate = 0.3  # 变异概率
 crossover_rate = 0.15  # 交叉概率
 
@@ -69,19 +69,27 @@ for i in range(len(region_satellite_groups)):
 
 
 
-# 初始化种群
-def initialize_population(P,N,T,nodes,setuptime):
+# # 初始化种群
+# def initialize_population(P,N,T,nodes,setuptime):
+#     chromosome = []
+#     for i in range(population_size):
+#         nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
+#
+#         chromosome.append(   initialize_individual.initialize_individual(P, N, T, nodes_copy,setuptime))
+#
+#     return chromosome
+#
+#    # return [random.sample(range(chromosome_length), chromosome_length) for _ in range(population_size)]
+
+
+def initialize_population(P,N,T,region,setuptime):
     chromosome = []
     for i in range(population_size):
-        nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
+    #    nodes_copy = copy.deepcopy(nodes)  # 深复制nodes
 
-        chromosome.append(   initialize_individual.initialize_individual(P, N, T, nodes_copy,setuptime))
+        chromosome.append(   initialize_individual.initialize_individual_region(region,P, N, T, setuptime))
 
     return chromosome
-
-   # return [random.sample(range(chromosome_length), chromosome_length) for _ in range(population_size)]
-
-
 
 
 def filter_and_replenish(population, fitness):
@@ -180,7 +188,7 @@ def genetic_algorithm():
 
 
 
-    population =initialize_population(P,N,T,nodes,setuptime)
+    population =initialize_population(P,N,T,regions_to_color,setuptime)
     best_solution = None
     best_fitness = float('inf')
     fitness_history = []
@@ -368,7 +376,7 @@ def genetic_algorithm():
 
 # 执行遗传算法
 best_x, best_y, fitness_history = genetic_algorithm()
-writetoxml.nodes_to_xml(best_x, "E:\\code\\data\\1\\best.xml")
+writetoxml.nodes_to_xml(best_x, "E:\\code\\data\\1\\generic2.xml")
 # print(f"Optimal solution: x = {best_x}")
 
 # 绘制适应度历史曲线

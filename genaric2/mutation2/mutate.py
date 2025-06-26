@@ -19,7 +19,7 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
    # individual_copy = individual.copy()  # 创建副本
     individual_copy = copy.deepcopy(individual)
 
-    fitness, indictors_seq = fitnessfuc.calculate_fitness(individual_copy,regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost,P, N, T )
+    fitness, indictors_seq = fitnessfuc.calculate_fitness_onedividual(individual_copy,regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost,P, N, T )
 
 
     min_value = min(indictors_seq)
