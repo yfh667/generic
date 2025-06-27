@@ -2,15 +2,15 @@
 
 import genaric2.writetoxml as writetoxml
 import draw.snapshotf_romxml as snapshotf_romxml
-import graph.time_2d2 as time_2d
+import graph.time_2d3 as time_2d
 import genaric2.action_table as action_table
 import graph.drawall as drawall
-import genaric2.mutation.mutate3 as mutate
+import genaric2.mutation3_probability.mutate3 as mutate
 import genaric2.TopoSeqValidator as TopoSeqValidator
 if __name__ == '__main__':
     N = 10
     P=10
-    T=23
+
     start_ts = 1500
     setuptime=2
     end_ts = 1523
@@ -27,17 +27,31 @@ if __name__ == '__main__':
         v = region_satellite_group[3]
         o = [u, v]
         regions_to_color[i] = o
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\para.xml")
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
     #usage
-    mutate.disconenct_mutate((0, 0, 3), individual1, P, N, T,setuptime)
+    mutate_node = (8, 9, 0)
+
+    region_distinct = regions_to_color[mutate_node[2]]
+
+    nowdistinct = []
+    for distinct in region_distinct:
+        for nodes in distinct:
+            x = nodes // N
+            y = nodes % N
+            if nodes == (mutate_node[0], mutate_node[1]):
+                nowdistinct = distinct
+
+
+
+    mutate.disconenct_mutate(mutate_node, individual1,nowdistinct, P, N, T,setuptime,1)
     ##------------------------------##
 
     flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T,
                                                                                            setuptime)
-    writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\1\\individual2_mutate3.xml")
+    writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\2\\individual_mutate3.xml")
 
 
     connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)

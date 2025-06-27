@@ -43,11 +43,27 @@ def establishment_mutate(coordinate,chromosome,distinct,P, N, T,setuptime,test=0
 
 
 
+    max_importance= 0
+    max_index = 0
+
+    for i in range(len(candidates)):
+        if chromosome[candidates[i]].importance > max_importance:
+            max_importance = chromosome[candidates[i]].importance
+            max_index = i
+
+
+
     if test:
+
         chosen_righbor=(7,8,6)
     else:
 
+
+# here we definetly switch to the moset prority nodes
+
         chosen_righbor = random.choice(candidates)
+
+     #   chosen_righbor=candidates[max_index]
 
     # here we test
     start, end = find_next_setup_time(coordinate, chromosome, P, N, T)

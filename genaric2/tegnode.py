@@ -13,5 +13,5 @@ class tegnode:
         self.importance =importance
 
     def __repr__(self):
-        return f"tegnode(asc_nodes_flag={self.asc_nodes_flag}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, state={self.state})"
+        return f"tegnode(asc_nodes_flag={self.asc_nodes_flag}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, state={self.state}),importance={self.importance})"
 

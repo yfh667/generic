@@ -5,10 +5,10 @@ import sys
 import genaric2.writetoxml as writetoxml
 
 import draw.snapshotf_romxml as snapshotf_romxml
-import graph.time_2d2 as time_2d
+import graph.time_2d3 as time_2d
 import genaric2.action_table as action_table
 import graph.drawall as drawall
-import genaric2.mutation2.mutate1 as mutate1
+import genaric2.mutation3_probability.mutate1 as mutate1
 import genaric2.TopoSeqValidator as TopoSeqValidator
 
 if __name__ == '__main__':
@@ -33,14 +33,14 @@ if __name__ == '__main__':
         regions_to_color[i] = o
 
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\hot.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\sa_demo.xml")
     #
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
     #usage#
 
-    mutate_node = (6, 8, 6)
+    mutate_node = (1, 2, 2)
 
     region_distinct = regions_to_color[mutate_node[2]]
 
@@ -53,7 +53,7 @@ if __name__ == '__main__':
                 nowdistinct = distinct
 
 
-    mutate1.establishment_mutate(mutate_node, individual1,nowdistinct, P, N, T,setuptime,1)
+    mutate1.establishment_mutate(mutate_node, individual1,nowdistinct, P, N, T,setuptime)
     ##------------------------------##
     flag1,connection1_test,connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
 

@@ -132,6 +132,39 @@ def SeqTopologyChecker_nownodes(nodes: Dict[Tuple[int, int, int], tegnode.tegnod
     return flag
 
 
+# below the SeqTopologyChecker_leftneighbor and SeqTopologyChecker_nownodes are basic topology check
+# it is a simple checker from the node's leftneighbor view
+def SeqTopologyChecker_hotspot(nodes: Dict[Tuple[int, int, int], tegnode.tegnode], P, N, T,region_to_cor,setuptime):
+    flag=1
+
+    for t in range(2,T):
+
+        regions = region_to_cor[t]
+        for region in regions:
+             for id in region:
+                 x = id // N
+                 y = id % N
+                 if x!=P-1:
+                     neighborid = (x+1)*N+y
+                     if neighborid in region:
+
+                         if not nodes[x,y,t].rightneighbor:
+                             flag=0
+                             print(f"region inner haven't link {x,y,t} with {x+1,y,t}")
+                         else:
+
+                             right_neightbor = nodes[x,y,t].rightneighbor
+                             if right_neightbor!=(x+1,y,t):
+                                 flag=0
+                                 print(f"inner region  neighbor  link falult  {x,y,t} ")
+
+
+
+
+
+
+
+    return  flag
 def find_connection_differences_per_timestep(conn1, conn2, T):
     """按时间片找出两个连接列表之间的差异"""
     # 存储每个时间片的差异
@@ -162,18 +195,23 @@ def find_connection_differences_per_timestep(conn1, conn2, T):
     return all_missing, all_extra
 
 
-def TologialSequenceValidator(Sequence, P, N, T,setuptime):
+def TologialSequenceValidator(Sequence, P, N, T,regions_to_color,setuptime):
     """
     This function takes a sequence of numbers as input and returns True if the sequence is a valid topological sequence, and False otherwise.
     """
 
 
     # 2, we could use the each node's left neighnor to get all the edge
+    # first we check the fsm true or false
     flag1 = SeqTopologyChecker_nownodes(Sequence, P, N, T,setuptime)
-
+# then we check the the each node's left neighnor to get all the edge
     flag2=SeqTopologyChecker_leftneighbor(Sequence, P, N, T,setuptime)
 
-    if not  flag1&flag2:
+
+
+    #then we need check the hot spot iner link true or false.
+    flag3=SeqTopologyChecker_hotspot(Sequence,P,N,T,regions_to_color,setuptime)
+    if not  flag1&flag2&flag3:
         print("the basic topology is false")
 
         return 0,-1,-1

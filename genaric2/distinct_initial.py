@@ -2,20 +2,20 @@ import genaric2.tegnode as tegnode
 
 
 def find_the_start(time_now, node_id, neighbor_id, group_idx, region_satellite_groups,setuptime):
-    while time_now >= 0:
+    while time_now > 0:
         region = region_satellite_groups[time_now][group_idx]
         if node_id in region and neighbor_id in region:
             time_now -= 1
         else:
             break
     #    time_now+=1
-    establish_time = time_now
+    establish_time = time_now+1
 
 
     node1_time = establish_time
 
     for i in range(setuptime):
-        if node1_time < 0:
+        if node1_time <= 0:
 
             break
 
@@ -29,8 +29,10 @@ def find_the_start(time_now, node_id, neighbor_id, group_idx, region_satellite_g
         node1_time = -1
 
     node2_time = establish_time
+
+
     for i in range(setuptime):
-        if node2_time < 0:
+        if node2_time <= 0:
             break
 
         region = region_satellite_groups[node2_time][group_idx]
@@ -129,7 +131,7 @@ def initialize_establish_lifecycle(N,T,nodes,start_node_id, end_node_id,start_ti
 
 
 def assign_state(nodes, start_time, end_time, start_node_id, end_node_id, setuptime, N,T):
-    if end_time - start_time > setuptime:
+    if end_time - start_time >= setuptime:
         x_start, y_start = divmod(start_node_id, N)
         x_end, y_end = divmod(end_node_id, N)
 
@@ -190,6 +192,10 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
             for node_id in region:
                 x_node, y_node = divmod(node_id, N)
 
+
+                # if node_id==47:
+                #     print(1)
+
                 # here we need assgin the node to hot region
                 nodes[(  x_node, y_node ,t)].asc_nodes_flag = 1
 
@@ -199,8 +205,10 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
                     if x_node < P - 1:
                         neighbor_id = (x_node + 1) * N + y_node
                         if neighbor_id in region:
-                            start_time = find_the_start(t - 1, node_id, neighbor_id, group_idx, regions_to_color,setuptime)
-                            assign_state(nodes,start_time +1,t, node_id, neighbor_id, setuptime, N,T)
+                            start_time = find_the_start(t , node_id, neighbor_id, group_idx, regions_to_color,setuptime)
+                            # if start_time==-1:
+                            #     print(1)
+                            assign_state(nodes,start_time ,t, node_id, neighbor_id, setuptime, N,T)
 
 
 

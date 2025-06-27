@@ -1,7 +1,7 @@
 import argparse
 import draw.snapshotf_romxml as snapshotf_romxml
 import graph.drawall as drawall
-import graph.time_2d2 as time_2d
+import graph.time_2d3 as time_2d
 import genaric2.action_table as action_table
 import genaric2.writetoxml as writetoxml
 
@@ -51,7 +51,7 @@ def main(individual_file):
         regions_to_color,
         N,
         P,
-        node_weights_array=weight_list_array  # ← 这一行传入节点权重
+        weight_list_array  # ← 这一行传入节点权重
     )
     vis.show(block=True)
 

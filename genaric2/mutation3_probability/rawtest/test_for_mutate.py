@@ -22,7 +22,7 @@ import genaric2.initialize_individual as initialize_individual
 
 import random
 import genaric2.TopoSeqValidator as TopoSeqValidator
-import genaric2.mutation2.mutate as mutate
+import genaric2.mutation3_probability.mutate as mutate
 inter_link_bandwidth = 50
 intra_link_bandwidth = 100
 cost = 1
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
 
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\hot.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\sa_demo.xml")
     # fitness, indictors_seq = fitness_function(P, N, T, [individual1], regions_to_color)
 
 

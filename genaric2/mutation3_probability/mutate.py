@@ -3,9 +3,9 @@ import genaric2.fitness.fitness as fitnessfuc
 
 import random
 
-import genaric2.mutation2.mutate1 as mutate1
-import genaric2.mutation2.mutate2 as mutate2
-import genaric2.mutation2.mutate3 as mutate3
+import genaric2.mutation3_probability.mutate1 as mutate1
+import genaric2.mutation3_probability.mutate2 as mutate2
+import genaric2.mutation3_probability.mutate3 as mutate3
 import copy
 
 
@@ -37,12 +37,17 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
 
 
     delete_nodes = []
+    distinct_nodes = []
     for distinct in region_distinct:
         for nodes in distinct:
             x = nodes // N
             y = nodes % N
-
+            distinct_nodes.append(nodes)
             coordinate = (x, y, min_index)
+
+            if x==P-1  :
+                delete_nodes.append(nodes)
+                coordinate
 
             right_neighbor = individual_copy[coordinate].rightneighbor
 
@@ -64,7 +69,42 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
         raise ValueError("No valid indices left for mutation after excluding delete_nodes.")
 
     # 从剩余合法索引中随机选择一个
+
+
+   ## 我们首先先完成distinct的链接。例如，假如一个hot spot处于单热点链接状态，也就是还有一个自由的链接，我们优先完成它。
+   ##
+#    distinct_nodes_priority = distinct_nodes-delete_nodes
+
+   # first we need give the mutation of the hot spot a more priority
+
+    #
+    # distinct_nodes_priority = list(set(distinct_nodes) - set(delete_nodes))
+    # if distinct_nodes_priority:
+    #    flag=0
+    #    for i in distinct_nodes_priority:
+    #
+    #        x_mutate_index = i // N
+    #        y_mutate_index = i % N
+    #
+    #        if x_mutate_index == P-1:
+    #            continue
+    #
+    #
+    #        if individual_copy[x_mutate_index,y_mutate_index,min_index].state==-1:
+    #            # defeninetly ,we mutate the this node
+    #            mutate_index = i
+    #            flag=1
+    #            break
+    #    if not flag:
+    #         mutate_index = random.choice(valid_indices)
+    #
+    # else:
+    #     mutate_index = random.choice(valid_indices)
+
+
     mutate_index = random.choice(valid_indices)
+
+
 
 
 
@@ -87,13 +127,21 @@ def mutate_f(individual,regions_to_color,inter_link_bandwidth, intra_link_bandwi
 
 # so we nned mutate individual[x_mutate_index,y_mutate_index,min_index]
     mutate_node = (x_mutate_index,y_mutate_index,min_index)
+
+
+    chosen=None
     if individual_copy[mutate_node].state==0:
+        type = 'etsablishmnet_mutate'
         mutate1.establishment_mutate(mutate_node, individual_copy, nowdistinct,P, N, T, setuptime)
     elif individual_copy[mutate_node].state==2:
+        type = 'maintence_mutate'
         mutate2.maintenance_mutate(mutate_node, individual_copy, P, N, T, setuptime)
     elif  individual_copy[mutate_node].state==-1:
-        mutate3.disconenct_mutate(mutate_node, individual_copy, P, N, T, setuptime)
-    return individual_copy,mutate_node
+        type = 'disconnect_mutate'
+        chosen=mutate3.disconenct_mutate(mutate_node, individual_copy,nowdistinct, P, N, T, setuptime)
+    else:
+        type = 'notiong'
+    return individual_copy,mutate_node,chosen,type
 
 
 

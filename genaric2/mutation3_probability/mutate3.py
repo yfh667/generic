@@ -3,43 +3,122 @@ import random
 
 import random
 import genaric2.mutation.basic_mutate_func as basic_mutate_func
+import genaric2.distinct_initial as distinct_initial
 
 
-def 	disconenct_mutate(coordinate,chromosome,P, N, T,setuptime):
+def 	disconenct_mutate(coordinate,chromosome,distinct,P, N, T,setuptime,test=0):
 
 
     x = coordinate[0]
     y = coordinate[1]
     t = coordinate[2]
 
+    # 搜索候选右邻居
+    candidates = []
+    col = x
+    row = y
+    next_col = col + 1
+
+    if len(distinct)==0:
+        #it is simple
+        if t + setuptime < T and next_col < P:
+            for i in range(3):
+                candi_node= (next_col, (row - 1+i) % N, t + setuptime)
+                candidates += [candi_node]
+        if next_col + 1 < P:
+            candi_node = (next_col + 1, row, t + setuptime)
+            candidates += [candi_node]
+
+    else:
+        # here we need check the distinct
+        if t + setuptime < T and next_col < P:
+            for i in range(3):
+                candi_node = (next_col, (row - 1 + i) % N, t + setuptime)
+
+                if candi_node not in distinct:
+                    candidates += [candi_node]
+
+
+        if next_col + 1 < P:
+            candi_node = (next_col + 1, row, t + setuptime)
+            if candi_node not in distinct:
+                candidates += [candi_node]
+
+
+    for candi_node in candidates:
+        if chromosome[candi_node].asc_nodes_flag==1:
+            if chromosome[candi_node].leftneighbor:
+                leftneighbor = chromosome[candi_node].leftneighbor
+                if chromosome[leftneighbor].asc_nodes_flag == 1:
+                    candidates.remove(candi_node)
+
+
+
+    max_importance= 0
+    max_index = 0
+
+    for i in range(len(candidates)):
+        if chromosome[candidates[i]].importance > max_importance:
+            max_importance = chromosome[candidates[i]].importance
+            max_index = i
+
+
+
+    if test:
+        chosen_righbor=(9, 8, 2)
+    else:
+
+       # chosen_righbor = random.choice(candidates)
+        if len(candidates)==0:
+
+            return None
+
+
+        chosen_righbor = candidates[max_index]
+
+
 
 
     start,end= find_next_setup_time(coordinate, chromosome, P, N, T)
 
-    for i in range(start,end+1):
-        right_neighbor = chromosome[x, y, i].rightneighbor
-        if chromosome[(x, y, i)].state==0:
-            # this is to delet the raw rightneighbor's left neighbor
+    # we first need delet the raw chosen_righbor data
 
-            x2,y2,t2=right_neighbor
-            for j in range(i,i+setuptime):
-               chromosome[x2, y2, j].leftneighbor=None
+    if end-start < setuptime:
+        return None
 
+    afect_region = []
+    for i in range(start, end + 1):
+        afect_region.append((chosen_righbor[0], chosen_righbor[1], i))
+        # we need delete the raw (x,y,i) rightneighbor 's leftneighbor information
 
-        elif chromosome[(x, y, i)].state!=-1:
+        if chromosome[(x, y, i)].state == 0:
 
+            rightbor = chromosome[(x, y, i)].rightneighbor
 
-            chromosome[right_neighbor].leftneighbor = None
+            x2 = rightbor[0]
+            y2 = rightbor[1]
 
-        chromosome[x, y, i].state = -1
-        chromosome[x, y, i].rightneighbor=None
+            for j in range(i, i + setuptime):
+                chromosome[(x2, y2, j)].leftneighbor = None
+        else:
+            rightbor = chromosome[(x, y, i)].rightneighbor
+            if rightbor:
+                chromosome[rightbor].leftneighbor = None
 
+    for coord in afect_region:
 
+        leftneighbor = chromosome[coord].leftneighbor
 
+        if leftneighbor:
+            basic_mutate_func.clear_state2(leftneighbor, chromosome, P, N, T, setuptime)
 
+    #
+    # for i in range(start,end+1):
+    start_node_id = x * N + y
+    end_node_id = chosen_righbor[0] * N + chosen_righbor[1]
+    distinct_initial.initialize_establish_lifecycle(N, T, chromosome, start_node_id, end_node_id, t, end, setuptime)
 
-
-
+    return  chosen_righbor
 
 
 def find_next_setup_time(coordinate,chromosome ,P, N, T):
@@ -51,29 +130,12 @@ def find_next_setup_time(coordinate,chromosome ,P, N, T):
     start_time = t
 
 
-    flag=2
-    flag2=1
     # Loop through time steps to find the next establishment
-    while t + 1 < T and flag :
+    while t + 1 < T  :
         t += 1
         if chromosome[(x, y, t)].state == 0:  # Node is setting up the link
-            if flag2:
-                start_time = t
-                flag2 = 0
-            flag=flag-1
+            break
 
-
-        elif chromosome[(x, y, t)].state == 2:
-            continue
-        elif chromosome[(x, y, t)].state != 1 and chromosome[(x, y, t)].state != 2 :
-            if flag2:
-                start_time = t
-                flag2 = 0
-
-
-    # The time when the node starts setting up the link
-
-    # The time when the node stops setting up the link
 
     if t+1==T:
         down_time=t

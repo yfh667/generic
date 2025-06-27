@@ -29,7 +29,7 @@ if __name__ == '__main__':
         regions_to_color[i] = o
 
 
-    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\sa_best.xml")
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\2\\child.xml")
 
   # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
     ##------------------------------##
@@ -37,15 +37,15 @@ if __name__ == '__main__':
 
     ##------------------------------##
 
-    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T,
+    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T,regions_to_color,
                                                                                            setuptime)
 
 
 
     # print("uptime", uptime)
     # print("down_time", down_time)
-    vis = time_2d.DynamicGraphVisualizer(connection1_test, regions_to_color, N, P)
-    vis.show()
+    # vis = time_2d.DynamicGraphVisualizer(connection1_test, regions_to_color, N, P)
+    # vis.show()
 
     # # 3D 拓扑图可视化
     # main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
@@ -53,3 +53,11 @@ if __name__ == '__main__':
     #
     # main_plotter = drawall.add_dashed_connections(main_plotter, connection1_test)
     # main_plotter.show(viewup="z", title="Interactive 3D Topology")
+    # vis = time_2d.DynamicGraphVisualizer(
+    #         adjacency_list_array,
+    #         regions_to_color,
+    #         N,
+    #         P,
+    #         node_weights_array=weight_list_array  # ← 这一行传入节点权重
+    # )
+    # vis.show(block=True)

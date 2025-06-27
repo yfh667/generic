@@ -7,7 +7,7 @@ import random
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
 import genaric2.TopoSeqValidator as TopoSeqValidator
-import  genaric2.mutation2.mutate as mutate
+import  genaric2.mutation3_probability.mutate as mutate
 import  genaric2.mutation.mutate as mutate_raw
 
 import os
@@ -83,9 +83,9 @@ def generate_neighbor(solution,):
    # candidate = np.clip(candidate, min_max[0], min_max[1])
 
 
-    candidate, mutate_node = mutate.mutate_f(solution, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N, T, setuptime)
+    candidate, mutate_node,_ ,_= mutate.mutate_f(solution, regions_to_color, inter_link_bandwidth, intra_link_bandwidth, cost, P, N, T, setuptime)
 
-    return candidate
+    return candidate,mutate_node
 
 # Calculate acceptance probability
 def acceptance_probability(current_cost, new_cost, temperature):
@@ -112,9 +112,16 @@ def simulated_annealing(initial_solution, objective_function, T_start, alpha, nu
 
     temperature = T_start
     for iteration in range(num_iterations):
-        neighbor = generate_neighbor(current_solution,)
+        neighbor,_ = generate_neighbor(current_solution,)
 
-
+        flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(
+            neighbor, P, N, T,regions_to_color, setuptime)
+        if flag1 == 0:
+            # print(f"mutate node {mutate_node},neighbor ={chose}")
+            # writetoxml.nodes_to_xml(individual, "E:\\code\\data\\2\\para.xml")
+            print("0")
+            writetoxml.nodes_to_xml(neighbor, "E:\\code\\data\\2\\sa_debug.xml")
+# here
 
 
         indictor, seq = objective_function(neighbor,regions_to_color,inter_link_bandwidth,intra_link_bandwidth,cost,P, N, T)
@@ -125,6 +132,10 @@ def simulated_annealing(initial_solution, objective_function, T_start, alpha, nu
             if neighbor_cost < best_cost:
                 best_solution = neighbor
                 best_cost = neighbor_cost
+
+
+
+
 
         accepted_solutions.append(current_solution)
         costs.append(current_cost)
@@ -139,7 +150,7 @@ if __name__ == "__main__":
     # Run the algorithm
     T_start = 3000
     alpha = 0.99
-    num_iterations = 100
+    num_iterations = 500
 
   #  initial_solution = np.random.uniform(min_max[0], min_max[1])
 
@@ -188,7 +199,7 @@ if __name__ == "__main__":
 
     adjacency_list_array=action_table.action_map2_shanpshots(best_solution, P, N, T)
     ########
-    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(best_solution, P, N, T,
+    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(best_solution, P, N, T,regions_to_color,
                                                                                            setuptime)
 
     weight_list_array = []
