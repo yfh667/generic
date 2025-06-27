@@ -178,7 +178,8 @@ def distinct_initial(P,N,T,setuptime,regions_to_color):
                     asc_nodes_flag=False,  # 或初始为None等你自己定义
                     rightneighbor=None,
                     leftneighbor=None,
-                    state=-1  # 默认初始为free
+                    state=-1,  # 默认初始为free
+                    importance=0,
                 )
 
 

@@ -1,37 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Dynamic Graph Visualizer
-=======================
-
-This script combines three capabilities you asked for:
-
-1. **时间轴动画** (matplotlib `Slider`)
-2. **区域高亮着色**（可自定义多组循环颜色）
-3. **同行-跨列边自动弯曲**，避免与节点重叠
-
-----
-**输入数据结构**
-```
-adjacency_list_array : List[List[Tuple[int,int]]]
-    第 *t* 个元素是一对节点 ID 构成的边表，对应时间步 *t*。
-
-region_groups_array  : List[List[List[int]]]
-    第 *t* 个元素是若干“区域”，每个区域是要着色的一组节点 ID。
-
-N, P : int
-    网格维度：每轨卫星数 *N*，轨道平面数 *P*。
-```
-两条列表 **长度必须一致**。
-#
-----
-本轮修订
---------
-* 修复 `TypeError: 'LineCollection' object is not iterable`
-  * `networkx.draw_networkx_edges` 返回的是 `LineCollection`；
-    不能用 `list.extend`，改为 `list.append` 单个对象。
-* 其它逻辑不变。
-"""
-from __future__ import annotations
+import genaric2.tegnode as tegnode
 import networkx as nx
 
 import math
@@ -47,36 +14,16 @@ import graph.time_2d3 as time_2d
 import genaric2.tegnode as tegnode
 #
 import draw.snapshotf_romxml as snapshotf_romxml
+from typing import List, Tuple, Sequence
+def initial_weight(P,N,T,regions_to_color):
+   # regions_to_color = {}
 
-
-def in_same_region(node1, node2, region_groups: List[List[int]]) -> int:
-    for region in region_groups:
-        if node1 in region and node2 in region:
-            return 1
-    return 0
-# ----------------------------- DEMO -----------------------------
-if __name__ == "__main__":
-
-    N = 10
-    P = 10
-    start_ts = 1500
-    T=24
-
-    end_ts = start_ts+T-1
-
-    dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
-
-    regions_to_color = {}
-    # Iterate over the time steps
-    region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
-    target_time_step = len(region_satellite_groups)
-    T = target_time_step
-    for i in range(len(region_satellite_groups)):
-        region_satellite_group = [[int(point) for point in region] for region in region_satellite_groups[i]]
-        u = region_satellite_group[0]
-        v = region_satellite_group[3]
-        o = [u, v]
-        regions_to_color[i] = o  # Corrected append to dictionary assignment
+    # for i in range(T):
+    #     region_satellite_group = [[int(point) for point in region] for region in region_satellite_groups[i]]
+    #     u = region_satellite_group[0]
+    #     v = region_satellite_group[3]
+    #     o = [u, v]
+    #     regions_to_color[i] = o  # Corrected append to dictionary assignment
 
 
 
@@ -92,7 +39,8 @@ if __name__ == "__main__":
                         asc_nodes_flag=False,  # 或初始为None等你自己定义
                         rightneighbor=None,
                         leftneighbor=None,
-                        state=-1  # 默认初始为free
+                        state=-1,  # 默认初始为free
+                        importance=0,
                     )
         #first we need complete the distinct inner links
         for group_idx, region in enumerate(regions_to_color[t]):
@@ -182,13 +130,36 @@ if __name__ == "__main__":
             bw[node] = 0.0
 
         weight_list_array.append(bw)
+    return weight_list_array,adjacency_list_array
+
+if __name__ == '__main__':
+    N = 10
+    P = 10
+    start_ts = 1500
+    T = 24
+
+    end_ts = start_ts + T - 1
+
+    dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
+
+    region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
+    regions_to_color = {}
 
 
+    for i in range(len(region_satellite_groups)):
+        region_satellite_group = [[int(point) for point in region] for region in region_satellite_groups[i]]
+        u = region_satellite_group[0]
+        v = region_satellite_group[3]
+        o = [u, v]
+        regions_to_color[i] = o  # Corrected append to dictionary assignment
+
+        # useage in here
+    weight_list_array, adjacency_list_array=initial_weight(P,N,T,regions_to_color)
 
 
+    ###########
 
-    # vis = time_2d.DynamicGraphVisualizer(adjacency_list_array, regions_to_color, N, P)
-    # vis.show(block=True)          # 让 Qt 事件循环真正阻塞主线程
+    ########
     vis = time_2d.DynamicGraphVisualizer(
         adjacency_list_array,
         regions_to_color,

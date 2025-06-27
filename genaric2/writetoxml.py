@@ -28,6 +28,7 @@ def nodes_to_xml(nodes_data, filename):
         node_elem.set("rightneighbor", str(node.rightneighbor))
         node_elem.set("leftneighbor", str(node.leftneighbor))
         node_elem.set("state", str(node.state))
+        node_elem.set("importance", str(node.importance))
 
     # 生成XML字符串
     xml_str = ET.tostring(root, encoding='utf-8')
@@ -90,7 +91,10 @@ def xml_to_nodes(filename):
                     'leftneighbor') != 'None' else None,
 
               #  leftneighbor=None,  # 原始保存时没有这个属性
-                state=int(node_elem.get('state', -1))
+                state=int(node_elem.get('state', -1)),
+            importance= float(node_elem.get('importance', -1))
+
+
             )
 
             # 添加到字典

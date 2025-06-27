@@ -1,18 +1,20 @@
-import argparse
+
+
+import genaric2.writetoxml as writetoxml
 import draw.snapshotf_romxml as snapshotf_romxml
-import graph.drawall as drawall
 import graph.time_2d2 as time_2d
 import genaric2.action_table as action_table
-import genaric2.writetoxml as writetoxml
-
-def main(individual_file):
-    # 参数设置
+import graph.drawall as drawall
+import genaric2.mutation.mutate2 as mutate
+import genaric2.TopoSeqValidator as TopoSeqValidator
+if __name__ == '__main__':
     N = 10
-    P = 10
+    P=10
+    T=23
     start_ts = 1500
     end_ts = 1523
     dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
-
+    setuptime=2
     # 提取区域信息
     regions_to_color = {}
     region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, start_ts, end_ts)
@@ -24,24 +26,26 @@ def main(individual_file):
         v = region_satellite_group[3]
         o = [u, v]
         regions_to_color[i] = o
+    individual1 = writetoxml.xml_to_nodes("E:\\code\\data\\1\\individual2.xml")
 
-    # 读取个体 XML 数据
-    individual1 = writetoxml.xml_to_nodes(individual_file)
+  # uptime, down_time=find_time_period_for_establishment(individual1, (0, 1, 0), P, N, T)
+    ##------------------------------##
+    #usage
+    mutate.maintenance_mutate((1, 0, 3), individual1, P, N, T,setuptime)
+    ##------------------------------##
 
-    # 2D 动态图可视化
+    flag1,connection1_test,connection2_test = TopoSeqValidator.TologialSequenceValidator(individual1, P, N, T, setuptime)
+    writetoxml.nodes_to_xml(individual1, "E:\\code\\data\\1\\individual2_mutate2.xml")
+
     connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)
-    vis = time_2d.DynamicGraphVisualizer(connection_list, regions_to_color, N, P)
+    # print("uptime", uptime)
+    # print("down_time", down_time)
+    vis = time_2d.DynamicGraphVisualizer(connection2_test, regions_to_color, N, P)
     vis.show()
 
     # 3D 拓扑图可视化
     main_plotter, original_points_objs, all_coords = drawall.plot_multi_layer_topology(P, N, target_time_step)
     main_plotter = drawall.apply_region_colors(main_plotter, P, N, target_time_step, regions_to_color, all_coords)
 
-    main_plotter = drawall.add_dashed_connections(main_plotter, connection_list)
+    main_plotter = drawall.add_dashed_connections(main_plotter, connection2_test)
     main_plotter.show(viewup="z", title="Interactive 3D Topology")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Visualize satellite topology_prof and regions.")
-    parser.add_argument("--input", type=str, required=True, help="Path to individual1.xml")
-    args = parser.parse_args()
-    main(args.input)

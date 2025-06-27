@@ -6,21 +6,30 @@ import random
 
 import genaric2.writetoxml as writetoxml
 import genaric2.initialize_individual as initialize_individual
-
-import  genaric2.mutation.mutate as mutate
+import genaric2.TopoSeqValidator as TopoSeqValidator
+import  genaric2.mutation2.mutate as mutate
 import  genaric2.mutation.mutate as mutate_raw
 
 import os
 import draw.snapshotf_romxml as snapshotf_romxml
 
-# --- Example Usage ---
-import genaric2.distinct_initial as distinct_initial
 
-# 定义目标函数
-import genaric2.cross.cross2 as cross
 
 import genaric2.fitness.fitness as fitnessfuc
-import genaric2.TopoSeqValidator as TopoSeqValidator
+import draw.snapshotf_romxml as snapshotf_romxml
+import graph.drawall as drawall
+import genaric2.tegnode as tegnode
+
+import graph.time_2d3 as time_2d
+# --- Example Usage ---
+import genaric2.distinct_initial as distinct_initial
+import genaric2.action_table as action_table
+import copy
+
+
+import genaric2.writetoxml as writetoxml
+import genaric2.initialize_individual as initialize_individual
+
 
 # 参数设置
 #topology_prof
@@ -130,7 +139,7 @@ if __name__ == "__main__":
     # Run the algorithm
     T_start = 3000
     alpha = 0.99
-    num_iterations = 1000
+    num_iterations = 100
 
   #  initial_solution = np.random.uniform(min_max[0], min_max[1])
 
@@ -164,7 +173,6 @@ if __name__ == "__main__":
         allcost.append(i[0])
     # Plot the results
 
-
     # Plot the results
     plt.figure(figsize=(8, 5))
     plt.plot(allcost, label='Cost')
@@ -177,3 +185,30 @@ if __name__ == "__main__":
 
     # Output the best solution found
     best_cost
+
+    adjacency_list_array=action_table.action_map2_shanpshots(best_solution, P, N, T)
+    ########
+    flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(best_solution, P, N, T,
+                                                                                           setuptime)
+
+    weight_list_array = []
+
+    for t in range(T):
+        weight = {}
+        for i in range(P):
+            for j in range(N):
+                key = i * N + j
+                value = best_solution[(i, j, t)].importance
+                weight[key] = value
+        weight_list_array.append(weight)
+
+
+
+    vis = time_2d.DynamicGraphVisualizer(
+            adjacency_list_array,
+            regions_to_color,
+            N,
+            P,
+            node_weights_array=weight_list_array  # ← 这一行传入节点权重
+    )
+    vis.show(block=True)
