@@ -38,136 +38,8 @@ GROUP_COLORS = [
     '#00FFFF',  # 青 (Group 5)
 '#FFFF00',  # 黄   (Group 6)
 ]
-#
-#
-# # --- 解析XML（记录每个时间步的组可见卫星） ---
-# def parse_xml_group_data(xml_file):
-#     """
-#     解析XML文件，记录每个时间步每个组可见的卫星集合。
-#
-#     返回结构：
-#     {
-#         time_step: {
-#             "groups": {组ID: 卫星集合}, # 卫星ID为整数
-#             "all_mentioned": 所有被任何地面站提及的卫星ID集合
-#         }
-#     }
-#     """
-#     tree = ET.parse(xml_file)
-#     root = tree.getroot()
-#
-#     group_data = {}
-#     for time_elem in root.findall('time'):
-#         step = int(time_elem.get('step'))
-#         # 初始化当前时间步的数据结构
-#         group_data[step] = {
-#             "groups": {gid: set() for gid in STATION_GROUPS},
-#             "all_mentioned": set() # 记录当前时间步所有被任何地面站提及的卫星
-#         }
-#
-#         stations_elem = time_elem.find('stations')
-#         if stations_elem is None:
-#             continue
-#
-#         for station_elem in stations_elem.findall('station'):
-#             station_id = int(station_elem.get('id'))
-#             # 查找该地面站所属的组
-#             assigned_gid = None
-#             for gid, info in STATION_GROUPS.items():
-#                 if station_id in info["stations"]:
-#                     assigned_gid = gid
-#                     break
-#
-#             # 如果地面站属于某个已定义的组
-#             if assigned_gid is not None:
-#                  # 提取该地面站可见的卫星ID并转换为整数
-#                 sat_ids_str = [sat.get('id') for sat in station_elem.findall('satellite')]
-#                 # 过滤掉None值，并尝试转换为整数
-#                 valid_sat_ids = set()
-#                 for sat_id_str in sat_ids_str:
-#                     if sat_id_str is not None:
-#                          try:
-#                              # XML中的ID可能是浮点数，确保转换为整数
-#                              sat_id = int(float(sat_id_str))
-#                              valid_sat_ids.add(sat_id)
-#                          except ValueError:
-#                              print(f"Warning: Could not convert satellite ID '{sat_id_str}' to integer at step {step}, station {station_id}")
-#                              pass # Skip invalid IDs
-#
-#                 # 将可见卫星添加到对应组的集合中
-#                 group_data[step]["groups"][assigned_gid].update(valid_sat_ids)
-#                 # 将可见卫星添加到所有被提及的卫星集合中
-#                 group_data[step]["all_mentioned"].update(valid_sat_ids)
-#
-#     return group_data
 
-# def parse_xml_group_data(xml_file, start_step=None, end_step=None):
-#     """
-#     解析 XML 并（可选）按时间窗口过滤。
-#
-#     参数
-#     ----
-#     xml_file   : str | PathLike
-#     start_step : int | None   # 起始时间步（含），None 表示从头开始
-#     end_step   : int | None   # 结束时间步（含），None 表示读到文件末尾
-#
-#     返回
-#     ----
-#     {
-#         step: {
-#             "groups": {gid: {sat_id, ...}},
-#             "all_mentioned": {sat_id, ...}
-#         },
-#         ...
-#     }
-#     """
-#     tree = ET.parse(xml_file)
-#     root = tree.getroot()
-#
-#     group_data = {}
-#     for time_elem in root.findall('time'):
-#         step = int(time_elem.get('step'))
-#
-#         # -------- 时间窗口过滤 --------
-#         if start_step is not None and step < start_step:
-#             continue
-#         if end_step is not None and step > end_step:
-#             continue
-#         # --------------------------------
-#
-#         group_data[step] = {
-#             "groups": {gid: set() for gid in STATION_GROUPS},
-#             "all_mentioned": set()
-#         }
-#
-#         stations_elem = time_elem.find('stations')
-#         if stations_elem is None:
-#             continue
-#
-#         for station_elem in stations_elem.findall('station'):
-#             station_id = int(station_elem.get('id'))
-#
-#             # 判断地面站属于哪一组
-#             assigned_gid = next(
-#                 (gid for gid, info in STATION_GROUPS.items()
-#                  if station_id in info["stations"]),
-#                 None
-#             )
-#
-#             if assigned_gid is None:
-#                 continue  # 该地面站未划分到任何组
-#
-#             # 读取并转换卫星 ID
-#             valid_ids = {
-#                 int(float(sat.get('id')))
-#                 for sat in station_elem.findall('satellite')
-#                 if sat.get('id') is not None
-#             }
-#
-#             group_data[step]["groups"][assigned_gid].update(valid_ids)
-#             group_data[step]["all_mentioned"].update(valid_ids)
-#
-#     return group_data
+
 
 # --- 绘制所有卫星（动态颜色更新） ---
 def plot_grouped_satellites(group_data):
@@ -177,9 +49,11 @@ def plot_grouped_satellites(group_data):
     all_cols = sat_ids // N  # X轴：轨道平面索引 (0 to P-1)
     all_rows = sat_ids % N  # Y轴：卫星在平面内的索引 (0 to N-1)
 
+    # fig, ax = plt.subplots(figsize=(14, 9))
+    # plt.subplots_adjust(bottom=0.25)
     fig, ax = plt.subplots(figsize=(14, 9))
-    plt.subplots_adjust(bottom=0.25)
-
+  # ① 把右侧也留出来给图例
+    fig.subplots_adjust(bottom=0.25, right=0.75)
     # 初始化所有卫星为默认状态（未被任何组可见）
     # 默认颜色为白色填充，浅灰色边框
     scat = ax.scatter(
@@ -217,7 +91,14 @@ def plot_grouped_satellites(group_data):
                    markerfacecolor='white', markeredgecolor='#CCCCCC',
                    label='Not Visible to Any Group')
     )
-    ax.legend(handles=legend_handles, loc='upper right', title="Visible to Group")
+   # ax.legend(handles=legend_handles, loc='upper right', title="Visible to Group")
+    ax.legend(
+                handles = legend_handles,
+            loc = 'center left',  # 图例框左侧对齐锚点
+            bbox_to_anchor = (1.02, 0.5),  # x>1 放到轴外；y=0.5 垂直居中
+            borderaxespad = 0.0,
+            title = "Visible to Group"
+                          )
 
     # 更新时间函数：根据当前时间步的数据更新卫星颜色
     def update(step):
@@ -295,7 +176,6 @@ def plot_grouped_satellites(group_data):
     plt.show()
 
 
-
 def modify_group_data(group_data, N=36):
     new_group_data = {}
 
@@ -343,13 +223,13 @@ def modify_group_data(group_data, N=36):
 
 # --- 主程序 ---
 if __name__ == "__main__":
-   # xml_file =  "E:\code\data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+   # xml_file =  "E:\Data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
     xml_file =  "E:\Data\station_visible_satellites_648_8_h.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
 
    # dummy_file_name =
    # dummy_file_name =
     start_ts = 3363
-    end_ts = 6615
+    end_ts = 21431
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)

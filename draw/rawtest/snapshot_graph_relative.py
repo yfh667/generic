@@ -8,6 +8,7 @@ from matplotlib.widgets import Slider
 import xml.etree.ElementTree as ET
 import matplotlib.colors as mcolors
 import sys
+import math
 import draw.read_snap_xml as read_snap_xml
 # --- 参数配置 ---
 N = 36  # 每轨道卫星数
@@ -39,69 +40,8 @@ GROUP_COLORS = [
 '#FFFF00',  # 黄   (Group 6)
 ]
 
-#
-# # --- 解析XML（记录每个时间步的组可见卫星） ---
-# def parse_xml_group_data(xml_file):
-#     """
-#     解析XML文件，记录每个时间步每个组可见的卫星集合。
-#
-#     返回结构：
-#     {
-#         time_step: {
-#             "groups": {组ID: 卫星集合}, # 卫星ID为整数
-#             "all_mentioned": 所有被任何地面站提及的卫星ID集合
-#         }
-#     }
-#     """
-#     tree = ET.parse(xml_file)
-#     root = tree.getroot()
-#
-#     group_data = {}
-#     for time_elem in root.findall('time'):
-#         step = int(time_elem.get('step'))
-#         # 初始化当前时间步的数据结构
-#         group_data[step] = {
-#             "groups": {gid: set() for gid in STATION_GROUPS},
-#             "all_mentioned": set() # 记录当前时间步所有被任何地面站提及的卫星
-#         }
-#
-#         stations_elem = time_elem.find('stations')
-#         if stations_elem is None:
-#             continue
-#
-#         for station_elem in stations_elem.findall('station'):
-#             station_id = int(station_elem.get('id'))
-#             # 查找该地面站所属的组
-#             assigned_gid = None
-#             for gid, info in STATION_GROUPS.items():
-#                 if station_id in info["stations"]:
-#                     assigned_gid = gid
-#                     break
-#
-#             # 如果地面站属于某个已定义的组
-#             if assigned_gid is not None:
-#                  # 提取该地面站可见的卫星ID并转换为整数
-#                 sat_ids_str = [sat.get('id') for sat in station_elem.findall('satellite')]
-#                 # 过滤掉None值，并尝试转换为整数
-#                 valid_sat_ids = set()
-#                 for sat_id_str in sat_ids_str:
-#                     if sat_id_str is not None:
-#                          try:
-#                              # XML中的ID可能是浮点数，确保转换为整数
-#                              sat_id = int(float(sat_id_str))
-#                              valid_sat_ids.add(sat_id)
-#                          except ValueError:
-#                              print(f"Warning: Could not convert satellite ID '{sat_id_str}' to integer at step {step}, station {station_id}")
-#                              pass # Skip invalid IDs
-#
-#                 # 将可见卫星添加到对应组的集合中
-#                 group_data[step]["groups"][assigned_gid].update(valid_sat_ids)
-#                 # 将可见卫星添加到所有被提及的卫星集合中
-#                 group_data[step]["all_mentioned"].update(valid_sat_ids)
-#
-#     return group_data
-#
 
+# --- 绘制所有卫星（动态颜色更新） ---
 # --- 绘制所有卫星（动态颜色更新） ---
 def plot_grouped_satellites(group_data):
     total_sats = N * P  # 卫星总数
@@ -110,9 +50,11 @@ def plot_grouped_satellites(group_data):
     all_cols = sat_ids // N  # X轴：轨道平面索引 (0 to P-1)
     all_rows = sat_ids % N  # Y轴：卫星在平面内的索引 (0 to N-1)
 
+    # fig, ax = plt.subplots(figsize=(14, 9))
+    # plt.subplots_adjust(bottom=0.25)
     fig, ax = plt.subplots(figsize=(14, 9))
-    plt.subplots_adjust(bottom=0.25)
-
+  # ① 把右侧也留出来给图例
+    fig.subplots_adjust(bottom=0.25, right=0.75)
     # 初始化所有卫星为默认状态（未被任何组可见）
     # 默认颜色为白色填充，浅灰色边框
     scat = ax.scatter(
@@ -150,7 +92,14 @@ def plot_grouped_satellites(group_data):
                    markerfacecolor='white', markeredgecolor='#CCCCCC',
                    label='Not Visible to Any Group')
     )
-    ax.legend(handles=legend_handles, loc='upper right', title="Visible to Group")
+   # ax.legend(handles=legend_handles, loc='upper right', title="Visible to Group")
+    ax.legend(
+                handles = legend_handles,
+            loc = 'center left',  # 图例框左侧对齐锚点
+            bbox_to_anchor = (1.02, 0.5),  # x>1 放到轴外；y=0.5 垂直居中
+            borderaxespad = 0.0,
+            title = "Visible to Group"
+                          )
 
     # 更新时间函数：根据当前时间步的数据更新卫星颜色
     def update(step):
@@ -226,8 +175,30 @@ def plot_grouped_satellites(group_data):
     # 初始化显示第一个时间步的数据
     update(min(steps))
     plt.show()
-
-
+#
+# def modify_group_data(group_data, N=36):
+#     new_group_data = {}
+#
+#     for step, raw_step_dict in group_data.items():   # ← 改这里
+#         raw_groups = raw_step_dict['groups']
+#         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
+#
+#         # 1. group 4 中最大 y
+#         group4_sats = raw_groups.get(4, set())
+#         y_up = max((sid % N for sid in group4_sats), default=0)
+#         offset = N - y_up - 1
+#
+#         for gid, sats in raw_groups.items():
+#             tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#             for sid in sats:
+#                 y = sid % N
+#                 x = sid // N
+#                 y_new = y - y_up - 1 if y > y_up else y + offset
+#                 new_sid = x * N + y_new
+#                 tgt_set.add(new_sid)
+#                 new_group_data[step]['all_mentioned'].add(new_sid)
+#
+#     return new_group_data
 def modify_group_data(group_data, N=36):
     new_group_data = {}
 
@@ -238,19 +209,50 @@ def modify_group_data(group_data, N=36):
         # 1. group 4 中最大 y
         group4_sats = raw_groups.get(4, set())
         y_up = max((sid % N for sid in group4_sats), default=0)
-        offset = N - y_up - 1
+        y_down = min((sid % N for sid in group4_sats), default=0)
+        if step==6004:
+            print(1)
+        if y_down!=0:
+            offset = N - y_up - 1
 
-        for gid, sats in raw_groups.items():
-            tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-            for sid in sats:
+            for gid, sats in raw_groups.items():
+                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+                for sid in sats:
+                    y = sid % N
+                    x = sid // N
+                    y_new = y - y_up - 1 if y > y_up else y + offset
+                    new_sid = x * N + y_new
+                    tgt_set.add(new_sid)
+                    new_group_data[step]['all_mentioned'].add(new_sid)
+        else:# here we need sove the down's hights
+            max1 = -math.inf
+
+            offset=0
+            for sid in group4_sats:
                 y = sid % N
                 x = sid // N
-                y_new = y - y_up - 1 if y > y_up else y + offset
-                new_sid = x * N + y_new
-                tgt_set.add(new_sid)
-                new_group_data[step]['all_mentioned'].add(new_sid)
+                here= y-5
+                if here<=0:
+                    if here>max1:
+                        max1 = here
+            y_up=max1+5
+
+
+            offset = N - y_up - 1
+            for gid, sats in raw_groups.items():
+                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+                for sid in sats:
+                    y = sid % N
+                    x = sid // N
+                    y_new = y - y_up - 1 if y > y_up else y + offset
+                    new_sid = x * N + y_new
+                    tgt_set.add(new_sid)
+                    new_group_data[step]['all_mentioned'].add(new_sid)
+
+
 
     return new_group_data
+
 
 
 # --- 主程序 ---
@@ -264,7 +266,7 @@ if __name__ == "__main__":
 
    # dummy_file_name =
     start_ts = 3363
-    end_ts = 6615
+    end_ts = 10000
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file,start_ts,end_ts)
