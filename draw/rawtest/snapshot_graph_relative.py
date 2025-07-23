@@ -38,7 +38,7 @@ GROUP_COLORS = [
     '#00FFFF',  # 青 (Group 5)
 '#FFFF00',  # 黄   (Group 6)
 ]
-#
+
 #
 # # --- 解析XML（记录每个时间步的组可见卫星） ---
 # def parse_xml_group_data(xml_file):
@@ -100,74 +100,7 @@ GROUP_COLORS = [
 #                 group_data[step]["all_mentioned"].update(valid_sat_ids)
 #
 #     return group_data
-
-# def parse_xml_group_data(xml_file, start_step=None, end_step=None):
-#     """
-#     解析 XML 并（可选）按时间窗口过滤。
 #
-#     参数
-#     ----
-#     xml_file   : str | PathLike
-#     start_step : int | None   # 起始时间步（含），None 表示从头开始
-#     end_step   : int | None   # 结束时间步（含），None 表示读到文件末尾
-#
-#     返回
-#     ----
-#     {
-#         step: {
-#             "groups": {gid: {sat_id, ...}},
-#             "all_mentioned": {sat_id, ...}
-#         },
-#         ...
-#     }
-#     """
-#     tree = ET.parse(xml_file)
-#     root = tree.getroot()
-#
-#     group_data = {}
-#     for time_elem in root.findall('time'):
-#         step = int(time_elem.get('step'))
-#
-#         # -------- 时间窗口过滤 --------
-#         if start_step is not None and step < start_step:
-#             continue
-#         if end_step is not None and step > end_step:
-#             continue
-#         # --------------------------------
-#
-#         group_data[step] = {
-#             "groups": {gid: set() for gid in STATION_GROUPS},
-#             "all_mentioned": set()
-#         }
-#
-#         stations_elem = time_elem.find('stations')
-#         if stations_elem is None:
-#             continue
-#
-#         for station_elem in stations_elem.findall('station'):
-#             station_id = int(station_elem.get('id'))
-#
-#             # 判断地面站属于哪一组
-#             assigned_gid = next(
-#                 (gid for gid, info in STATION_GROUPS.items()
-#                  if station_id in info["stations"]),
-#                 None
-#             )
-#
-#             if assigned_gid is None:
-#                 continue  # 该地面站未划分到任何组
-#
-#             # 读取并转换卫星 ID
-#             valid_ids = {
-#                 int(float(sat.get('id')))
-#                 for sat in station_elem.findall('satellite')
-#                 if sat.get('id') is not None
-#             }
-#
-#             group_data[step]["groups"][assigned_gid].update(valid_ids)
-#             group_data[step]["all_mentioned"].update(valid_ids)
-#
-#     return group_data
 
 # --- 绘制所有卫星（动态颜色更新） ---
 def plot_grouped_satellites(group_data):
@@ -295,72 +228,54 @@ def plot_grouped_satellites(group_data):
     plt.show()
 
 
-
 def modify_group_data(group_data, N=36):
     new_group_data = {}
 
-    for step in range(len(group_data)):
-        raw_groups = group_data[step]['groups']
+    for step, raw_step_dict in group_data.items():   # ← 改这里
+        raw_groups = raw_step_dict['groups']
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
 
-        # 1. 获取 group 4 中最大 y（决定顶部对齐用）
+        # 1. group 4 中最大 y
         group4_sats = raw_groups.get(4, set())
-        y_up = max([sid % N for sid in group4_sats]) if group4_sats else 0
-        offset = N - y_up - 1  # 将 group 4 提到最顶格
+        y_up = max((sid % N for sid in group4_sats), default=0)
+        offset = N - y_up - 1
 
-        # 2. 修改 group 4 的卫星位置：直接向上提
-        # new_group_data[step]['groups'][4] = set()
-        # for t in group4_sats:
-        #     x = t // N
-        #     y = t % N + offset
-        #     new_sid = x * N + y
-        #     new_group_data[step]['groups'][4].add(new_sid)
-        #     new_group_data[step]['all_mentioned'].add(new_sid)
-
-        # 3. 修改其他 group 的卫星（向上移动或保持不变）
         for gid, sats in raw_groups.items():
-            # if gid == 4:
-            #     continue  # 已处理
-
-            if gid not in new_group_data[step]['groups']:
-                new_group_data[step]['groups'][gid] = set()
-
+            tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
             for sid in sats:
                 y = sid % N
                 x = sid // N
-
-                # 如果在 group 4 上方，直接平移下去
-                if y > y_up:
-                    y_new = y - y_up-1
-                else:
-                    y_new = y+ offset
-
+                y_new = y - y_up - 1 if y > y_up else y + offset
                 new_sid = x * N + y_new
-                new_group_data[step]['groups'][gid].add(new_sid)
+                tgt_set.add(new_sid)
                 new_group_data[step]['all_mentioned'].add(new_sid)
 
     return new_group_data
 
+
 # --- 主程序 ---
 if __name__ == "__main__":
-   # xml_file =  "E:\code\data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
-    xml_file =  "E:\Data\station_visible_satellites_648_8_h.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+    #xml_file =  "E:\code\data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
 
-   # dummy_file_name =
+    xml_file = "E:\Data\station_visible_satellites_648_8_h.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+
+    # dummy_file_name =
+
+
    # dummy_file_name =
     start_ts = 3363
     end_ts = 6615
     try:
         # 解析XML数据
-        group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
+        group_data = read_snap_xml.parse_xml_group_data(xml_file,start_ts,end_ts)
 
         if not group_data:
             print(f"Error: No valid group visibility data parsed from {xml_file}.")
             print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' data.")
             sys.exit(1) # 退出程序如果解析失败或没有数据
-
+        new_group_data = modify_group_data(group_data)
         # 绘制可视化图
-        plot_grouped_satellites(group_data)
+        plot_grouped_satellites(new_group_data)
 
     except FileNotFoundError:
         print(f"Error: XML file not found at {xml_file}")

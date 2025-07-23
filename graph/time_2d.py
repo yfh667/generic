@@ -99,6 +99,14 @@ class DynamicGraphVisualizer:
         self._ax.set_ylim(-0.5, self.N - 0.5)
         self._ax.set_xticks(range(self.P))
         self._ax.set_yticks(range(self.N))
+
+        # ❶ 先锁定等比例，再画网格
+        self._ax.set_aspect("equal", adjustable="box")
+        self._ax.grid(True, linestyle="--", alpha=0.4)
+
+        self._ax.set_xlabel("Orbit Plane Index (x)")
+        self._ax.set_ylabel("Satellite Index in Plane (y)")
+
         self._ax.set_xlabel("Orbit Plane Index (x)")
         self._ax.set_ylabel("Satellite Index in Plane (y)")
         self._ax.grid(True, linestyle="--", alpha=0.4)
@@ -143,24 +151,47 @@ class DynamicGraphVisualizer:
         straight, curved = self._edge_split(g)
         node_colours = self._node_colours(step)
 
-        # 直线边
+        # =============== 直线边 ===============
         if straight:
-            art = nx.draw_networkx_edges(g, self._pos, ax=self._ax,
-                                          edgelist=straight, edge_color="black", alpha=0.6)
-            self._artists.append(art)
-        # 曲线边
-        if curved:
-            conn_style = f"arc3,rad={self._default_rad}"
-            art = nx.draw_networkx_edges(g, self._pos, ax=self._ax, edgelist=curved,
-                                          edge_color="red", connectionstyle=conn_style, width=1.5)
-            self._artists.append(art)
+            arts = nx.draw_networkx_edges(  # ← 注意变量名变成 arts
+                g, self._pos, ax=self._ax,
+                edgelist=straight,
+                edge_color="black", alpha=0.6,
+                arrows=True, arrowstyle='-',
+                min_source_margin=0.28, min_target_margin=0.28,
+            )
+            # ★ 若是列表就 extend，否则 append
+            if isinstance(arts, list):
+                self._artists.extend(arts)
+            else:
+                self._artists.append(arts)
 
-        # 节点和标签
-        node_art = nx.draw_networkx_nodes(g, self._pos, ax=self._ax,
-                                          node_color=node_colours, node_size=500)
+        # =============== 曲线边 ===============
+        if curved:
+            arts = nx.draw_networkx_edges(
+                g, self._pos, ax=self._ax,
+                edgelist=curved,
+                edge_color="red", width=1.5,
+                connectionstyle=f"arc3,rad={self._default_rad}",
+                arrows=True, arrowstyle='-',
+                min_source_margin=0.28, min_target_margin=0.28,
+            )
+            if isinstance(arts, list):
+                self._artists.extend(arts)
+            else:
+                self._artists.append(arts)
+
+        # =============== 节点和标签 ===============
+        node_art = nx.draw_networkx_nodes(
+            g, self._pos, ax=self._ax,
+            node_color=node_colours, node_size=500
+        )
         self._artists.append(node_art)
-        label_art = nx.draw_networkx_labels(g, self._pos, ax=self._ax,
-                                            font_size=8, font_weight="bold")
+
+        label_art = nx.draw_networkx_labels(
+            g, self._pos, ax=self._ax,
+            font_size=8, font_weight="bold"
+        )
         self._artists.extend(label_art.values())
 
         self._ax.set_title(f"Time-step {step}")
