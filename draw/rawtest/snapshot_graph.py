@@ -224,12 +224,13 @@ def modify_group_data(group_data, N=36):
 # --- 主程序 ---
 if __name__ == "__main__":
    # xml_file =  "E:\Data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
-    xml_file =  "E:\Data\station_visible_satellites_648_8_h.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+    xml_file =  "E:\Data\station_visible_satellites_648_1d_real.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
 
    # dummy_file_name =
    # dummy_file_name =
-    start_ts = 3363
-    end_ts = 21431
+    start_ts = 1
+  #  end_ts = 21431
+    end_ts = 86399
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
