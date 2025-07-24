@@ -210,33 +210,41 @@ class DynamicGraphVisualizer:
         for u, v in g.edges():
             y1, y2 = self._pos[u][1], self._pos[v][1]
             x1, x2 = self._pos[u][0], self._pos[v][0]
-            # A more robust check for curved edges
             if abs(y1 - y2) < 1e-9 and abs(x1 - x2) > 1:
                 curved.append((u, v))
             else:
                 straight.append((u, v))
 
-        # 绘制直线 (No changes here)
+        # 绘制直线
         if straight:
             art = nx.draw_networkx_edges(
                 g, self._pos, ax=self._ax, edgelist=straight,
                 edge_color="black", alpha=0.6, arrows=False
             )
-            self._artists.append(art)
+            # --- START: MODIFIED BLOCK ---
+            # Correctly handle single artist or list of artists
+            if isinstance(art, list):
+                self._artists.extend(art)
+            else:
+                self._artists.append(art)
+            # --- END: MODIFIED BLOCK ---
 
-        # 绘制曲线 (Changes are here)
+        # 绘制曲线
         if curved:
             art = nx.draw_networkx_edges(
                 g, self._pos, ax=self._ax, edgelist=curved,
                 edge_color="red", width=1.5,
-                # --- START: MODIFIED LINES ---
-                arrows=True,  # Force FancyArrowPatch to enable curves
-                arrowstyle='-',  # Style the arrow to be a simple line
-                # --- END: MODIFIED LINES ---
+                arrows=True,
+                arrowstyle='-',
                 connectionstyle=f"arc3,rad={self._curved_edge_rad}"
             )
-            self._artists.append(art)
-
+            # --- START: MODIFIED BLOCK ---
+            # Correctly handle single artist or list of artists
+            if isinstance(art, list):
+                self._artists.extend(art)
+            else:
+                self._artists.append(art)
+            # --- END: MODIFIED BLOCK ---
     def _update_rectangles(self, current_groups_data: Dict):
         """更新所有包络矩形的位置和可见性。"""
         groups = current_groups_data.get("groups", {})
@@ -350,14 +358,14 @@ if __name__ == "__main__":
         g_data['all_mentioned'].update(g0_sats)
         group_data_demo[step] = g_data
 
-        # 模拟 adjacency_data (g4内部全连接, g0内部全连接)
-        adj_data = []
-        g4_list = list(g4_sats)
-        g0_list = list(g0_sats)
-        for i in range(len(g4_list)):
-            for j in range(i + 1, len(g4_list)):
-                adj_data.append((g4_list[i], g4_list[j]))
-        adjacency_data_demo[step] = adj_data
+        # # 模拟 adjacency_data (g4内部全连接, g0内部全连接)
+        # adj_data = []
+        # g4_list = list(g4_sats)
+        # g0_list = list(g0_sats)
+        # for i in range(len(g4_list)):
+        #     for j in range(i + 1, len(g4_list)):
+        #         adj_data.append((g4_list[i], g4_list[j]))
+        # adjacency_data_demo[step] = adj_data
 
     # --- 3. 实例化并运行可视化工具 ---
     print("正在初始化可视化工具...")
