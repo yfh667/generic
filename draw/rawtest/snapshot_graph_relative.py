@@ -199,59 +199,61 @@ def plot_grouped_satellites(group_data):
 #                 new_group_data[step]['all_mentioned'].add(new_sid)
 #
 #     return new_group_data
-def modify_group_data(group_data, N=36,groupid=4):
-    new_group_data = {}
-
-    for step, raw_step_dict in group_data.items():   # ← 改这里
-        raw_groups = raw_step_dict['groups']
-        new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
-
-        # 1. group 4 中最大 y
-        group4_sats = raw_groups.get(groupid, set())
-        y_up = max((sid % N for sid in group4_sats), default=0)
-        y_down = min((sid % N for sid in group4_sats), default=0)
-        # if step==6004:
-        #     print(1)
-        if y_down!=0:
-            offset = N - y_up - 1
-
-            for gid, sats in raw_groups.items():
-                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-                for sid in sats:
-                    y = sid % N
-                    x = sid // N
-                    y_new = y - y_up - 1 if y > y_up else y + offset
-                    new_sid = x * N + y_new
-                    tgt_set.add(new_sid)
-                    new_group_data[step]['all_mentioned'].add(new_sid)
-        else:# here we need sove the down's hights
-            max1 = -math.inf
-
-            offset=0
-            for sid in group4_sats:
-                y = sid % N
-                x = sid // N
-                here= y-5
-                if here<=0:
-                    if here>max1:
-                        max1 = here
-            y_up=max1+5
 
 
-            offset = N - y_up - 1
-            for gid, sats in raw_groups.items():
-                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-                for sid in sats:
-                    y = sid % N
-                    x = sid // N
-                    y_new = y - y_up - 1 if y > y_up else y + offset
-                    new_sid = x * N + y_new
-                    tgt_set.add(new_sid)
-                    new_group_data[step]['all_mentioned'].add(new_sid)
-
-
-
-    return new_group_data
+# def modify_group_data(group_data, N=36,groupid=4):
+#     new_group_data = {}
+#
+#     for step, raw_step_dict in group_data.items():   # ← 改这里
+#         raw_groups = raw_step_dict['groups']
+#         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
+#
+#         # 1. group 4 中最大 y
+#         group4_sats = raw_groups.get(groupid, set())
+#         y_up = max((sid % N for sid in group4_sats), default=0)
+#         y_down = min((sid % N for sid in group4_sats), default=0)
+#         # if step==6004:
+#         #     print(1)
+#         if y_down!=0:
+#             offset = N - y_up - 1
+#
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#                     y_new = y - y_up - 1 if y > y_up else y + offset
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#         else:# here we need sove the down's hights
+#             max1 = -math.inf
+#
+#             offset=0
+#             for sid in group4_sats:
+#                 y = sid % N
+#                 x = sid // N
+#                 here= y-5
+#                 if here<=0:
+#                     if here>max1:
+#                         max1 = here
+#             y_up=max1+5
+#
+#
+#             offset = N - y_up - 1
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#                     y_new = y - y_up - 1 if y > y_up else y + offset
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#
+#
+#
+#     return new_group_data
 
 
 
@@ -259,15 +261,17 @@ def modify_group_data(group_data, N=36,groupid=4):
 if __name__ == "__main__":
     #xml_file =  "E:\code\data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
 
-   # xml_file = "E:\Data\station_visible_satellites_648_8_h.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
-    xml_file = "E:\Data\station_visible_satellites_648_1d_real.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
-
+   #  xml_file = "E:\Data\station_visible_satellites_648_1d_real.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+    xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
     # dummy_file_name =
 
 
    # dummy_file_name =
-    start_ts = 59055
-    end_ts = 60131
+   #  start_ts = 59055
+   #  end_ts = 60131
+
+    start_ts = 1202
+    end_ts = 3320
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file,start_ts,end_ts)
@@ -276,8 +280,10 @@ if __name__ == "__main__":
             print(f"Error: No valid group visibility data parsed from {xml_file}.")
             print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' data.")
             sys.exit(1) # 退出程序如果解析失败或没有数据
-        new_group_data = modify_group_data(group_data, N=36,groupid=0)
+        new_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36,groupid=4)
         # 绘制可视化图
+
+
         plot_grouped_satellites(new_group_data)
 
     except FileNotFoundError:

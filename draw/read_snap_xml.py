@@ -235,9 +235,67 @@ def plot_grouped_satellites(group_data):
     plt.show()
 
 import math
+
+#
+# def modify_group_data(group_data, N=36,groupid=4):
+#     new_group_data = {}
+#
+#     for step, raw_step_dict in group_data.items():   # ← 改这里
+#         raw_groups = raw_step_dict['groups']
+#         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
+#
+#         # 1. group 4 中最大 y
+#         group4_sats = raw_groups.get(groupid, set())
+#         y_up = max((sid % N for sid in group4_sats), default=0)
+#         y_down = min((sid % N for sid in group4_sats), default=0)
+#         # if step==6004:
+#         #     print(1)
+#         if y_down!=0:
+#             offset = N - y_up - 1
+#
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#                     y_new = y - y_up - 1 if y > y_up else y + offset
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#         else:# here we need sove the down's hights
+#             max1 = -math.inf
+#
+#             offset=0
+#             for sid in group4_sats:
+#                 y = sid % N
+#                 x = sid // N
+#                 here= y-5
+#                 if here<=0:
+#                     if here>max1:
+#                         max1 = here
+#             y_up=max1+5
+#
+#
+#             offset = N - y_up - 1
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#                     y_new = y - y_up - 1 if y > y_up else y + offset
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#
+#
+#
+#     return new_group_data
+
+
+
 def modify_group_data(group_data, N=36,groupid=4):
     new_group_data = {}
-
+    off_sets = {}
     for step, raw_step_dict in group_data.items():   # ← 改这里
         raw_groups = raw_step_dict['groups']
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
@@ -249,18 +307,21 @@ def modify_group_data(group_data, N=36,groupid=4):
         # if step==6004:
         #     print(1)
         if y_down!=0:
-            offset = N - y_up - 1
-
+            offset =y_up
+            off_sets[step] = offset
             for gid, sats in raw_groups.items():
                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
                 for sid in sats:
                     y = sid % N
                     x = sid // N
-                    y_new = y - y_up - 1 if y > y_up else y + offset
+
+
+                    y_new =(y-offset+N-1) %N
                     new_sid = x * N + y_new
                     tgt_set.add(new_sid)
                     new_group_data[step]['all_mentioned'].add(new_sid)
         else:# here we need sove the down's hights
+
             max1 = -math.inf
 
             offset=0
@@ -274,17 +335,57 @@ def modify_group_data(group_data, N=36,groupid=4):
             y_up=max1+5
 
 
-            offset = N - y_up - 1
+            offset =y_up
+            off_sets[step] = offset
             for gid, sats in raw_groups.items():
                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
                 for sid in sats:
                     y = sid % N
                     x = sid // N
-                    y_new = y - y_up - 1 if y > y_up else y + offset
+
+                    y_new = (y - offset + N - 1) % N
                     new_sid = x * N + y_new
                     tgt_set.add(new_sid)
                     new_group_data[step]['all_mentioned'].add(new_sid)
 
 
 
+    return new_group_data,off_sets
+
+
+def rev_modify_group_data(group_data,off_sets, N=36):
+    new_group_data = {}
+
+    for step, raw_step_dict in group_data.items():   # ← 改这里
+        raw_groups = raw_step_dict['groups']
+        new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
+
+        for gid, sats in raw_groups.items():
+            tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+            for sid in sats:
+                y = sid % N
+                x = sid // N
+
+                y_new = (y + off_sets[step] + 1) % N
+                new_sid = x * N + y_new
+                tgt_set.add(new_sid)
+                new_group_data[step]['all_mentioned'].add(new_sid)
+
+
+
     return new_group_data
+
+
+
+def rev_modify_data(time,number,off_sets, N=36):
+
+    y = number % N
+    x = number // N
+
+    y_new = (y + off_sets[time] + 1) % N
+    new_sid = x * N + y_new
+
+
+
+
+    return new_sid
