@@ -353,6 +353,19 @@ def modify_group_data(group_data, N=36,groupid=4):
     return new_group_data,off_sets
 
 
+def modify_data(time,number,off_sets, N=36):
+    x = number // N
+    y = number % N
+
+
+    y_new = (y- off_sets[time] + N-1) % N
+    new_sid = x * N + y_new
+
+
+
+
+    return new_sid
+
 def rev_modify_group_data(group_data,off_sets, N=36):
     new_group_data = {}
 

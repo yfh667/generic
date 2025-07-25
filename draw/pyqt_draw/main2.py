@@ -307,7 +307,7 @@ if __name__ == "__main__":
         for i in range(P - 1):
             for j in range(14,32):
                 nownode = i * N + j
-                if i+1<=17 and j+2<=32:
+                if i+1<=17 and j+2<32:
                     next_node1 = (i + 1) * N + j+2
                     edges_by_step[step].setdefault(nownode, set()).add(next_node1)
 

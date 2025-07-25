@@ -79,7 +79,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.setLayout(self.layout)
         self.plot_widget = pg.PlotWidget()
         self.layout.addWidget(self.plot_widget)
-
+        self.envelopesflag = 0
         # 白色底点
         self.bg_scatter = pg.ScatterPlotItem(size=26, brush='w', pen=None)
         self.bg_scatter.setZValue(5)
@@ -205,8 +205,8 @@ class SatelliteViewer(QtWidgets.QWidget):
 
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
 
-
-       # self.update_envelopes(step)
+        if self.envelopesflag:
+            self.update_envelopes(step)
 
     def on_slider(self, value):
         self.plot_satellites(value)
