@@ -62,6 +62,7 @@ TOTAL_SATS = N * P
 start_ts = 1202
 end_ts = 3320
 xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
+# xml_file = "E:\\Data\\station_visible_satellites_648_1d_real.xml"
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 _,off_sets = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 

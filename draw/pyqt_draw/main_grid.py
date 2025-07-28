@@ -6,6 +6,8 @@ import numpy as np
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
 import draw.read_snap_xml as read_snap_xml
+
+import  draw.pyqt_draw.adjacent2xml as adjacent2xml
 N = 36   # 每轨道卫星数
 P = 18   # 轨道平面数
 TOTAL_SATS = N * P
@@ -30,9 +32,7 @@ GROUP_COLORS = [
     '#FFFF00',  # 黄   (Group 6)
 ]
 
-
-
-def preprocess_envelopes(group_data, groups_to_envelope, N=36, y_preset_map={}):
+def preprocess_envelopes(group_data, groups_to_envelope, N, y_preset_map):
     envelope_regions = {gid: {} for gid in groups_to_envelope}
     steps = sorted(group_data.keys())
     old_x_min_map = {gid: -1 for gid in groups_to_envelope}
@@ -59,9 +59,27 @@ def preprocess_envelopes(group_data, groups_to_envelope, N=36, y_preset_map={}):
                 envelope_regions[gid][step] = None
     return envelope_regions
 
+start_ts = 1202
+end_ts = 3320
+xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
+group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
+group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
+
+class RectangleEnvelope:
+    def __init__(self, color="deeppink", width=2, style=QtCore.Qt.DashLine, z=100):
+        self.rect_item = QtWidgets.QGraphicsRectItem()
+        pen = pg.mkPen(color=color, width=width, style=style)
+        self.rect_item.setPen(pen)
+        self.rect_item.setZValue(z)
+        self.rect_item.setVisible(False)
+    def set_rect(self, x, y, w, h):
+        self.rect_item.setRect(x, y, w, h)
+        self.rect_item.setVisible(True)
+    def hide(self):
+        self.rect_item.setVisible(False)
+
 class SatelliteViewer(QtWidgets.QWidget):
     def __init__(self, group_data):
-        pg.setConfigOption('background', 'w')
         super().__init__()
         self.group_data = group_data
         self.steps = sorted(group_data.keys())
@@ -71,7 +89,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.register_envelope(4, color="deeppink")
         self.register_envelope(0, color="orange")
         self.envelope_regions = preprocess_envelopes(
-            self.group_data, [0, 4], N=36, y_preset_map={4: (31.5, 4), 0: (8.5, 5)}
+            self.group_data, [0, 4], N, {4: (31.5, 4), 0: (8.5, 5)}
         )
         self.plot_satellites(self.steps[0])
 
@@ -80,7 +98,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.setLayout(self.layout)
         self.plot_widget = pg.PlotWidget()
         self.layout.addWidget(self.plot_widget)
-        self.envelopesflag = 0
+
         # 白色底点
         self.bg_scatter = pg.ScatterPlotItem(size=26, brush='w', pen=None)
         self.bg_scatter.setZValue(5)
@@ -100,30 +118,6 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.slider.valueChanged.connect(self.on_slider)
         self.layout.addWidget(self.slider)
 
-
-        # ---- 时间跳转 ----
-        jump_layout = QtWidgets.QHBoxLayout()
-        self.jump_input = QtWidgets.QLineEdit()
-        self.jump_input.setPlaceholderText("跳转到 step")
-        self.jump_button = QtWidgets.QPushButton("跳转")
-        self.jump_button.clicked.connect(self.on_jump)
-        jump_layout.addWidget(self.jump_input)
-        jump_layout.addWidget(self.jump_button)
-        self.layout.addLayout(jump_layout)
-
-
-
-        # ---- 单步按钮 ----
-        step_layout = QtWidgets.QHBoxLayout()
-        self.prev_btn = QtWidgets.QPushButton("<")
-        self.next_btn = QtWidgets.QPushButton(">")
-        self.prev_btn.clicked.connect(self.step_prev)
-        self.next_btn.clicked.connect(self.step_next)
-        step_layout.addWidget(self.prev_btn)
-        step_layout.addWidget(self.next_btn)
-        self.layout.addLayout(step_layout)
-
-
         self.label = QtWidgets.QLabel()
         self.layout.addWidget(self.label)
 
@@ -139,26 +133,11 @@ class SatelliteViewer(QtWidgets.QWidget):
         ])
         self.legend_label = QtWidgets.QLabel(legend_str)
         self.layout.addWidget(self.legend_label)
-    def step_prev(self):
-        val = self.slider.value()
-        if val > self.steps[0]:
-            self.slider.setValue(val - 1)
-    def step_next(self):
-        val = self.slider.value()
-        if val < self.steps[-1]:
-            self.slider.setValue(val + 1)
 
     def register_envelope(self, group_id, color="deeppink"):
         envelope = RectangleEnvelope(color=color)
         self.envelopes[group_id] = envelope
         self.plot_widget.addItem(envelope.rect_item)
-    def on_jump(self):
-        val = self.jump_input.text().strip()
-        if val.isdigit():
-            step = int(val)
-            # 限制范围
-            if self.steps[0] <= step <= self.steps[-1]:
-                self.slider.setValue(step)
 
     def update_envelopes(self, step):
         for gid, envelope in self.envelopes.items():
@@ -205,141 +184,131 @@ class SatelliteViewer(QtWidgets.QWidget):
             self.draw_edges(step, {})
 
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
-
-        if self.envelopesflag:
-            self.update_envelopes(step)
+        self.update_envelopes(step)
 
     def on_slider(self, value):
         self.plot_satellites(value)
 
     def draw_edges(self, step, edges):
-        # 清除旧的线
+        # 1. 先移除上一次所有 QGraphicsPathItem 曲线
         if hasattr(self, "_edges_line_items"):
             for item in self._edges_line_items:
                 self.plot_widget.removeItem(item)
         self._edges_line_items = []
 
+        # 2. 直线照常准备 xs, ys
+        xs, ys = [], []
         sat_ids = np.arange(TOTAL_SATS)
         all_cols = sat_ids // N
         all_rows = sat_ids % N
 
-        # -------- 1. 先画实线 --------
         for src, dsts in edges.items():
             for dst in dsts:
                 if abs(all_cols[src] - all_cols[dst]) > 1:
+                    # “跳线” 画贝塞尔曲线
                     item = self.draw_curved_edge(
-                        all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5, dash=False
+                        all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5
                     )
+                    self._edges_line_items.append(item)
                 else:
-                    item = self.draw_straight_edge(
-                        all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], dash=False
-                    )
-                self._edges_line_items.append(item)
+                    xs.extend([all_cols[src], all_cols[dst], np.nan])
+                    ys.extend([all_rows[src], all_rows[dst], np.nan])
 
-        # -------- 2. 再画虚线 --------
-        pending_links = getattr(self, "pending_links_by_step", {}).get(step, {})
-        for src, dsts in pending_links.items():
-            for dst in dsts:
-                if abs(all_cols[src] - all_cols[dst]) > 1:
-                    item = self.draw_curved_edge(
-                        all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5, dash=True
-                    )
-                else:
-                    item = self.draw_straight_edge(
-                        all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], dash=True
-                    )
-                self._edges_line_items.append(item)
+        # 3. 直线继续用 PlotDataItem
+        if not hasattr(self, "_edges_line"):
+            self._edges_line = pg.PlotDataItem(pen=pg.mkPen(color='#888', width=1.2))
+            self._edges_line.setZValue(1)
+            self.plot_widget.addItem(self._edges_line)
+        self._edges_line.setData(xs, ys)
 
-    def draw_straight_edge(self, x0, y0, x1, y1, dash=False):
+    def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5):
         path = QPainterPath()
         path.moveTo(x0, y0)
-        path.lineTo(x1, y1)
-        item = QGraphicsPathItem(path)
-        # 按你的需求，虚线红色，实线灰色
-        pen = pg.mkPen(
-            color='red' if dash else '#888',  # 颜色同你原来风格
-            width=1.2,
-            style=QtCore.Qt.DashLine if dash else QtCore.Qt.SolidLine
-        )
-        item.setPen(pen)
-        item.setZValue(3)
-        self.plot_widget.addItem(item)
-        return item
-
-    def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5, dash=False):
-        path = QPainterPath()
-        path.moveTo(x0, y0)
+        # 控制点横向/纵向适当偏移即可，例如横向跳两格y不变，可以让y加减1
         ctrl_x = (x0 + x1) / 2
         ctrl_y = (y0 + y1) / 2 + curve * abs(x1 - x0)
         path.quadTo(ctrl_x, ctrl_y, x1, y1)
         item = QGraphicsPathItem(path)
-        # 参考你的用法
-        pen = pg.mkPen(
-            color='red' if dash else '#888',  # 虚线红，实线灰
-            width=1.2,
-            style=QtCore.Qt.DashLine if dash else QtCore.Qt.SolidLine
-        )
+        pen = pg.mkPen(color='red', width=1.2)  # 修改这里，将颜色改为红色
         item.setPen(pen)
-        item.setZValue(3)
+        item.setZValue(2)
         self.plot_widget.addItem(item)
         return item
 
-    # def draw_edges(self, step, edges):
-    #     # 1. 先移除上一次所有 QGraphicsPathItem 曲线
-    #     if hasattr(self, "_edges_line_items"):
-    #         for item in self._edges_line_items:
-    #             self.plot_widget.removeItem(item)
-    #     self._edges_line_items = []
-    #
-    #     # 2. 直线照常准备 xs, ys
-    #     xs, ys = [], []
-    #     sat_ids = np.arange(TOTAL_SATS)
-    #     all_cols = sat_ids // N
-    #     all_rows = sat_ids % N
-    #
-    #     for src, dsts in edges.items():
-    #         for dst in dsts:
-    #             if abs(all_cols[src] - all_cols[dst]) > 1:
-    #                 # “跳线” 画贝塞尔曲线
-    #                 item = self.draw_curved_edge(
-    #                     all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5
-    #                 )
-    #                 self._edges_line_items.append(item)
-    #             else:
-    #                 xs.extend([all_cols[src], all_cols[dst], np.nan])
-    #                 ys.extend([all_rows[src], all_rows[dst], np.nan])
-    #
-    #     # 3. 直线继续用 PlotDataItem
-    #     if not hasattr(self, "_edges_line"):
-    #         self._edges_line = pg.PlotDataItem(pen=pg.mkPen(color='#888', width=1.2))
-    #         self._edges_line.setZValue(1)
-    #         self.plot_widget.addItem(self._edges_line)
-    #     self._edges_line.setData(xs, ys)
 
-    # def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5):
-    #     path = QPainterPath()
-    #     path.moveTo(x0, y0)
-    #     # 控制点横向/纵向适当偏移即可，例如横向跳两格y不变，可以让y加减1
-    #     ctrl_x = (x0 + x1) / 2
-    #     ctrl_y = (y0 + y1) / 2 + curve * abs(x1 - x0)
-    #     path.quadTo(ctrl_x, ctrl_y, x1, y1)
-    #     item = QGraphicsPathItem(path)
-    #     pen = pg.mkPen(color='red', width=1.2)  # 修改这里，将颜色改为红色
-    #     item.setPen(pen)
-    #     item.setZValue(2)
-    #     self.plot_widget.addItem(item)
-    #     return item
+if __name__ == "__main__":
+    pg.setConfigOption('background', 'w')
+
+    edges_by_step = {}
+    for step in range(start_ts, end_ts):
+        edges_by_step[step] = {}
+        for i in range(P - 1):
+            for j in range(N):
+                nownode = i * N + j
+
+                next_node1 = (i + 1) * N + j
+                edges_by_step[step].setdefault(nownode, set()).add(next_node1)
+
+                upnodes = i * N + (j + 1) % N
+                edges_by_step[step].setdefault(nownode, set()).add(upnodes)
+                downnodes = i * N + (j - 1 + N) % N
+                edges_by_step[step].setdefault(nownode, set()).add(downnodes)
+
+    #
+    # for step in range(start_ts, end_ts):
+    #     edges_by_step[step] = {}
+    #     for i in range(P - 1):
+    #         for j in range(14,32):
+    #             nownode = i * N + j
+    #
+    #             # if i<P-2:
+    #             #     next_node1 = (i + 2) * N + j
+    #             #     edges_by_step[step].setdefault(nownode, set()).add(next_node1)
+    #
+    #
+    #             if i+1<=17 and j+2<=32:
+    #                 next_node1 = (i + 1) * N + j+2
+    #                 edges_by_step[step].setdefault(nownode, set()).add(next_node1)
+    #
+    #
+    #
+    #             upnodes = i * N + (j + 1) % N
+    #             edges_by_step[step].setdefault(nownode, set()).add(upnodes)
+    #             downnodes = i * N + (j - 1 + N) % N
+    #             edges_by_step[step].setdefault(nownode, set()).add(downnodes)
+    #
+    #
+    # for step in range(start_ts, end_ts):
+    #
+    #     for i in range(P - 1):
+    #         for j in range(0,14):
+    #             nownode = i * N + j
+    #
+    #
+    #             next_node1 = (i + 1) * N + j
+    #             edges_by_step[step].setdefault(nownode, set()).add(next_node1)
 
 
-class RectangleEnvelope:
-    def __init__(self, color="deeppink", width=2, style=QtCore.Qt.DashLine, z=100):
-        self.rect_item = QtWidgets.QGraphicsRectItem()
-        pen = pg.mkPen(color=color, width=width, style=style)
-        self.rect_item.setPen(pen)
-        self.rect_item.setZValue(z)
-        self.rect_item.setVisible(False)
-    def set_rect(self, x, y, w, h):
-        self.rect_item.setRect(x, y, w, h)
-        self.rect_item.setVisible(True)
-    def hide(self):
-        self.rect_item.setVisible(False)
+
+
+
+    # edges_by_step = {
+    #     1202: {
+    #         1: {73},  # 1连到73
+    #
+    #     }
+    # }
+
+
+
+
+    xml_file = "E:\\Data\\grid.xml"
+
+    adjacent2xml.write_steps_to_xml(edges_by_step, xml_file)
+    app = QtWidgets.QApplication([])
+    viewer = SatelliteViewer(group_data)
+    viewer.edges_by_step = edges_by_step
+    viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
+    viewer.resize(1200, 700)
+    viewer.show()
+    sys.exit(app.exec_())

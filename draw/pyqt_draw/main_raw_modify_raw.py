@@ -6,7 +6,7 @@ import numpy as np
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
 import draw.read_snap_xml as read_snap_xml
-
+import draw.pyqt_draw.adjacent2xml as adjacent2xml
 import draw.pyqt_draw.pyqt_main as pyqt_main
 N = 36   # 每轨道卫星数
 P = 18   # 轨道平面数
@@ -14,7 +14,10 @@ TOTAL_SATS = N * P
 
 start_ts = 1202
 end_ts = 3320
+
+
 xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
+
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 modify_group_data,off_sets = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 
@@ -23,20 +26,6 @@ if __name__ == "__main__":
     pg.setConfigOption('background', 'w')
     time_2_build = 60
     edges_by_step = {}
-    # for step in range(start_ts, end_ts):
-    #     edges_by_step[step] = {}
-    #     for i in range(P - 1):
-    #         for j in range(N):
-    #             nownode = i * N + j
-    #
-    #             if i<P-2:
-    #                 next_node1 = (i + 2) * N + j
-    #                 edges_by_step[step].setdefault(nownode, set()).add(next_node1)
-
-    #             upnodes = i * N + (j + 1) % N
-    #             edges_by_step[step].setdefault(nownode, set()).add(upnodes)
-    #             downnodes = i * N + (j - 1 + N) % N
-    #             edges_by_step[step].setdefault(nownode, set()).add(downnodes)
 
 
 
@@ -218,20 +207,8 @@ if __name__ == "__main__":
 
     # 至此，我们完成了拆链建链动作了。
 
-# HERE  we need trasver the raw_edges to  the modify edge
 
 
-    # modify_edges_by_step = {}
-    #
-    # for step, edges in raw_edges_by_step.items():  # step: 时间片
-    #     modify_edges_by_step[step] = {}
-    #
-    #     for src, dsts in edges.items():  # src: 起点id, dsts: 终点集合
-    #         raw_src = read_snap_xml.modify_data(step, src, off_sets)
-    #
-    #         for dst in dsts:
-    #             raw_dst = read_snap_xml.modify_data(step, dst, off_sets)
-    #             modify_edges_by_step[step].setdefault(raw_src, set()).add(raw_dst)
 
     modify_edges_by_step = {}
 
@@ -243,6 +220,10 @@ if __name__ == "__main__":
             for dst in dsts:
                 modify_dst = read_snap_xml.modify_data(step, dst, off_sets)
                 modify_edges_by_step[step].setdefault(modify_src, set()).add(modify_dst)
+
+    xml_file = "E:\\Data\\test.xml"
+
+    adjacent2xml.write_steps_to_xml(modify_edges_by_step, xml_file)
 
     modify_pending_links_by_step = {}
     for step, src_to_dsts in pending_links_by_step.items():
@@ -259,7 +240,7 @@ if __name__ == "__main__":
             modify_pending_links_by_step[step].setdefault(modify_src, set()).add(modify_dst)
 
 
-
+#我们接下来需要导出modify_edges_by_step，因为这个是转化后的拓扑形态
     app = QtWidgets.QApplication([])
     viewer = pyqt_main.SatelliteViewer(modify_group_data)
     viewer.edges_by_step = modify_edges_by_step
