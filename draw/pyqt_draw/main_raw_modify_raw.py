@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
 
 
-
+#### here we hard code our modify edges, this conclude the all the link for the transformed the chart
 # first we need arragent the main inter-link region
     for step in range(start_ts, end_ts):
         edges_by_step[step] = {}
@@ -92,6 +92,8 @@ if __name__ == "__main__":
     #     }
     # }
 
+
+## then we need transform the modify edges to the raw edges
     raw_edges_by_step = {}
 
     for step, edges in edges_by_step.items():  # step: 时间片
@@ -105,7 +107,7 @@ if __name__ == "__main__":
                 raw_edges_by_step[step].setdefault(raw_src, set()).add(raw_dst)
 
 
-
+### then ,we need arange the link reconfiguration,that means,we need arrrange the restablish limitation for the
     nodes = {}
     for step, edges in raw_edges_by_step.items():
         for src, dsts in edges.items():
@@ -140,7 +142,7 @@ if __name__ == "__main__":
                     )
                 else:
                     nodes[(x2, y2, step)].leftneighbor = (x1, y1, step)
-
+### we find the change time and the link
     allchange = {}
     for step in range(start_ts, end_ts):
         changed = []
@@ -162,7 +164,7 @@ if __name__ == "__main__":
             allchange[step + 1] = changed  # 用 step+1 作为key
 
 
-
+# 如果我们要查看建链的时间点，只要看allchange的key即可
     # 既然我们有了冲突点，我们只需要提前60s终止冲突链路即可
 
     for step, changes in allchange.items():
@@ -205,11 +207,13 @@ if __name__ == "__main__":
                     pending_links_by_step[k][src] = set()
                 pending_links_by_step[k][src].add(new_dst_id)
 
+
+
+
+
     # 至此，我们完成了拆链建链动作了。
-
-
-
-
+    # 但是由于我们演示是要用变化后的图去演示的，所以，在这里，我们又重新把变换后的图变换出来，这样我们看图就会看的更加清楚。
+    #
     modify_edges_by_step = {}
 
     for step, edges in raw_edges_by_step.items():  # 一定要遍历raw_edges_by_step！
@@ -221,9 +225,9 @@ if __name__ == "__main__":
                 modify_dst = read_snap_xml.modify_data(step, dst, off_sets)
                 modify_edges_by_step[step].setdefault(modify_src, set()).add(modify_dst)
 
-    xml_file = "E:\\Data\\test.xml"
-
-    adjacent2xml.write_steps_to_xml(modify_edges_by_step, xml_file)
+    # xml_file = "E:\\Data\\test.xml"
+    #
+    # adjacent2xml.write_steps_to_xml(modify_edges_by_step, xml_file)
 
     modify_pending_links_by_step = {}
     for step, src_to_dsts in pending_links_by_step.items():

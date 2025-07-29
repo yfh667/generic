@@ -19,8 +19,10 @@ if __name__ == "__main__":
     end_ts = 3320
     N = 36
     groupid = 4
-    xml_file = "E:\\Data\\test.xml"
-    #xml_file = "E:\\Data\\grid.xml"
+
+
+  #  xml_file = "E:\\Data\\test.xml"
+    xml_file = "E:\\Data\\grid.xml"
 
     modify_edges_by_step = adjacent2xml.read_steps_from_xml(xml_file)
 

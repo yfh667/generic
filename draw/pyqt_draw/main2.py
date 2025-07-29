@@ -482,8 +482,10 @@ if __name__ == "__main__":
 
 
     app = QtWidgets.QApplication([])
+
     viewer = pyqt_main.SatelliteViewer(group_data)
     viewer.edges_by_step = raw_edges_by_step
+  #  viewer.envelopesflag  =1
     viewer.pending_links_by_step = pending_links_by_step  # <<<<<<<< 新增
 
     viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")

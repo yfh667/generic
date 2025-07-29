@@ -94,7 +94,17 @@ def modify_group_data(group_data, N=36):
 
     return new_group_data
 
-
+def cyclic_width(ys, N):
+    if not ys:
+        return 0
+    ys = sorted(set(ys))
+    gaps = []
+    for i in range(1, len(ys)):
+        gaps.append(ys[i] - ys[i-1])
+    # 跨越环首尾
+    gaps.append((ys[0] + N) - ys[-1])
+    maxgap = max(gaps)
+    return N - maxgap + 1
 
 
 
@@ -106,15 +116,24 @@ if __name__ == "__main__":
    # dummy_file_name =
    # dummy_file_name =
 
-
-    start_ts = 1202
-    end_ts = 3320
+    # start_ts = 1
+    # # #  end_ts = 21431
+    # end_ts = 86399
+    # start_ts = 1202
+    # end_ts = 3320
+    # start_ts = 53232
+    # end_ts = 55574
     # start_ts = 1
     # end_ts = 6733
+
+    start_ts = 1215
+    end_ts = 6793
+
+
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
-        group_data = modify_group_data(group_data)
+       # group_data = modify_group_data(group_data)
         if not group_data:
             print(f"Error: No valid group visibility data parsed from {xml_file}.")
             print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' data.")
@@ -125,31 +144,33 @@ if __name__ == "__main__":
         # 假设 group_data 已经准备好，键是时间戳，值是包含 'groups' 子字典
         times = sorted(group_data.keys())
 
-        widths = []
-        heights = []
-        groupid = 0
+
+        groupid = 4
+        # --- 主程序修改 ---
+        length = 7
+        width =5
+
+        time_point = []
+        last_time = -1
+        last_x = -1
         for t in times:
-            # 拿到这一步的 Group 4 所有卫星 ID
+            if last_time==-1:
+                last_time = t
+
             sats4 = group_data[t]['groups'][groupid]
-            # 转成 x,y 坐标
             xs = [sid // N for sid in sats4]
             ys = [sid % N for sid in sats4]
-            # 计算宽、高
-            w = max(xs) - min(xs) + 1
-            h = max(ys) - min(ys) + 1
-            widths.append(w)
-            heights.append(h)
+            min_x = min(xs)
+            max_x =  max(xs)
+            if last_x==-1:
+                last_x = min_x
+            if last_x+length-1<max_x:
+                last_x = min_x
+                time_point.append(t)
 
-        # 绘图
-        plt.figure(figsize=(8, 4))
-        plt.plot(times, widths, label='Length (Δx)')
-        plt.plot(times, heights, label='Width (Δy)')
-        plt.xlabel('Time Step')
-        plt.ylabel('Size (grid units)')
-        plt.title('Group 4 Bounding Box Size Over Time')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        print(time_point)
+
+
     except FileNotFoundError:
         print(f"Error: XML file not found at {xml_file}")
         sys.exit(1) # 退出程序如果文件未找到

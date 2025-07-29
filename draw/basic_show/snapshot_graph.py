@@ -225,11 +225,11 @@ def modify_group_data(group_data, N=36):
 if __name__ == "__main__":
    # xml_file =  "E:\Data\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
     xml_file =  "E:\Data\station_visible_satellites_648_1d_real.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
-    #xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
+   # xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
    # dummy_file_name =
    # dummy_file_name =
     start_ts = 1
-  # #  end_ts = 21431
+
     end_ts = 86399
 
     # start_ts = 1202

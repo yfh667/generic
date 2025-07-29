@@ -71,7 +71,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.register_envelope(4, color="deeppink")
         self.register_envelope(0, color="orange")
         self.envelope_regions = preprocess_envelopes(
-            self.group_data, [0, 4], N=36, y_preset_map={4: (31.5, 4), 0: (8.5, 5)}
+            self.group_data, [0, 4], N=36, y_preset_map={4: (18-0.5, 4), 0: (31, 5)}
         )
         self.plot_satellites(self.steps[0])
 

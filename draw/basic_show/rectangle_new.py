@@ -94,7 +94,59 @@ def modify_group_data(group_data, N=36):
 
     return new_group_data
 
+def cyclic_width(ys, N):
+    if not ys:
+        return 0
+    ys = sorted(set(ys))
+    gaps = []
+    for i in range(1, len(ys)):
+        gaps.append(ys[i] - ys[i-1])
+    # 跨越环首尾
+    gaps.append((ys[0] + N) - ys[-1])
+    maxgap = max(gaps)
+    return N - maxgap + 1
 
+def fanxiangfeng(sats, P, N):
+    xs = [sid // N for sid in sats]
+    ys = [sid % N for sid in sats]
+
+    left = min(xs)
+    right = max(xs)
+    block_info = [(None, None), (None, None)]
+
+    # 判断是否两块
+    if left == 0 and right == P - 1:
+        # --------左侧块--------
+        leftgroup = []
+        x = left
+        while x in xs:
+            leftgroup.append(x)
+            x += 1
+        # 统计左块包络
+        leftys = [sid % N for sid in sats if (sid // N) in leftgroup]
+        left_width = cyclic_width(leftys, N)
+        left_length = leftgroup[-1] - leftgroup[0] + 1 if leftgroup else 0
+        block_info[0] = (left_length, left_width)
+
+        # --------右侧块--------
+        rightgroup = []
+        x = right
+        while x in xs:
+            rightgroup.append(x)
+            x -= 1
+        rightys = [sid % N for sid in sats if (sid // N) in rightgroup]
+        right_width = cyclic_width(rightys, N)
+        right_length = rightgroup[0] - rightgroup[-1] + 1 if rightgroup else 0
+        block_info[1] = (right_length, right_width)
+
+    else:
+        # 只有一块，取所有点
+        w = max(xs) - min(xs) + 1
+        h = cyclic_width(ys, N)
+        block_info[0] = (w, h)
+        block_info[1] = (None, None)
+
+    return block_info  # [(块1长, 宽), (块2长, 宽)]
 
 
 
@@ -106,15 +158,19 @@ if __name__ == "__main__":
    # dummy_file_name =
    # dummy_file_name =
 
-
-    start_ts = 1202
-    end_ts = 3320
+    start_ts = 1
+    # #  end_ts = 21431
+    end_ts = 86399
+    # start_ts = 1202
+    # end_ts = 3320
+    # start_ts = 53232
+    # end_ts = 55574
     # start_ts = 1
     # end_ts = 6733
     try:
         # 解析XML数据
         group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
-        group_data = modify_group_data(group_data)
+       # group_data = modify_group_data(group_data)
         if not group_data:
             print(f"Error: No valid group visibility data parsed from {xml_file}.")
             print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' data.")
@@ -125,29 +181,37 @@ if __name__ == "__main__":
         # 假设 group_data 已经准备好，键是时间戳，值是包含 'groups' 子字典
         times = sorted(group_data.keys())
 
-        widths = []
-        heights = []
-        groupid = 0
-        for t in times:
-            # 拿到这一步的 Group 4 所有卫星 ID
-            sats4 = group_data[t]['groups'][groupid]
-            # 转成 x,y 坐标
-            xs = [sid // N for sid in sats4]
-            ys = [sid % N for sid in sats4]
-            # 计算宽、高
-            w = max(xs) - min(xs) + 1
-            h = max(ys) - min(ys) + 1
-            widths.append(w)
-            heights.append(h)
 
-        # 绘图
-        plt.figure(figsize=(8, 4))
-        plt.plot(times, widths, label='Length (Δx)')
-        plt.plot(times, heights, label='Width (Δy)')
+        groupid = 4
+        # --- 主程序修改 ---
+        widths1, heights1, widths2, heights2 = [], [], [], []
+        for t in times:
+            sats4 = group_data[t]['groups'][groupid]
+            (l1, w1), (l2, w2) = fanxiangfeng(sats4,   P,N)
+            widths1.append(l1)
+            heights1.append(w1)
+            widths2.append(l2)
+            heights2.append(w2)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
+
+        # 上面是Block1
+        ax1.plot(times, widths1, label='Block1 Length', color='tab:blue')
+        ax1.plot(times, heights1, label='Block1 Width', color='tab:orange')
+        ax1.set_ylabel('Block1 Size')
+        ax1.set_title('Block1（一般为主包络）长宽随时间变化')
+        ax1.legend()
+        ax1.grid(alpha=0.3)
+
+        # 下面是Block2
+        ax2.plot(times, widths2, label='Block2 Length', color='tab:green')
+        ax2.plot(times, heights2, label='Block2 Width', color='tab:red')
+        ax2.set_ylabel('Block2 Size')
+        ax2.set_title('Block2（有时不存在）长宽随时间变化')
+        ax2.legend()
+        ax2.grid(alpha=0.3)
+
         plt.xlabel('Time Step')
-        plt.ylabel('Size (grid units)')
-        plt.title('Group 4 Bounding Box Size Over Time')
-        plt.legend()
         plt.tight_layout()
         plt.show()
     except FileNotFoundError:
