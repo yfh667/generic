@@ -32,32 +32,32 @@ GROUP_COLORS = [
 
 
 
-def preprocess_envelopes(group_data, groups_to_envelope, N=36, y_preset_map={}):
-    envelope_regions = {gid: {} for gid in groups_to_envelope}
-    steps = sorted(group_data.keys())
-    old_x_min_map = {gid: -1 for gid in groups_to_envelope}
-    for step in steps:
-        for gid in groups_to_envelope:
-            group_sats = group_data[step]["groups"].get(gid, set())
-            if gid==4 or gid==0:
-                x_coords = [sid // N for sid in group_sats]
-                if len(x_coords) == 0:
-                    envelope_regions[gid][step] = None
-                    continue
-                x_min, x_max = min(x_coords), max(x_coords)
-                rect_x = x_min - 0.5
-                rect_width = 7
-                if old_x_min_map[gid] == -1:
-                    old_x_min_map[gid] = x_min
-                elif old_x_min_map[gid] + rect_width > x_max:
-                    rect_x = old_x_min_map[gid] - 0.5
-                else:
-                    old_x_min_map[gid] = x_min
-                rect_y, rect_height = y_preset_map.get(gid, (0, N))
-                envelope_regions[gid][step] = (rect_x, rect_y, rect_width, rect_height)
-            else:
-                envelope_regions[gid][step] = None
-    return envelope_regions
+# def preprocess_envelopes(group_data, groups_to_envelope, N=36, y_preset_map={}):
+#     envelope_regions = {gid: {} for gid in groups_to_envelope}
+#     steps = sorted(group_data.keys())
+#     old_x_min_map = {gid: -1 for gid in groups_to_envelope}
+#     for step in steps:
+#         for gid in groups_to_envelope:
+#             group_sats = group_data[step]["groups"].get(gid, set())
+#             if gid==4 or gid==0:
+#                 x_coords = [sid // N for sid in group_sats]
+#                 if len(x_coords) == 0:
+#                     envelope_regions[gid][step] = None
+#                     continue
+#                 x_min, x_max = min(x_coords), max(x_coords)
+#                 rect_x = x_min - 0.5
+#                 rect_width = 7
+#                 if old_x_min_map[gid] == -1:
+#                     old_x_min_map[gid] = x_min
+#                 elif old_x_min_map[gid] + rect_width > x_max:
+#                     rect_x = old_x_min_map[gid] - 0.5
+#                 else:
+#                     old_x_min_map[gid] = x_min
+#                 rect_y, rect_height = y_preset_map.get(gid, (0, N))
+#                 envelope_regions[gid][step] = (rect_x, rect_y, rect_width, rect_height)
+#             else:
+#                 envelope_regions[gid][step] = None
+#     return envelope_regions
 
 class SatelliteViewer(QtWidgets.QWidget):
     def __init__(self, group_data):
@@ -70,9 +70,9 @@ class SatelliteViewer(QtWidgets.QWidget):
         self._edge_lines = []
         self.register_envelope(4, color="deeppink")
         self.register_envelope(0, color="orange")
-        self.envelope_regions = preprocess_envelopes(
-            self.group_data, [0, 4], N=36, y_preset_map={4: (18-0.5, 4), 0: (31, 5)}
-        )
+        # self.envelope_regions = preprocess_envelopes(
+        #     self.group_data, [0, 4], N=36, y_preset_map={4: (18-0.5, 4), 0: (31, 5)}
+        # )
         self.plot_satellites(self.steps[0])
 
     def init_ui(self):
@@ -160,11 +160,23 @@ class SatelliteViewer(QtWidgets.QWidget):
             if self.steps[0] <= step <= self.steps[-1]:
                 self.slider.setValue(step)
 
-    def update_envelopes(self, step):
+    # def update_envelopes(self, step):
+    #     for gid, envelope in self.envelopes.items():
+    #         rect = self.envelope_regions[gid].get(step)
+    #         if rect is not None:
+    #             envelope.set_rect(*rect)
+    #         else:
+    #             envelope.hide()
+    def update_envelopes(self, expand=0.3):
         for gid, envelope in self.envelopes.items():
-            rect = self.envelope_regions[gid].get(step)
+            rect = self.envelope_regions.get(gid)
             if rect is not None:
-                envelope.set_rect(*rect)
+                xmin, xmax, ymin, ymax = rect
+                x = xmin - expand
+                y = ymin - expand
+                w = (xmax - xmin) + 2 * expand
+                h = (ymax - ymin) + 2 * expand
+                envelope.set_rect(x, y, w, h)
             else:
                 envelope.hide()
 
@@ -207,7 +219,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
 
         if self.envelopesflag:
-            self.update_envelopes(step)
+            self.update_envelopes()
 
     def on_slider(self, value):
         self.plot_satellites(value)
@@ -284,51 +296,6 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.plot_widget.addItem(item)
         return item
 
-    # def draw_edges(self, step, edges):
-    #     # 1. 先移除上一次所有 QGraphicsPathItem 曲线
-    #     if hasattr(self, "_edges_line_items"):
-    #         for item in self._edges_line_items:
-    #             self.plot_widget.removeItem(item)
-    #     self._edges_line_items = []
-    #
-    #     # 2. 直线照常准备 xs, ys
-    #     xs, ys = [], []
-    #     sat_ids = np.arange(TOTAL_SATS)
-    #     all_cols = sat_ids // N
-    #     all_rows = sat_ids % N
-    #
-    #     for src, dsts in edges.items():
-    #         for dst in dsts:
-    #             if abs(all_cols[src] - all_cols[dst]) > 1:
-    #                 # “跳线” 画贝塞尔曲线
-    #                 item = self.draw_curved_edge(
-    #                     all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5
-    #                 )
-    #                 self._edges_line_items.append(item)
-    #             else:
-    #                 xs.extend([all_cols[src], all_cols[dst], np.nan])
-    #                 ys.extend([all_rows[src], all_rows[dst], np.nan])
-    #
-    #     # 3. 直线继续用 PlotDataItem
-    #     if not hasattr(self, "_edges_line"):
-    #         self._edges_line = pg.PlotDataItem(pen=pg.mkPen(color='#888', width=1.2))
-    #         self._edges_line.setZValue(1)
-    #         self.plot_widget.addItem(self._edges_line)
-    #     self._edges_line.setData(xs, ys)
-
-    # def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5):
-    #     path = QPainterPath()
-    #     path.moveTo(x0, y0)
-    #     # 控制点横向/纵向适当偏移即可，例如横向跳两格y不变，可以让y加减1
-    #     ctrl_x = (x0 + x1) / 2
-    #     ctrl_y = (y0 + y1) / 2 + curve * abs(x1 - x0)
-    #     path.quadTo(ctrl_x, ctrl_y, x1, y1)
-    #     item = QGraphicsPathItem(path)
-    #     pen = pg.mkPen(color='red', width=1.2)  # 修改这里，将颜色改为红色
-    #     item.setPen(pen)
-    #     item.setZValue(2)
-    #     self.plot_widget.addItem(item)
-    #     return item
 
 
 class RectangleEnvelope:

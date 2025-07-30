@@ -10,6 +10,7 @@ import matplotlib.colors as mcolors
 import sys
 import  math
 import draw.read_snap_xml as read_snap_xml
+import draw.basic_show.get_satellite_block_info as get_satellite_block_info
 # --- 参数配置 ---
 N = 36  # 每轨道卫星数
 P = 18  # 轨道平面数
@@ -94,59 +95,6 @@ def modify_group_data(group_data, N=36):
 
     return new_group_data
 
-def cyclic_width(ys, N):
-    if not ys:
-        return 0
-    ys = sorted(set(ys))
-    gaps = []
-    for i in range(1, len(ys)):
-        gaps.append(ys[i] - ys[i-1])
-    # 跨越环首尾
-    gaps.append((ys[0] + N) - ys[-1])
-    maxgap = max(gaps)
-    return N - maxgap + 1
-
-def fanxiangfeng(sats, P, N):
-    xs = [sid // N for sid in sats]
-    ys = [sid % N for sid in sats]
-
-    left = min(xs)
-    right = max(xs)
-    block_info = [(None, None), (None, None)]
-
-    # 判断是否两块
-    if left == 0 and right == P - 1:
-        # --------左侧块--------
-        leftgroup = []
-        x = left
-        while x in xs:
-            leftgroup.append(x)
-            x += 1
-        # 统计左块包络
-        leftys = [sid % N for sid in sats if (sid // N) in leftgroup]
-        left_width = cyclic_width(leftys, N)
-        left_length = leftgroup[-1] - leftgroup[0] + 1 if leftgroup else 0
-        block_info[0] = (left_length, left_width)
-
-        # --------右侧块--------
-        rightgroup = []
-        x = right
-        while x in xs:
-            rightgroup.append(x)
-            x -= 1
-        rightys = [sid % N for sid in sats if (sid // N) in rightgroup]
-        right_width = cyclic_width(rightys, N)
-        right_length = rightgroup[0] - rightgroup[-1] + 1 if rightgroup else 0
-        block_info[1] = (right_length, right_width)
-
-    else:
-        # 只有一块，取所有点
-        w = max(xs) - min(xs) + 1
-        h = cyclic_width(ys, N)
-        block_info[0] = (w, h)
-        block_info[1] = (None, None)
-
-    return block_info  # [(块1长, 宽), (块2长, 宽)]
 
 
 
@@ -187,7 +135,7 @@ if __name__ == "__main__":
         widths1, heights1, widths2, heights2 = [], [], [], []
         for t in times:
             sats4 = group_data[t]['groups'][groupid]
-            (l1, w1), (l2, w2) = fanxiangfeng(sats4,   P,N)
+            (l1, w1), (l2, w2) = get_satellite_block_info.get_satellite_block_info(sats4,   P,N)
             widths1.append(l1)
             heights1.append(w1)
             widths2.append(l2)
