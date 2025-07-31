@@ -62,59 +62,77 @@ def preprocess_envelopes(group_data, groups_to_envelope, N, y_preset_map):
 start_ts = 1202
 end_ts = 3320
 
-# start_ts = 53232
-# end_ts = 55574
 
 # start_ts = 1215
 # end_ts = 3540
+
+# start_ts = 1215
+# end_ts = 6218
+
 #xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
 xml_file = "E:\\Data\\station_visible_satellites_648_1d_real.xml"
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
-group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=0)
+modify_group_data,off_sets = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 
 
 if __name__ == "__main__":
     pg.setConfigOption('background', 'w')
-
+    time_2_build = 60
     edges_by_step = {}
 
-
+    #### here we hard code our modify edges, this conclude the all the link for the transformed the chart
+    # first we need arragent the main inter-link region
     for step in range(start_ts, end_ts):
         edges_by_step[step] = {}
         for i in range(P - 1):
-            for j in range(14,32):
+            for j in range(14, 32):
                 nownode = i * N + j
-
-                # if i<P-2:
-                #     next_node1 = (i + 2) * N + j
-                #     edges_by_step[step].setdefault(nownode, set()).add(next_node1)
-
-
-                if i+1<=17 and j+2<=32:
-                    next_node1 = (i + 1) * N + j+2
+                if i + 1 <= 17 and j + 2 < 32:
+                    next_node1 = (i + 1) * N + j + 2
                     edges_by_step[step].setdefault(nownode, set()).add(next_node1)
-
-
 
                 upnodes = i * N + (j + 1) % N
                 edges_by_step[step].setdefault(nownode, set()).add(upnodes)
                 downnodes = i * N + (j - 1 + N) % N
                 edges_by_step[step].setdefault(nownode, set()).add(downnodes)
 
-
+    # second we need managet the region 0
     for step in range(start_ts, end_ts):
 
         for i in range(P - 1):
-            for j in range(0,14):
+            for j in range(0, 14):
                 nownode = i * N + j
 
+                upnodes = i * N + (j + 1) % N
+                edges_by_step[step].setdefault(nownode, set()).add(upnodes)
+                downnodes = i * N + (j - 1 + N) % N
+                edges_by_step[step].setdefault(nownode, set()).add(downnodes)
 
                 next_node1 = (i + 1) * N + j
                 edges_by_step[step].setdefault(nownode, set()).add(next_node1)
 
+    # third we need managet the region 4
 
+    for step in range(start_ts, end_ts):
 
+        for i in range(P - 1):
+            for j in range(32, 36):
+                nownode = i * N + j
 
+                upnodes = i * N + (j + 1) % N
+                edges_by_step[step].setdefault(nownode, set()).add(upnodes)
+                downnodes = i * N + (j - 1 + N) % N
+                edges_by_step[step].setdefault(nownode, set()).add(downnodes)
+
+                next_node1 = (i + 1) * N + j
+                edges_by_step[step].setdefault(nownode, set()).add(next_node1)
+
+    # raw_edges_by_step = {}
+    # for step, edges in edges_by_step.items():  # step 是时间片
+    #     for src, dsts in edges.items():  # src 是起点
+    #         for dst in dsts:  # dst 是终点集合里的每一个
+    #             print(step, src, dst)
+    # 在这里做你要做的事，比如绘制、统计等
 
     # edges_by_step = {
     #     1202: {
@@ -123,10 +141,25 @@ if __name__ == "__main__":
     #     }
     # }
 
+    ## then we need transform the modify edges to the raw edges
+    raw_edges_by_step = {}
+
+    for step, edges in edges_by_step.items():  # step: 时间片
+        raw_edges_by_step[step] = {}
+
+        for src, dsts in edges.items():  # src: 起点id, dsts: 终点集合
+            raw_src = read_snap_xml.rev_modify_data(step, src, off_sets)
+
+            for dst in dsts:
+                raw_dst = read_snap_xml.rev_modify_data(step, dst, off_sets)
+                raw_edges_by_step[step].setdefault(raw_src, set()).add(raw_dst)
+
+
+
     app = QtWidgets.QApplication([])
     viewer = pyqt_main.SatelliteViewer(group_data)
-    # viewer.edges_by_step = edges_by_step
-    viewer.envelopesflag  =1
+    viewer.edges_by_step = raw_edges_by_step
+
     viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
     viewer.resize(1200, 700)
     viewer.show()

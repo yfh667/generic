@@ -59,16 +59,20 @@ def preprocess_envelopes(group_data, groups_to_envelope, N, y_preset_map):
                 envelope_regions[gid][step] = None
     return envelope_regions
 
-# start_ts = 1202
-# end_ts = 3320
+start_ts = 1202
+end_ts = 3320
 
 
-start_ts = 1215
-end_ts = 3540
+# start_ts = 1215
+# end_ts = 3540
+
+# start_ts = 1215
+# end_ts = 6218
+
 #xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
 xml_file = "E:\\Data\\station_visible_satellites_648_1d_real.xml"
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
-# group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
+group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 
 
 if __name__ == "__main__":

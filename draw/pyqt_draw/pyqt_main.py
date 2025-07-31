@@ -75,6 +75,10 @@ class SatelliteViewer(QtWidgets.QWidget):
         # )
         self.plot_satellites(self.steps[0])
 
+
+        self.full_steps = self.steps  # 全区间steps，永远不变
+        self.subrange_steps = None  # 子区间，None表示当前未聚焦子区间
+
     def init_ui(self):
         self.layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.layout)
@@ -100,6 +104,21 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.slider.valueChanged.connect(self.on_slider)
         self.layout.addWidget(self.slider)
 
+        # ---- 子区间设定 ----
+        range_layout = QtWidgets.QHBoxLayout()
+        self.range_start_input = QtWidgets.QLineEdit()
+        self.range_start_input.setPlaceholderText("区间起点")
+        self.range_end_input = QtWidgets.QLineEdit()
+        self.range_end_input.setPlaceholderText("区间终点")
+        self.set_range_btn = QtWidgets.QPushButton("设定区间")
+        self.set_range_btn.clicked.connect(self.set_subrange)
+        self.exit_range_btn = QtWidgets.QPushButton("退出区间")
+        self.exit_range_btn.clicked.connect(self.exit_subrange)
+        range_layout.addWidget(self.range_start_input)
+        range_layout.addWidget(self.range_end_input)
+        range_layout.addWidget(self.set_range_btn)
+        range_layout.addWidget(self.exit_range_btn)
+        self.layout.addLayout(range_layout)
 
         # ---- 时间跳转 ----
         jump_layout = QtWidgets.QHBoxLayout()
@@ -160,16 +179,32 @@ class SatelliteViewer(QtWidgets.QWidget):
             if self.steps[0] <= step <= self.steps[-1]:
                 self.slider.setValue(step)
 
-    # def update_envelopes(self, step):
+    # def update_envelopes(self, expand=0.3):
     #     for gid, envelope in self.envelopes.items():
-    #         rect = self.envelope_regions[gid].get(step)
+    #         rect = self.envelope_regions.get(gid)
     #         if rect is not None:
-    #             envelope.set_rect(*rect)
+    #             xmin, xmax, ymin, ymax = rect
+    #             x = xmin - expand
+    #             y = ymin - expand
+    #             w = (xmax - xmin) + 2 * expand
+    #             h = (ymax - ymin) + 2 * expand
+    #             envelope.set_rect(x, y, w, h)
     #         else:
     #             envelope.hide()
-    def update_envelopes(self, expand=0.3):
+
+    def update_envelopes(self, step, expand=0.3):
+        # 查找step属于哪个区间
+        interval = None
+        for (start, end) in self.envelope_regions:
+            if start <= step <= end:
+                interval = (start, end)
+                break
+
         for gid, envelope in self.envelopes.items():
-            rect = self.envelope_regions.get(gid)
+            rect = None
+            if interval is not None:
+                region_map = self.envelope_regions[interval]
+                rect = region_map.get(gid)
             if rect is not None:
                 xmin, xmax, ymin, ymax = rect
                 x = xmin - expand
@@ -219,7 +254,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
 
         if self.envelopesflag:
-            self.update_envelopes()
+            self.update_envelopes(step)
 
     def on_slider(self, value):
         self.plot_satellites(value)
@@ -296,6 +331,32 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.plot_widget.addItem(item)
         return item
 
+    def set_subrange(self):
+        try:
+            start = int(self.range_start_input.text())
+            end = int(self.range_end_input.text())
+        except ValueError:
+            QtWidgets.QMessageBox.warning(self, "输入错误", "请输入有效的区间起止step")
+            return
+        steps = [s for s in self.full_steps if start <= s <= end]
+        if not steps:
+            QtWidgets.QMessageBox.warning(self, "范围无效", "未找到该区间内的数据step")
+            return
+        self.subrange_steps = steps
+        self.steps = steps
+        self.slider.setMinimum(self.steps[0])
+        self.slider.setMaximum(self.steps[-1])
+        self.slider.setValue(self.steps[0])
+        self.plot_satellites(self.steps[0])
+
+    def exit_subrange(self):
+        if self.subrange_steps is not None:
+            self.subrange_steps = None
+            self.steps = self.full_steps
+            self.slider.setMinimum(self.steps[0])
+            self.slider.setMaximum(self.steps[-1])
+            self.slider.setValue(self.steps[0])
+            self.plot_satellites(self.steps[0])
 
 
 class RectangleEnvelope:

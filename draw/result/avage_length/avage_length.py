@@ -197,13 +197,3 @@ if __name__ == "__main__":
     #
     # print(1)
 
-   #  # 我们接下来需要导出modify_edges_by_step，因为这个是转化后的拓扑形态
-   #  app = QtWidgets.QApplication([])
-   #  viewer = pyqt_main.SatelliteViewer(group_data)
-   #  viewer.edges_by_step = modify_edges_by_step
-   # # viewer.pending_links_by_step = modify_pending_links_by_step  # <<<<<<<< 新增
-   #  viewer.envelopesflag = 1
-   #  viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
-   #  viewer.resize(1200, 700)
-   #  viewer.show()
-   #  sys.exit(app.exec_())

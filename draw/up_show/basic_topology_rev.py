@@ -32,45 +32,48 @@ GROUP_COLORS = [
     '#FFFF00',  # 黄   (Group 6)
 ]
 
-def preprocess_envelopes(group_data, groups_to_envelope, N, y_preset_map):
-    envelope_regions = {gid: {} for gid in groups_to_envelope}
-    steps = sorted(group_data.keys())
-    old_x_min_map = {gid: -1 for gid in groups_to_envelope}
-    for step in steps:
-        for gid in groups_to_envelope:
-            group_sats = group_data[step]["groups"].get(gid, set())
-            if gid==4 or gid==0:
-                x_coords = [sid // N for sid in group_sats]
-                if len(x_coords) == 0:
-                    envelope_regions[gid][step] = None
-                    continue
-                x_min, x_max = min(x_coords), max(x_coords)
-                rect_x = x_min - 0.5
-                rect_width = 7
-                if old_x_min_map[gid] == -1:
-                    old_x_min_map[gid] = x_min
-                elif old_x_min_map[gid] + rect_width > x_max:
-                    rect_x = old_x_min_map[gid] - 0.5
-                else:
-                    old_x_min_map[gid] = x_min
-                rect_y, rect_height = y_preset_map.get(gid, (0, N))
-                envelope_regions[gid][step] = (rect_x, rect_y, rect_width, rect_height)
-            else:
-                envelope_regions[gid][step] = None
-    return envelope_regions
 
-# start_ts = 1202
-# end_ts = 3320
-
-# start_ts = 53232
-# end_ts = 55574
 
 start_ts = 1215
-end_ts = 3540
+# end_ts = 3540
+
+
+# start_ts = 3541
+# end_ts = 3668
+
+# start_ts = 3669
+# end_ts = 5950
+
+# start_ts = 5951
+end_ts = 6218
+#
+
+
+
+
 #xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
 xml_file = "E:\\Data\\station_visible_satellites_648_1d_real.xml"
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=0)
+
+def calc_envelope_for_group(group_data, times, groupid, N):
+    x_min, x_max, y_min, y_max = -1, -1, -1, -1
+    for t in times:
+        sats = group_data[t]['groups'][groupid]
+        xs = [sid // N for sid in sats]
+        ys = [sid % N for sid in sats]
+        if not xs or not ys:
+            continue
+        if x_min == -1 or x_min > min(xs):
+            x_min = min(xs)
+        if x_max == -1 or x_max < max(xs):
+            x_max = max(xs)
+        if y_min == -1 or y_min > min(ys):
+            y_min = min(ys)
+        if y_max == -1 or y_max < max(ys):
+            y_max = max(ys)
+    return x_min, x_max, y_min, y_max
+
 
 
 if __name__ == "__main__":
@@ -113,64 +116,79 @@ if __name__ == "__main__":
                 edges_by_step[step].setdefault(nownode, set()).add(next_node1)
 
 
-    times = sorted(group_data.keys())
-    groupid = 4
-    # --- 主程序修改 ---
+    # times = sorted(group_data.keys())
+    # groupid = 4
+    # # --- 主程序修改 ---
+    #
+    # x_min, x_max, y_min, y_max = -1, -1, -1, -1
+    # for t in times:
+    #
+    #     sats4 = group_data[t]['groups'][groupid]
+    #     xs = [sid // N for sid in sats4]
+    #     ys = [sid % N for sid in sats4]
+    #     if x_min==-1:
+    #         x_min = min(xs)
+    #     if x_max==-1:
+    #         x_max = max(xs)
+    #     if y_min==-1:
+    #         y_min = min(ys)
+    #     if y_max==-1:
+    #         y_max = max(ys)
+    #
+    #     if x_min>min(xs):
+    #         x_min = min(xs)
+    #     if x_max<max(xs):
+    #         x_max = max(xs)
+    #     if y_min>min(ys):
+    #         y_min = min(ys)
+    #     if y_max<max(ys):
+    #         y_max = max(ys)
+    #
+    #
+    #
+    # print(x_min, x_max, y_min, y_max)
+    #
+    # groupid = 0
+    # # --- 主程序修改 ---
+    #
+    # x_min1, x_max1, y_min1, y_max1 = -1, -1, -1, -1
+    # for t in times:
+    #
+    #     sats4 = group_data[t]['groups'][groupid]
+    #     xs = [sid // N for sid in sats4]
+    #     ys = [sid % N for sid in sats4]
+    #     if x_min1 == -1:
+    #         x_min1 = min(xs)
+    #     if x_max1 == -1:
+    #         x_max1 = max(xs)
+    #     if y_min1 == -1:
+    #         y_min1 = min(ys)
+    #     if y_max1 == -1:
+    #         y_max1 = max(ys)
+    #
+    #     if x_min1 > min(xs):
+    #         x_min1 = min(xs)
+    #     if x_max1 < max(xs):
+    #         x_max1 = max(xs)
+    #     if y_min1 > min(ys):
+    #         y_min1 = min(ys)
+    #     if y_max1 < max(ys):
+    #         y_max1= max(ys)
+    intervals = [
+        (1215, 3540),
+        (3541, 3668),
+        (3669, 5950),
+        (5951, 6218)
+    ]
+    envelope_regions = {}
 
-    x_min, x_max, y_min, y_max = -1, -1, -1, -1
-    for t in times:
-
-        sats4 = group_data[t]['groups'][groupid]
-        xs = [sid // N for sid in sats4]
-        ys = [sid % N for sid in sats4]
-        if x_min==-1:
-            x_min = min(xs)
-        if x_max==-1:
-            x_max = max(xs)
-        if y_min==-1:
-            y_min = min(ys)
-        if y_max==-1:
-            y_max = max(ys)
-
-        if x_min>min(xs):
-            x_min = min(xs)
-        if x_max<max(xs):
-            x_max = max(xs)
-        if y_min>min(ys):
-            y_min = min(ys)
-        if y_max<max(ys):
-            y_max = max(ys)
-
-
-
-    print(x_min, x_max, y_min, y_max)
-
-    groupid = 0
-    # --- 主程序修改 ---
-
-    x_min1, x_max1, y_min1, y_max1 = -1, -1, -1, -1
-    for t in times:
-
-        sats4 = group_data[t]['groups'][groupid]
-        xs = [sid // N for sid in sats4]
-        ys = [sid % N for sid in sats4]
-        if x_min1 == -1:
-            x_min1 = min(xs)
-        if x_max1 == -1:
-            x_max1 = max(xs)
-        if y_min1 == -1:
-            y_min1 = min(ys)
-        if y_max1 == -1:
-            y_max1 = max(ys)
-
-        if x_min1 > min(xs):
-            x_min1 = min(xs)
-        if x_max1 < max(xs):
-            x_max1 = max(xs)
-        if y_min1 > min(ys):
-            y_min1 = min(ys)
-        if y_max1 < max(ys):
-            y_max1= max(ys)
+    for start_ts, end_ts in intervals:
+        times = [t for t in group_data if start_ts <= t <= end_ts]
+        subdict = {}
+        for gid in [4, 0]:  # 如需支持更多group可自行添加
+            x_min, x_max, y_min, y_max = calc_envelope_for_group(group_data, times, gid, N)
+            subdict[gid] = (x_min, x_max, y_min, y_max)
+        envelope_regions[(start_ts, end_ts)] = subdict
 
     # edges_by_step = {
     #     1202: {
@@ -183,11 +201,15 @@ if __name__ == "__main__":
     viewer = pyqt_main.SatelliteViewer(group_data)
     # viewer.edges_by_step = edges_by_step
     viewer.envelopesflag  =1
-    viewer.envelope_regions = {
-        4: (x_min, x_max, y_min, y_max),
-       0: (x_min1, x_max1, y_min1, y_max1),
+    viewer.envelope_regions = envelope_regions
 
-    }
+    # viewer.envelope_regions = {
+    #     (start_ts,
+    #     end_ts,):{      4: (x_min, x_max, y_min, y_max),
+    #    0: (x_min1, x_max1, y_min1, y_max1),}
+    #
+    #
+    # }
     viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
     viewer.resize(1200, 700)
     viewer.show()
