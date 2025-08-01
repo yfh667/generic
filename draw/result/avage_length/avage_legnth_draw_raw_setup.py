@@ -79,6 +79,22 @@ if __name__ == "__main__":
                 else:
                     nodes[(x2, y2, step)].leftneighbor = (x1, y1, step)
     ### we find the change time and the link
+    ### we find the change time and the link
+    for step in range(start_ts, end_ts + 1):
+        for x in range(P):
+            for y in range(N):
+                key = (x, y, step)
+                if key not in nodes:
+                    nodes[key] = tegnode.tegnode(
+                        asc_nodes_flag=False,
+                        rightneighbor=None,
+                        leftneighbor=None,
+                        state=-1,
+                        importance=0,
+                    )
+
+
+
     allchange = {}
     for step in range(start_ts, end_ts):
         changed = []
@@ -86,26 +102,30 @@ if __name__ == "__main__":
             for j in range(N):
                 n1 = nodes.get((i, j, step))
                 n2 = nodes.get((i, j, step + 1))
-                if n1 and n2:
-                    # 两个时刻都存在右邻居
-                    if n1.rightneighbor and n2.rightneighbor:
-                        n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
-                        n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
-                        if n1_neighbor != n2_neighbor:
-                            changed.append((i, j, n1_neighbor, n2_neighbor))
-                    # step时刻没有右邻居，step+1时刻有右邻居
-                    elif not n1.rightneighbor and n2.rightneighbor:
-                        n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1],step)
-                        linshi =  (n2.rightneighbor[0], n2.rightneighbor[1])
-                        changed.append((i, j, None, linshi))
-                        # and we need add the raw rightneighbor for the
-                        n2_neighbor_node = nodes.get(n2_neighbor)
+                # 防御式判断
 
-                        if n2_neighbor_node.leftneighbor:
-                            n2_neighbor_node =  nodes.get(n2_neighbor)
-                            forward_n2 = (n2_neighbor_node.leftneighbor[0], n2_neighbor_node.leftneighbor[1],step)
-                            changed.append((forward_n2[0], forward_n2[1], n2, None))
-
+                # 现在 n1 和 n2 一定都不是 None，才安全用属性
+                if n1.rightneighbor and n2.rightneighbor:
+                    n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
+                    n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
+                    if n1_neighbor != n2_neighbor:
+                        changed.append((i, j, n1_neighbor, n2_neighbor))
+                elif not n1.rightneighbor and n2.rightneighbor:
+                    n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1], step)
+                    linshi = (n2.rightneighbor[0], n2.rightneighbor[1])
+                    changed.append((i, j, None, linshi))
+                    # and we need add the raw rightneighbor for the
+                    n2_neighbor_node = nodes.get(n2_neighbor)
+                    if n2_neighbor_node and n2_neighbor_node.leftneighbor:
+                        his_rightneighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
+                        forward_n2 = (n2_neighbor_node.leftneighbor[0], n2_neighbor_node.leftneighbor[1], step)
+                        changed.append((forward_n2[0], forward_n2[1], his_rightneighbor, None))
+                # check leftneighbor
+                if (n1.leftneighbor and n2.leftneighbor):
+                    n1_neighbor = (n1.leftneighbor[0], n1.leftneighbor[1])
+                    n2_neighbor = (n2.leftneighbor[0], n2.leftneighbor[1])
+                    if n1_neighbor != n2_neighbor:
+                        changed.append((n1.leftneighbor[0], n1.leftneighbor[1], (i, j), None))
 
         if changed:
             changed_str = ', '.join(
@@ -114,6 +134,9 @@ if __name__ == "__main__":
             )
             print(f"{step + 1}: {changed_str}")
             allchange[step + 1] = changed  # 用 step+1 作为key
+
+    # 如果我们要查看建链的时间点，只要看allchange的key即可
+    # 既然我们有了冲突点，我们只需要提前60s终止冲突链路即可
 
     # 如果我们要查看建链的时间点，只要看allchange的key即可
     # 既然我们有了冲突点，我们只需要提前60s终止冲突链路即可
@@ -196,7 +219,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication([])
     viewer = pyqt_main.SatelliteViewer(group_data)
     viewer.edges_by_step = raw_edges_by_step
-    # viewer.pending_links_by_step = pending_links_by_step  # <<<<<<<< 新增
+    viewer.pending_links_by_step = pending_links_by_step  # <<<<<<<< 新增
     # viewer.envelopesflag = 1
     viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
     viewer.resize(1200, 700)

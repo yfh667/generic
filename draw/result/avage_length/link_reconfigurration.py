@@ -27,25 +27,13 @@ if __name__ == "__main__":
     #xml_file = "E:\\Data\\test.xml"
     #xml_file = "E:\\Data\\grid.xml"
     xml_file = "E:\\Data\\test_raw.xml"
-    modify_edges_by_step = adjacent2xml.read_steps_from_xml(xml_file)
+    raw_edges_by_step = adjacent2xml.read_steps_from_xml(xml_file)
 
-    xml_file2 = "E:\\Data\\station_visible_satellites_648_8_h.xml"
+    xml_file2 = "E:\\Data\\station_visible_satellites_648_1d_real.xml"
 
     group_data = read_snap_xml.parse_xml_group_data(xml_file2, start_ts, end_ts)
     group_data_modify, offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 
-    ## then we need transform the modify edges to the raw edges
-    raw_edges_by_step = {}
-
-    for step, edges in modify_edges_by_step.items():  # step: 时间片
-        raw_edges_by_step[step] = {}
-
-        for src, dsts in edges.items():  # src: 起点id, dsts: 终点集合
-            raw_src = read_snap_xml.rev_modify_data(step, src, offset)
-
-            for dst in dsts:
-                raw_dst = read_snap_xml.rev_modify_data(step, dst, offset)
-                raw_edges_by_step[step].setdefault(raw_src, set()).add(raw_dst)
 
     ### then ,we need arange the link reconfiguration,that means,we need arrrange the restablish limitation for the
     nodes = {}
@@ -56,7 +44,8 @@ if __name__ == "__main__":
             for dst in dsts:
                 x2 = dst // N
                 y2 = dst % N
-
+                # if step ==1231 and x1 ==1 and y1==26:
+                #     print(1)
                 if x2 == x1:
                     continue
                 # 处理右邻居
@@ -82,6 +71,20 @@ if __name__ == "__main__":
                     )
                 else:
                     nodes[(x2, y2, step)].leftneighbor = (x1, y1, step)
+    # 假设 nodes 已经有部分节点
+    for step in range(start_ts, end_ts + 1):
+        for x in range(P):
+            for y in range(N):
+                key = (x, y, step)
+                if key not in nodes:
+                    nodes[key] = tegnode.tegnode(
+                        asc_nodes_flag=False,
+                        rightneighbor=None,
+                        leftneighbor=None,
+                        state=-1,
+                        importance=0,
+                    )
+
     ### we find the change time and the link
     allchange = {}
     for step in range(start_ts, end_ts):
@@ -90,11 +93,32 @@ if __name__ == "__main__":
             for j in range(N):
                 n1 = nodes.get((i, j, step))
                 n2 = nodes.get((i, j, step + 1))
-                if n1 and n2 and n1.rightneighbor and n2.rightneighbor:
+                # 防御式判断
+                # if step==1398 and i==1 and j==25:
+                #     print(1)
+                # 现在 n1 和 n2 一定都不是 None，才安全用属性
+                if n1.rightneighbor and n2.rightneighbor:
                     n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
                     n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
                     if n1_neighbor != n2_neighbor:
                         changed.append((i, j, n1_neighbor, n2_neighbor))
+                elif not n1.rightneighbor and n2.rightneighbor:
+                    n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1], step)
+                    linshi = (n2.rightneighbor[0], n2.rightneighbor[1])
+                    changed.append((i, j, None, linshi))
+                    # and we need add the raw rightneighbor for the
+                    n2_neighbor_node = nodes.get(n2_neighbor)
+                    if n2_neighbor_node and n2_neighbor_node.leftneighbor:
+                        his_rightneighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
+                        forward_n2 = (n2_neighbor_node.leftneighbor[0], n2_neighbor_node.leftneighbor[1], step)
+                        changed.append((forward_n2[0], forward_n2[1], his_rightneighbor, None))
+                # check leftneighbor
+                if (n1.leftneighbor and n2.leftneighbor):
+                    n1_neighbor = (n1.leftneighbor[0], n1.leftneighbor[1])
+                    n2_neighbor = (n2.leftneighbor[0], n2.leftneighbor[1])
+                    if n1_neighbor != n2_neighbor:
+                        changed.append((n1.leftneighbor[0], n1.leftneighbor[1], (i, j), None))
+
         if changed:
             changed_str = ', '.join(
                 f'({i},{j}) from {old} to {new}'
@@ -105,6 +129,27 @@ if __name__ == "__main__":
 
     # 如果我们要查看建链的时间点，只要看allchange的key即可
     # 既然我们有了冲突点，我们只需要提前60s终止冲突链路即可
+
+    def xy_to_id(x, y, N):
+        return x * N + y
+
+
+    pending_links_by_step = {}
+    for step, changes in allchange.items():
+        newtime = step - time_2_build
+        if newtime < start_ts:
+            continue
+        for i, j, old, new in changes:
+            if  new:
+                new_dst_id = xy_to_id(*new, N)
+                src = i * N + j
+                # 标记建链区间内该链路为“pending”
+                for k in range(newtime, step):
+                    if k not in pending_links_by_step:
+                        pending_links_by_step[k] = {}
+                    if src not in pending_links_by_step[k]:
+                        pending_links_by_step[k][src] = set()
+                    pending_links_by_step[k][src].add(new_dst_id)
 
     for step, changes in allchange.items():
         print(f"{step}:")
@@ -124,30 +169,9 @@ if __name__ == "__main__":
                     # 如果是 set()，用 discard(dst) 更安全（不存在不会报错）
                     # raw_edges_by_step[k][src].discard(dst)
 
-    pending_links_by_step = {}  # key: step, value: dict: src -> set(dst)
 
 
-    def xy_to_id(x, y, N):
-        return x * N + y
 
-
-    pending_links_by_step = {}
-    for step, changes in allchange.items():
-        newtime = step - time_2_build
-        if newtime < start_ts:
-            continue
-        for i, j, old, new in changes:
-            new_dst_id = xy_to_id(*new, N)
-            src = i * N + j
-            # 标记建链区间内该链路为“pending”
-            for k in range(newtime, step):
-                if k not in pending_links_by_step:
-                    pending_links_by_step[k] = {}
-                if src not in pending_links_by_step[k]:
-                    pending_links_by_step[k][src] = set()
-                pending_links_by_step[k][src].add(new_dst_id)
-
-    print(1)
 
     # 统计所有起点
     build_points = set()
@@ -179,17 +203,44 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-    # 假设 pending_links_by_step 已经有了
-    # keys就是有建链的时刻
-    # times = np.arange(start_ts, end_ts + 1)
-    # counts = np.array([len(pending_links_by_step.get(t, [])) for t in times])
+    # # 1. 统计每个节点作为起点的次数
+    # build_counter = Counter()
+    # for t in pending_links_by_step:
+    #     for src in pending_links_by_step[t].keys():
+    #         build_counter[src] += 1
     #
-    # plt.figure(figsize=(12, 4))
-    # plt.bar(times, counts, width=1.0, color='tab:blue')
-    # plt.xlabel('Time Step')
-    # plt.ylabel('Number of Link Builds')
-    # plt.title('Number of Link Builds per Time Step')
+    # # 2. 获取所有次数，准备做归一化上色
+    # if build_counter:
+    #     max_count = max(build_counter.values())
+    # else:
+    #     max_count = 1
+    #
+    # # 3. 绘制
+    # plt.figure(figsize=(12, 8))
+    # for x in range(P):
+    #     for y in range(N):
+    #         plt.plot(x, y, 'o', color='#dddddd', markersize=3, zorder=1)
+    #
+    # # 彩色高亮（次数越多，颜色越深）
+    # for node, count in build_counter.items():
+    #     x, y = node // N, node % N
+    #     # 归一化：0~1
+    #     colorval = count / max_count
+    #     plt.plot(x, y, 'o', color=plt.cm.jet(colorval), markersize=8, zorder=3)
+    #
+    # plt.xlabel('P (x)')
+    # plt.ylabel('N (y)')
+    # plt.title('Node Frequency of Link Build (by color)')
+    #
+    # plt.xlim(-0.5, P - 0.5)
+    # plt.ylim(-0.5, N - 0.5)
+    # plt.gca().set_xticks(np.arange(0, P, max(1, P // 12)))
+    # plt.gca().set_yticks(np.arange(0, N, max(1, N // 12)))
     # plt.tight_layout()
+    #
+    # # 加 colorbar（辅助说明颜色含义）
+    # sm = plt.cm.ScalarMappable(cmap=plt.cm.jet, norm=plt.Normalize(vmin=1, vmax=max_count))
+    # cbar = plt.colorbar(sm, shrink=0.7)
+    # cbar.set_label('Number of Link Build Switches')
+    #
     # plt.show()
-
-
