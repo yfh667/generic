@@ -248,7 +248,7 @@ def initial_weight(P,N,T,regions_to_color):
 
 
 
-# here he adjacncy_list_arrary is our main arrary
+# here he adjacncy_list_arrary is our main.py arrary
 
         G = nx.Graph()
         G.add_edges_from(adjacency_list_array[t])  # ← 粘贴你的 400+ 条边

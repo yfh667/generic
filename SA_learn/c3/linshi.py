@@ -19,7 +19,7 @@ def acceptance_probability(current_cost, new_cost, temperature):
     else:
         return np.exp(-(new_cost - current_cost) / (1e-8 + temperature))
 
-# Simulated Annealing main function
+# Simulated Annealing main.py function
 def simulated_annealing(initial_solution, objective_function, min_max, T_start, alpha, num_iterations, step_size):
     current_solution = initial_solution
     current_cost = objective_function(current_solution)

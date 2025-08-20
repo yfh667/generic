@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
 
 #### here we hard code our modify edges, this conclude the all the link for the transformed the chart
-# first we need arragent the main inter-link region
+# first we need arragent the main.py inter-link region
     for step in range(start_ts, end_ts):
         edges_by_step[step] = {}
         for i in range(P - 1):

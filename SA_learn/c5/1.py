@@ -28,7 +28,7 @@ def calculate_convergence_rate(costs, interval=100):
         return sum(improvements) / len(improvements)
     return 0
 
-# Simulated Annealing main function
+# Simulated Annealing main.py function
 def simulated_annealing(initial_solution, objective_function, min_max, T_start, alpha, num_iterations, step_size):
     current_solution = initial_solution
     current_cost = objective_function(current_solution)

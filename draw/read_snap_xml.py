@@ -32,6 +32,12 @@ GROUP_COLORS = [
     '#00FFFF',  # 青 (Group 5)
 '#FFFF00',  # 黄   (Group 6)
 ]
+
+
+
+
+
+
 def parse_xml_group_data(xml_file, start_step=None, end_step=None):
     """
     解析 XML 并（可选）按时间窗口过滤。
@@ -99,6 +105,10 @@ def parse_xml_group_data(xml_file, start_step=None, end_step=None):
             group_data[step]["all_mentioned"].update(valid_ids)
 
     return group_data
+
+
+
+
 def plot_grouped_satellites(group_data):
     total_sats = N * P  # 卫星总数
     sat_ids = np.arange(total_sats)
@@ -236,60 +246,6 @@ def plot_grouped_satellites(group_data):
 
 import math
 
-#
-# def modify_group_data(group_data, N=36,groupid=4):
-#     new_group_data = {}
-#
-#     for step, raw_step_dict in group_data.items():   # ← 改这里
-#         raw_groups = raw_step_dict['groups']
-#         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
-#
-#         # 1. group 4 中最大 y
-#         group4_sats = raw_groups.get(groupid, set())
-#         y_up = max((sid % N for sid in group4_sats), default=0)
-#         y_down = min((sid % N for sid in group4_sats), default=0)
-#         # if step==6004:
-#         #     print(1)
-#         if y_down!=0:
-#             offset = N - y_up - 1
-#
-#             for gid, sats in raw_groups.items():
-#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-#                 for sid in sats:
-#                     y = sid % N
-#                     x = sid // N
-#                     y_new = y - y_up - 1 if y > y_up else y + offset
-#                     new_sid = x * N + y_new
-#                     tgt_set.add(new_sid)
-#                     new_group_data[step]['all_mentioned'].add(new_sid)
-#         else:# here we need sove the down's hights
-#             max1 = -math.inf
-#
-#             offset=0
-#             for sid in group4_sats:
-#                 y = sid % N
-#                 x = sid // N
-#                 here= y-5
-#                 if here<=0:
-#                     if here>max1:
-#                         max1 = here
-#             y_up=max1+5
-#
-#
-#             offset = N - y_up - 1
-#             for gid, sats in raw_groups.items():
-#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-#                 for sid in sats:
-#                     y = sid % N
-#                     x = sid // N
-#                     y_new = y - y_up - 1 if y > y_up else y + offset
-#                     new_sid = x * N + y_new
-#                     tgt_set.add(new_sid)
-#                     new_group_data[step]['all_mentioned'].add(new_sid)
-#
-#
-#
-#     return new_group_data
 
 
 
@@ -304,9 +260,9 @@ def modify_group_data(group_data, N=36,groupid=4):
         group4_sats = raw_groups.get(groupid, set())
         y_up = max((sid % N for sid in group4_sats), default=0)
         y_down = min((sid % N for sid in group4_sats), default=0)
-        # if step==6004:
-        #     print(1)
+
         if y_down!=0:
+            # 说明此刻大概是没有被上下分割的
             offset =y_up
             off_sets[step] = offset
             for gid, sats in raw_groups.items():
@@ -314,13 +270,12 @@ def modify_group_data(group_data, N=36,groupid=4):
                 for sid in sats:
                     y = sid % N
                     x = sid // N
-
-
                     y_new =(y-offset+N-1) %N
                     new_sid = x * N + y_new
                     tgt_set.add(new_sid)
                     new_group_data[step]['all_mentioned'].add(new_sid)
         else:# here we need sove the down's hights
+            #此时可能存在上下分割
 
             max1 = -math.inf
 
@@ -356,14 +311,8 @@ def modify_group_data(group_data, N=36,groupid=4):
 def modify_data(time,number,off_sets, N=36):
     x = number // N
     y = number % N
-
-
     y_new = (y- off_sets[time] + N-1) % N
     new_sid = x * N + y_new
-
-
-
-
     return new_sid
 
 def rev_modify_group_data(group_data,off_sets, N=36):
