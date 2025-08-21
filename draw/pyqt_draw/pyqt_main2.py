@@ -73,6 +73,106 @@ class SatelliteViewer(QtWidgets.QWidget):
         if self.steps and self.slider.value() == step:
             self.draw_edges(step, edges)
 
+    def register_envelope(self, group_id, color="deeppink", need_count=1):
+        """确保某个分组有 need_count 个 RectangleEnvelope（支持多个矩形）。"""
+        lst = self.envelopes.get(group_id, [])
+        while len(lst) < need_count:
+            env = RectangleEnvelope(color=color)
+            lst.append(env)
+            self.plot_widget.addItem(env.rect_item)
+        self.envelopes[group_id] = lst
+        return lst
+
+    def _hide_all_envelopes(self):
+        for lst in self.envelopes.values():
+            for env in lst:
+                env.hide()
+
+    def show_envelopes_static(self, rects_by_group, expand=0.35, colors=None, persist=True):
+        """
+        静态一次性显示包络矩形（不随 step 变化）。
+        兼容以下输入：
+          - {gid: [(xmin,xmax,ymin,ymax), ...]}
+          - {gid: (box1, box2_or_none)}   # 例如 calc_envelope_for_group 的返回
+          - {gid: (None, None)} 或 {gid: None} 也能接受（等同于不画）
+        """
+        # 标记持久：后续刷新不覆盖
+        self._static_envelopes = bool(persist)
+
+        # 工具函数：把各种形式归一为“列表[box,...]”，过滤 None
+        def _as_box_list(v):
+            """
+            v 可能是：
+              - None
+              - (xmin,xmax,ymin,ymax)
+              - [ (....), (....), ... ]
+              - (box1, box2_or_none)   # 典型：t1, t2
+            返回：list[ (xmin,xmax,ymin,ymax), ... ]
+            """
+            if v is None:
+                return []
+            # 单个 box 4 元组
+            if isinstance(v, (tuple, list)) and len(v) == 4 and all(isinstance(x, (int, float)) for x in v):
+                return [tuple(v)]
+            # 二元组 (box1, box2_or_none)
+            if isinstance(v, (tuple, list)) and len(v) == 2:
+                out = []
+                for b in v:
+                    if b and isinstance(b, (tuple, list)) and len(b) == 4:
+                        out.append(tuple(b))
+                return out
+            # 列表/可迭代：过滤掉 None
+            if isinstance(v, (tuple, list)):
+                out = []
+                for b in v:
+                    if b and isinstance(b, (tuple, list)) and len(b) == 4:
+                        out.append(tuple(b))
+                return out
+            return []
+
+        # 工具：修正顺序并做一点裁剪（防手抖）
+        def _fix_box(box):
+            xmin, xmax, ymin, ymax = box
+            if xmin > xmax: xmin, xmax = xmax, xmin
+            if ymin > ymax: ymin, ymax = ymax, ymin
+            # 可选裁剪到画布范围（不想裁剪可注释掉）
+            xmin = max(0, min(xmin, P - 1))
+            xmax = max(0, min(xmax, P - 1))
+            ymin = max(0, min(ymin, N - 1))
+            ymax = max(0, min(ymax, N - 1))
+            return xmin, xmax, ymin, ymax
+
+        # 先把所有旧 envelope 隐掉，但不销毁
+        self._hide_all_envelopes()
+        self._ensure_list_store()
+
+        if not rects_by_group:
+            return
+
+        for gid, raw in rects_by_group.items():
+            rect_list = [_fix_box(b) for b in _as_box_list(raw)]
+            if not rect_list:
+                continue
+
+            # 颜色策略
+            if colors and gid in colors:
+                c = colors[gid]
+            elif gid == 4:
+                c = "deeppink"
+            elif gid == 0:
+                c = "orange"
+            else:
+                c = "deeppink"
+
+            env_list = self.register_envelope(gid, color=c, need_count=len(rect_list))
+
+            for idx, (xmin, xmax, ymin, ymax) in enumerate(rect_list):
+                x = xmin - expand
+                y = ymin - expand
+                w = (xmax - xmin) + 2 * expand
+                h = (ymax - ymin) + 2 * expand
+                env_list[idx].set_rect(x, y, w, h)
+
     # ---------- UI 初始化 ----------
     def _init_ui_core(self):
         self.layout = QtWidgets.QVBoxLayout()
@@ -193,10 +293,41 @@ class SatelliteViewer(QtWidgets.QWidget):
                 self.slider.setValue(step)
 
     # ---------- 包络区域（保留你的原逻辑与接口） ----------
-    def register_envelope(self, group_id, color="deeppink"):
-        envelope = RectangleEnvelope(color=color)
-        self.envelopes[group_id] = envelope
-        self.plot_widget.addItem(envelope.rect_item)
+    def _ensure_list_store(self):
+        """把旧的 {gid: RectangleEnvelope} 迁移为 {gid: [RectangleEnvelope, ...]}（就地兼容）"""
+        for gid, val in list(self.envelopes.items()):
+            if isinstance(val, RectangleEnvelope):
+                self.envelopes[gid] = [val]
+
+    def _hide_all_envelopes(self):
+        """隐藏所有矩形（兼容单个/多个存储）"""
+        # 先确保是列表存储
+        self._ensure_list_store()
+        for lst in self.envelopes.values():
+            # 兼容万一某处又塞了单个
+            if isinstance(lst, RectangleEnvelope):
+                lst.hide()
+            else:
+                for env in lst:
+                    env.hide()
+    def register_envelope(self, group_id, color="deeppink", need_count=1):
+        """
+        确保某个分组有 need_count 个 RectangleEnvelope（支持多个）。
+        兼容：如果之前是单个对象存储，会自动迁移为列表存储。
+        """
+        self._ensure_list_store()
+        lst = self.envelopes.get(group_id, [])
+        if isinstance(lst, RectangleEnvelope):
+            # 极端容错：如果别处又放回了单个，转为列表
+            lst = [lst]
+
+        while len(lst) < need_count:
+            env = RectangleEnvelope(color=color)
+            lst.append(env)
+            self.plot_widget.addItem(env.rect_item)
+
+        self.envelopes[group_id] = lst
+        return lst
 
     def update_envelopes(self, step, expand=0.3):
         # 若没有外部提供 envelope_regions，直接隐藏
@@ -256,7 +387,13 @@ class SatelliteViewer(QtWidgets.QWidget):
 
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
 
-        if self.envelopesflag:
+        # if self.envelopesflag:
+        #     self.update_envelopes(step)
+
+        # 静态持久矩形：不让动态 update 覆盖/隐藏
+        if getattr(self, "_static_envelopes", False):
+            pass
+        elif self.envelopesflag:
             self.update_envelopes(step)
 
     def on_slider(self, value):

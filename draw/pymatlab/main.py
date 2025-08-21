@@ -46,26 +46,50 @@ N = 36
 P = 18
 
 
-## 绘图一般参数
+# ====================== 绘图初始化 ======================
+# 1) QApplication 实例（全局唯一）
 app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-# 关键：给 viewer 找个全局引用，防止被 GC 回收引发 native 崩溃
+# 2) 确保 viewer 有全局引用，避免 GC 回收导致崩溃
 if not hasattr(sys.modules[__name__], "_viewer_list"):
     _viewer_list = []
+
+# 3) 创建并配置 viewer
 viewer = SatelliteViewer(gd)
 viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
 viewer.resize(1200, 700)
-
-#     viewer.edges_by_step = raw_edges_by_step
 viewer.show()
-_viewer_list.append(viewer)   # 保持引用
+
+# 4) 保存全局引用
+_viewer_list.append(viewer)
+
+# ====================== 静态包络矩形 ======================
+#可选
+rects = {
+    4: [(9, 15, 32, 35)],
+    0: [(0, 5, 9, 13), (17, 17, 30, 32)],
+}
+# rects = {
+#     4: (t1, t2),
+#     0: (t3, t4),
+# }
+
+colors = {4: "deeppink", 0: "orange"}  # 可选
+
+viewer.show_envelopes_static(
+    rects_by_group=rects,
+    expand=0.35,
+    colors=colors,
+    persist=True
+)
+
 
 
 # ====================== 读取数据 ======================
 xml_file = r"E:\Data\station_visible_satellites_648_1d_real.xml"
 start_ts = 1
-end_ts   = 86399
-
+# end_ts   = 86399
+end_ts   = 1202
 # 解析 XML 得到 group_data，结构：{time_step: {'groups': {...}}}
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 
@@ -78,7 +102,7 @@ import draw.basic_show.get_satellite_block_info as get_satellite_block_info
 times = sorted(group_data.keys())   # 时间序列（所有 step）
 
 # 下述代码是为了计算某个区域的块分布
-groupid = 4  # 目标分组 ID
+groupid = 0  # 目标分组 ID
 
 # 存储 Block1/Block2 的长宽随时间变化
 widths1, heights1, widths2, heights2 = [], [], [], []
@@ -117,5 +141,8 @@ plt.tight_layout()
 plt.show()
 
 
+# get the rectangular size of the group
+import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_interval
+t1,t2=get_rectangular_size_interval.calc_envelope_for_group(group_data,[start_ts,end_ts],groupid,P,N)
 
 
