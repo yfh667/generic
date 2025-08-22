@@ -349,5 +349,4 @@ def rev_modify_data(time,number,off_sets, N=36):
 
 
 
-
     return new_sid

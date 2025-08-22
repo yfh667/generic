@@ -45,6 +45,16 @@ pg.setConfigOptions(antialias=True)
 N = 36
 P = 18
 
+# ====================== 读取数据 ======================
+xml_file = r"E:\Data\station_visible_satellites_648_1d_real.xml"
+start_ts = 1
+# end_ts   = 86399
+end_ts   = 1202
+# 解析 XML 得到 group_data，结构：{time_step: {'groups': {...}}}
+group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
+
+#下面是图变换的。
+#rev_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 
 # ====================== 绘图初始化 ======================
 # 1) QApplication 实例（全局唯一）
@@ -85,16 +95,7 @@ viewer.show_envelopes_static(
 
 
 
-# ====================== 读取数据 ======================
-xml_file = r"E:\Data\station_visible_satellites_648_1d_real.xml"
-start_ts = 1
-# end_ts   = 86399
-end_ts   = 1202
-# 解析 XML 得到 group_data，结构：{time_step: {'groups': {...}}}
-group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 
-#下面是图变换的。
-#rev_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 # ====================== 计算 Block 尺寸 ======================
 import draw.basic_show.get_satellite_block_info as get_satellite_block_info
 
@@ -145,6 +146,9 @@ plt.show()
 import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_interval
 t1,t2=get_rectangular_size_interval.calc_envelope_for_group(group_data,[start_ts,end_ts],groupid,P,N)
 
+
+
+##
 # 生成无需 step 的边
 edges = {}
 for i in range(P - 1):
@@ -157,12 +161,46 @@ for i in range(P - 1):
         downnodes = i * N + (j - 1 + N) % N
         edges.setdefault(nownode, set()).add(downnodes)
 
-import draw.pyqt_draw.pyqt_onetopology as pyqt_onetopology
 
-# 3) 创建并配置 viewer
+
+# 3) 下面是同构图设计，我们一般从同构图上设计出 motif，然后，再迁移到我们其他图的显示上去
+import draw.pyqt_draw.pyqt_onetopology as pyqt_onetopology
 viewer = pyqt_onetopology.Onetopology(rects)
 viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
 viewer.resize(1200, 700)
-viewer.edges_by_step = edges
+motif_construct_edge = edges
+viewer.edges_by_step = motif_construct_edge
 viewer.show()
 _viewer_list.append(viewer)
+
+nodes = {}
+
+import draw.basic_functio.motif as motif
+# 下面就是motif图案填充，重复图案填充。里面有多种选项。
+motif.write_distinct_motif(0, 17, 10, 35, P, N, nodes, option=0)
+motif.write_distinct_motif(0, 17, 0, 9, P, N, nodes, option=1)
+
+rev_inter_edge = motif.transform_nodes_2_adjacent(nodes,P,N)
+
+all_rev_inter_edge = {}
+for i in range(start_ts,end_ts):
+    all_rev_inter_edge[i] = rev_inter_edge
+# here the adj can be used for the qt5 to draw
+
+
+
+import draw.basic_functio.revdata2rawdata as revdata2rawdata
+# attention ,here  it just composed of the inter-link, intra_link hasn't benn conclued
+raw_inter_edge = revdata2rawdata.revedge2rawedge(all_rev_inter_edge,offset)
+import draw.basic_functio.conflict_link as conflict_link
+time_2_build = 60
+raw_edges_by_step, pending_links_by_step = conflict_link.get_no_conflict_link(raw_inter_edge,start_ts,end_ts,time_2_build,N,P)
+
+
+
+import draw.basic_functio.write2xml as write2xml
+
+write2xml.nodes_to_xml(testnodes,"E:\\1\\testnodes.xml")
+newnodes = write2xml.xml_to_nodes("E:\\1\\testnodes.xml", tegnode.tegnode)
+import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
+all_rev_inter_edge = inter_edge2nodes.trans_nodes2edges(newnodes,P,N)
