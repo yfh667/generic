@@ -8,8 +8,8 @@ import numpy as np
 import pyqtgraph as pg
 
 # ====== 常量（与原始一致） ======
-N = 36   # 每轨道卫星数
-P = 18   # 轨道平面数
+N = 36  # 每轨道卫星数
+P = 18  # 轨道平面数
 TOTAL_SATS = N * P
 
 STATION_GROUPS = {
@@ -32,15 +32,16 @@ GROUP_COLORS = [
     '#FFFF00',  # 黄 (Group 6)
 ]
 
+
 # ========== UI 主类 ==========
-class SatelliteViewer(QtWidgets.QWidget):
-    def __init__(self, group_data):
+class Onetopology(QtWidgets.QWidget):
+    def __init__(self, rec):
         pg.setConfigOption('background', 'w')
         super().__init__()
         # 允许空态启动
-        self.group_data = group_data or {}
-        self.steps = sorted(self.group_data.keys())
-        self.full_steps = self.steps
+        self.rec = rec
+      #  self.steps = sorted(self.group_data.keys())
+
         self.subrange_steps = None
         self.envelopes = {}
         self._edge_lines = []
@@ -49,20 +50,14 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.envelope_regions = getattr(self, "envelope_regions", None)  # 若外部后来设置
 
         self._init_ui_core()
-        self.register_envelope(4, color="deeppink")
-        self.register_envelope(0, color="orange")
 
-        # 有数据则画首帧
-        if self.steps:
-            self._apply_steps_and_draw()
+        # self.register_envelope(4, color="deeppink")
+        # self.register_envelope(0, color="orange")
+
+        self.plot_satellites()
 
     # ---------- 槽：后台解析完成 ----------
-    @QtCore.pyqtSlot(dict)
-    def on_group_ready(self, gd):
-        self.group_data = gd or {}
-        self.steps = sorted(self.group_data.keys())
-        self.full_steps = self.steps
-        self._apply_steps_and_draw()
+
 
     # ---------- 槽：某一步的边集合准备好 ----------
     @QtCore.pyqtSlot(int, dict)
@@ -160,78 +155,32 @@ class SatelliteViewer(QtWidgets.QWidget):
                     for i in range(TOTAL_SATS)]
         self.bg_scatter.setData(bg_spots)
 
-        # 滑块 —— 空态禁用，待有数据再启用
-        self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(0)
-        self.slider.setValue(0)
-        self.slider.setTickInterval(1)
-        self.slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.slider.valueChanged.connect(self.on_slider)
-        self.slider.setEnabled(bool(self.steps))
-        self.layout.addWidget(self.slider)
+        self.label = QtWidgets.QLabel("Grouped Satellite Visibility (Rects)")
 
-        # 子区间控件
-        range_layout = QtWidgets.QHBoxLayout()
-        self.range_start_input = QtWidgets.QLineEdit()
-        self.range_start_input.setPlaceholderText("区间起点")
-        self.range_end_input = QtWidgets.QLineEdit()
-        self.range_end_input.setPlaceholderText("区间终点")
-        self.set_range_btn = QtWidgets.QPushButton("设定区间")
-        self.set_range_btn.clicked.connect(self.set_subrange)
-        self.exit_range_btn = QtWidgets.QPushButton("退出区间")
-        self.exit_range_btn.clicked.connect(self.exit_subrange)
-        range_layout.addWidget(self.range_start_input)
-        range_layout.addWidget(self.range_end_input)
-        range_layout.addWidget(self.set_range_btn)
-        range_layout.addWidget(self.exit_range_btn)
-        self.layout.addLayout(range_layout)
-
-        # 跳转控件
-        jump_layout = QtWidgets.QHBoxLayout()
-        self.jump_input = QtWidgets.QLineEdit()
-        self.jump_input.setPlaceholderText("跳转到 step")
-        self.jump_button = QtWidgets.QPushButton("跳转")
-        self.jump_button.clicked.connect(self.on_jump)
-        jump_layout.addWidget(self.jump_input)
-        jump_layout.addWidget(self.jump_button)
-        self.layout.addLayout(jump_layout)
-
-        # 单步按钮
-        step_layout = QtWidgets.QHBoxLayout()
-        self.prev_btn = QtWidgets.QPushButton("<")
-        self.next_btn = QtWidgets.QPushButton(">")
-        self.prev_btn.clicked.connect(self.step_prev)
-        self.next_btn.clicked.connect(self.step_next)
-        step_layout.addWidget(self.prev_btn)
-        step_layout.addWidget(self.next_btn)
-        self.layout.addLayout(step_layout)
-
-        self.label = QtWidgets.QLabel("Waiting for data..." if not self.steps else "")
         self.layout.addWidget(self.label)
 
-        self.plot_widget.setRange(xRange=[-0.5, P-0.5], yRange=[-0.5, N-0.5])
+        self.plot_widget.setRange(xRange=[-0.5, P - 0.5], yRange=[-0.5, N - 0.5])
         self.plot_widget.setLabel('bottom', "Orbit Plane Index (P)")
         self.plot_widget.setLabel('left', "Satellite Index in Plane (N)")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
 
-        legend_str = "  ".join([
-            f'<span style="color:{GROUP_COLORS[g]};">&#9679;</span> {STATION_GROUPS[g]["name"]}'
-            for g in sorted(STATION_GROUPS.keys()) if g < len(GROUP_COLORS)
-        ])
-        self.legend_label = QtWidgets.QLabel(legend_str)
-        self.layout.addWidget(self.legend_label)
+        # legend_str = "  ".join([
+        #     f'<span style="color:{GROUP_COLORS[g]};">&#9679;</span> {STATION_GROUPS[g]["name"]}'
+        #     for g in sorted(STATION_GROUPS.keys()) if g < len(GROUP_COLORS)
+        # ])
+        # self.legend_label = QtWidgets.QLabel(legend_str)
+        # self.layout.addWidget(self.legend_label)
 
     # ---------- 数据就绪后统一启用滑块 & 画首帧 ----------
     def _apply_steps_and_draw(self):
-        if not self.steps:
-            self.slider.setEnabled(False)
-            self.label.setText("Waiting for data...")
-            return
-        self.slider.setEnabled(True)
-        self.slider.setMinimum(self.steps[0])
-        self.slider.setMaximum(self.steps[-1])
-        self.slider.setValue(self.steps[0])
+        # if not self.steps:
+        #     self.slider.setEnabled(False)
+        #     self.label.setText("Waiting for data...")
+        #     return
+        # self.slider.setEnabled(True)
+        # self.slider.setMinimum(self.steps[0])
+        # self.slider.setMaximum(self.steps[-1])
+        # self.slider.setValue(self.steps[0])
         self.plot_satellites(self.steps[0])
 
     # ---------- 基本交互 ----------
@@ -273,6 +222,7 @@ class SatelliteViewer(QtWidgets.QWidget):
             else:
                 for env in lst:
                     env.hide()
+
     def register_envelope(self, group_id, color="deeppink", need_count=1):
         """
         确保某个分组有 need_count 个 RectangleEnvelope（支持多个）。
@@ -321,46 +271,76 @@ class SatelliteViewer(QtWidgets.QWidget):
             else:
                 envelope.hide()
 
-    # ---------- 绘制 ----------
-    def plot_satellites(self, step):
-        if not self.group_data or not self.steps:
-            return
-        current_data = self.group_data.get(int(step), {"groups": {}, "all_mentioned": set()})
 
-        # 彩色前景点
+
+    def plot_satellites(self):
+        """
+        仅用 self.rec 进行分组上色。
+        self.rec 形如:
+            {
+                4: [(9, 15, 32, 35)],
+                0: [(0, 5, 9, 13), (17, 17, 30, 32)],
+            }
+        规则：落入任一矩形 (xmin<=x<=xmax 且 ymin<=y<=ymax) 的点归属该 gid；
+              多组重叠时取较小的 gid。
+        """
+        # 0) 读取矩形定义
+        rects = getattr(self, "rec", None)
+
+        # 1) 计算归属
+        owner = np.full(TOTAL_SATS, -1, dtype=int)  # -1 表示未归属
+        if rects:
+            x_all = self._all_cols  # 整数网格中心
+            y_all = self._all_rows
+
+            # 用排序保证较小 gid 优先占位
+            for gid in sorted(rects.keys()):
+                rect_list = rects.get(gid) or []
+                if not rect_list:
+                    continue
+
+                # 该 gid 的总体掩码（多个矩形并集）
+                gid_mask = np.zeros(TOTAL_SATS, dtype=bool)
+                for (xmin, xmax, ymin, ymax) in rect_list:
+                    if xmin > xmax:
+                        xmin, xmax = xmax, xmin
+                    if ymin > ymax:
+                        ymin, ymax = ymax, ymin
+                    m = (x_all >= xmin) & (x_all <= xmax) & (y_all >= ymin) & (y_all <= ymax)
+                    gid_mask |= m
+
+                # 仅填充尚未归属的位置
+                pick = (owner == -1) & gid_mask
+                owner[pick] = gid
+
+            title = "Grouped Satellite Visibility (Rects)"
+        else:
+            # 没有提供 rects：全部置白并返回
+            spots = [{'pos': (self._all_cols[i], self._all_rows[i]), 'brush': '#FFF'}
+                     for i in range(TOTAL_SATS)]
+            self.scatter.setData(spots)
+            self.label.setText("Grouped Satellite Visibility (No rects)")
+            return
+
+        # 2) 上色绘制
         colors = ['#FFF'] * TOTAL_SATS
-        for sat_id in range(TOTAL_SATS):
-            seeing_groups = []
-            for gid in range(len(STATION_GROUPS)):
-                sats = current_data["groups"].get(gid, set())
-                if sat_id in sats:
-                    seeing_groups.append(gid)
-            if seeing_groups:
-                assigned_gid = min(seeing_groups)
-                colors[sat_id] = GROUP_COLORS[assigned_gid]
+        for sid in range(TOTAL_SATS):
+            gid = owner[sid]
+            if 0 <= gid < len(GROUP_COLORS):
+                colors[sid] = GROUP_COLORS[gid]
+
         fg_spots = [{'pos': (self._all_cols[i], self._all_rows[i]), 'brush': colors[i]}
                     for i in range(TOTAL_SATS)]
         self.scatter.setData(fg_spots)
 
-        # 连线
-        if hasattr(self, "edges_by_step") and step in self.edges_by_step:
-            self.draw_edges(step, self.edges_by_step[step])
-        else:
-            self.draw_edges(step, {})
+        # 3) 标签与可选包络（不做动态包络）
+        self.label.setText(title)
 
-        self.label.setText(f'Grouped Satellite Visibility (Step {step})')
+        # 如需把矩形轮廓同时画出来，可在外部调用：
+        # self.show_envelopes_static(self.rec, persist=True)
 
-        # if self.envelopesflag:
-        #     self.update_envelopes(step)
-
-        # 静态持久矩形：不让动态 update 覆盖/隐藏
-        if getattr(self, "_static_envelopes", False):
-            pass
-        elif self.envelopesflag:
-            self.update_envelopes(step)
-
-    def on_slider(self, value):
-        self.plot_satellites(value)
+    # def on_slider(self, value):
+    #     self.plot_satellites(value)
 
     def draw_edges(self, step, edges):
         # 清除旧线（保持你原有逻辑；后续可优化为复用）
@@ -488,7 +468,7 @@ class RectangleEnvelope:
 # ====== 后台线程：逐 step 产生边；也可顺带解析 XML ======
 class EdgeWorker(QtCore.QObject):
     edges_ready = QtCore.pyqtSignal(int, dict)  # (step, edges)
-    group_ready = QtCore.pyqtSignal(dict)       # group_data（可选）
+    group_ready = QtCore.pyqtSignal(dict)  # group_data（可选）
     finished = QtCore.pyqtSignal()
 
     def __init__(self, start_ts, end_ts, N, P, xml_file=None, parser_func=None):

@@ -146,3 +146,12 @@ import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_
 t1,t2=get_rectangular_size_interval.calc_envelope_for_group(group_data,[start_ts,end_ts],groupid,P,N)
 
 
+
+import draw.pyqt_draw.pyqt_onetopology as pyqt_onetopology
+if not hasattr(sys.modules[__name__], "_viewer_list"):
+    _viewer_list = []
+# 3) 创建并配置 viewer
+viewer = pyqt_onetopology.Onetopology(rects)
+viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
+viewer.resize(1200, 700)
+viewer.show()
