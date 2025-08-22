@@ -48,16 +48,66 @@ class Onetopology(QtWidgets.QWidget):
         self._edges_line_items = []
         self.envelopesflag = 0  # 默认不显示包络
         self.envelope_regions = getattr(self, "envelope_regions", None)  # 若外部后来设置
+        self._edges_by_step = {}
+        self._active_step = None  # 当前使用的 step key（从 edges_by_step 里选一个）
 
+        # 新增：无 step 的边存储
+        self.edges = {}  # {src: {dst, ...}, ...}
+        self.pending_links = {}  # 可选虚线边，同结构
         self._init_ui_core()
 
-        # self.register_envelope(4, color="deeppink")
-        # self.register_envelope(0, color="orange")
+
 
         self.plot_satellites()
 
-    # ---------- 槽：后台解析完成 ----------
+    @property
+    def edges_by_step(self):
+        return self._edges_by_step
 
+    @edges_by_step.setter
+    def edges_by_step(self, value):
+        d = value or {}
+
+        # 情况1：传进来就是单层 {src: set(dst)}
+        if d and all(isinstance(v, set) for v in d.values()):
+            self._edges_by_step = {0: d}
+            step = 0
+        else:
+            # 情况2：两层 {step: {src: set(dst)}}
+            self._edges_by_step = d
+            if not self._edges_by_step:
+                # 清空
+                if hasattr(self, 'draw_edges'):
+                    self.draw_edges(0, {})
+                elif hasattr(self, '_redraw_edges'):
+                    self.edges = {}
+                    self.pending_links = {}
+                    self._redraw_edges()
+                return
+            # 选一个 step（兼容字符串数字键）
+            keys = list(self._edges_by_step.keys())
+            try:
+                step = min(keys)
+            except TypeError:
+                step = sorted(keys, key=lambda k: int(k))[0]
+
+        # 触发绘制：完全复用你已有的绘图代码路径
+        if hasattr(self, 'draw_edges'):
+            self.draw_edges(step, self._edges_by_step[step])
+        elif hasattr(self, '_redraw_edges'):
+            self.edges = self._edges_by_step[step]  # dict: src -> set(dst)
+            self.pending_links = getattr(self, 'pending_links_by_step', {}).get(step, {})
+            self._redraw_edges()
+
+    def refresh_edges(self, step=None):
+        """从 self.edges_by_step 选一个 step 画边；默认取最小的 step。"""
+        if not hasattr(self, "edges_by_step") or not self.edges_by_step:
+            # 没有边数据就清空
+            self.draw_edges(0, {})
+            return
+        if step is None:
+            step = min(self.edges_by_step.keys())
+        self.draw_edges(step, self.edges_by_step[step])
 
     # ---------- 槽：某一步的边集合准备好 ----------
     @QtCore.pyqtSlot(int, dict)
@@ -130,6 +180,15 @@ class Onetopology(QtWidgets.QWidget):
                 w = (xmax - xmin) + 2 * expand
                 h = (ymax - ymin) + 2 * expand
                 env_list[idx].set_rect(x, y, w, h)
+
+    def set_edges(self, edges, pending_links=None):
+        """
+        设置当前要绘制的边（无 step 版本）。
+        edges/pending_links: dict[int, set[int]]
+        """
+        self.edges = edges or {}
+        self.pending_links = pending_links or {}
+        self._redraw_edges()
 
     # ---------- UI 初始化 ----------
     def _init_ui_core(self):
@@ -335,22 +394,23 @@ class Onetopology(QtWidgets.QWidget):
 
         # 3) 标签与可选包络（不做动态包络）
         self.label.setText(title)
-
+        # 补：根据 self.edges / self.pending_links 立即画边
+        self._redraw_edges()
         # 如需把矩形轮廓同时画出来，可在外部调用：
         # self.show_envelopes_static(self.rec, persist=True)
 
     # def on_slider(self, value):
     #     self.plot_satellites(value)
 
-    def draw_edges(self, step, edges):
-        # 清除旧线（保持你原有逻辑；后续可优化为复用）
+    def _redraw_edges(self):
+        # 清空旧线
         if hasattr(self, "_edges_line_items"):
             for item in self._edges_line_items:
                 self.plot_widget.removeItem(item)
         self._edges_line_items = []
 
-        # 画线
-        for src, dsts in edges.items():
+        # 实线边
+        for src, dsts in (self.edges or {}).items():
             for dst in dsts:
                 if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
                     item = self.draw_curved_edge(
@@ -366,9 +426,8 @@ class Onetopology(QtWidgets.QWidget):
                     )
                 self._edges_line_items.append(item)
 
-        # 虚线（pending）
-        pending_links = getattr(self, "pending_links_by_step", {}).get(step, {})
-        for src, dsts in pending_links.items():
+        # 虚线边（可选）
+        for src, dsts in (self.pending_links or {}).items():
             for dst in dsts:
                 if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
                     item = self.draw_curved_edge(

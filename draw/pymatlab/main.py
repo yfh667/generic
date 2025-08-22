@@ -60,7 +60,7 @@ viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGrap
 viewer.resize(1200, 700)
 viewer.show()
 
-# 4) 保存全局引用
+# 4) 保存全局引用,只要放入到这个容器里，就能持久存在
 _viewer_list.append(viewer)
 
 # ====================== 静态包络矩形 ======================
@@ -94,7 +94,7 @@ end_ts   = 1202
 group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 
 #下面是图变换的。
-#rev_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=0)
+#rev_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 # ====================== 计算 Block 尺寸 ======================
 import draw.basic_show.get_satellite_block_info as get_satellite_block_info
 
@@ -145,13 +145,24 @@ plt.show()
 import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_interval
 t1,t2=get_rectangular_size_interval.calc_envelope_for_group(group_data,[start_ts,end_ts],groupid,P,N)
 
-
+# 生成无需 step 的边
+edges = {}
+for i in range(P - 1):
+    for j in range(N):
+        nownode = i * N + j
+        next_node1 = (i + 1) * N + j
+        edges.setdefault(nownode, set()).add(next_node1)
+        upnodes = i * N + (j + 1) % N
+        edges.setdefault(nownode, set()).add(upnodes)
+        downnodes = i * N + (j - 1 + N) % N
+        edges.setdefault(nownode, set()).add(downnodes)
 
 import draw.pyqt_draw.pyqt_onetopology as pyqt_onetopology
-if not hasattr(sys.modules[__name__], "_viewer_list"):
-    _viewer_list = []
+
 # 3) 创建并配置 viewer
 viewer = pyqt_onetopology.Onetopology(rects)
 viewer.setWindowTitle("Grouped Satellite Visibility - High Performance (PyQtGraph)")
 viewer.resize(1200, 700)
+viewer.edges_by_step = edges
 viewer.show()
+_viewer_list.append(viewer)
