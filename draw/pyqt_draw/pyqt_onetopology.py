@@ -360,7 +360,12 @@ class Onetopology(QtWidgets.QWidget):
 
                 # 该 gid 的总体掩码（多个矩形并集）
                 gid_mask = np.zeros(TOTAL_SATS, dtype=bool)
-                for (xmin, xmax, ymin, ymax) in rect_list:
+                for rect in rect_list:
+                    if rect is None:
+                        continue
+                    xmin, xmax, ymin, ymax = rect
+
+
                     if xmin > xmax:
                         xmin, xmax = xmax, xmin
                     if ymin > ymax:

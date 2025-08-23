@@ -144,7 +144,7 @@ plt.show()
 
 # get the rectangular size of the group
 import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_interval
-t1,t2=get_rectangular_size_interval.calc_envelope_for_group(group_data,[start_ts,end_ts],groupid,P,N)
+t1,t2=get_rectangular_size_interval.calc_envelope_for_group(rev_group_data,[start_ts,end_ts],groupid,P,N)
 
 
 
