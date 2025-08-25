@@ -68,7 +68,7 @@ def parse_xml_group_data(xml_file, start_step=None, end_step=None):
         # -------- 时间窗口过滤 --------
         if start_step is not None and step < start_step:
             continue
-        if end_step is not None and step > end_step:
+        if end_step is not None and step >= end_step:
             continue
         # --------------------------------
 

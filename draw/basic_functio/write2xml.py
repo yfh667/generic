@@ -1,5 +1,8 @@
 import xml.etree.ElementTree as ET
+import re
 from xml.dom import minidom
+import os
+import ast
 
 import genaric2.tegnode as tegnode
 def nodes_to_xml(nodes, filename):
@@ -25,32 +28,35 @@ def nodes_to_xml(nodes, filename):
 
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(pretty_xml)
+
+
 def xml_to_nodes(filename, tegnode_cls):
     """
     从 XML 文件读取 nodes 字典
-    filename: 路径
-    tegnode_cls: 你的 tegnode 类
-    返回: nodes: dict[(x, y, step)] -> tegnode
+    Args:
+        filename: XML 文件路径
+        tegnode_cls: 你的 tegnode 类
+    Returns:
+        nodes: dict[(x, y, step)] -> tegnode
     """
-    import ast
     nodes = {}
     try:
         tree = ET.parse(filename)
         root = tree.getroot()
         for node_elem in root.findall('Node'):
-            # 坐标
+            # 1. 解析坐标
             coord_str = node_elem.get('coordination')
             coords = tuple(map(int, coord_str.split(',')))
-            # 右邻
+            # 2. 解析右邻居
             right_str = node_elem.get('rightneighbor')
             rightneighbor = None
             if right_str != 'None':
                 try:
                     rightneighbor = ast.literal_eval(right_str)
                 except Exception:
-                    # 万一是没有括号的格式
+                    # 没括号时直接按逗号切分
                     rightneighbor = tuple(map(int, right_str.split(',')))
-            # 左邻
+            # 3. 解析左邻居
             left_str = node_elem.get('leftneighbor')
             leftneighbor = None
             if left_str != 'None':
@@ -58,11 +64,11 @@ def xml_to_nodes(filename, tegnode_cls):
                     leftneighbor = ast.literal_eval(left_str)
                 except Exception:
                     leftneighbor = tuple(map(int, left_str.split(',')))
-            # 其他属性
+            # 4. 其他属性
             asc_nodes_flag = node_elem.get('asc_nodes_flag') == 'True'
             state = int(node_elem.get('state', -1))
             importance = int(node_elem.get('importance', 0))
-            # 构造节点
+            # 5. 构造节点对象
             node = tegnode_cls(
                 asc_nodes_flag=asc_nodes_flag,
                 rightneighbor=rightneighbor,
@@ -75,7 +81,6 @@ def xml_to_nodes(filename, tegnode_cls):
         print(f"解析XML时出错: {e}")
         return None
     return nodes
-
 if __name__ == '__main__':
 
     # 保存

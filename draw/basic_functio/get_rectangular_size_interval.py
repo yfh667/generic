@@ -86,3 +86,93 @@ def calc_envelope_for_group(
 
 
 #t1,t2=get_rectangular_size_interval.calc_envelope_for_group(rev_group_data,[start_ts,end_ts],4,P,N)
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def get_envelope_traces(
+    group_data,
+    groupid,
+    P,
+    N,
+    t0=None,
+    t1=None
+):
+    """
+    返回：DataFrame，每行是
+    time, left_xmin, left_xmax, left_ymin, left_ymax, right_xmin, right_xmax, right_ymin, right_ymax
+    没有的地方是 nan
+    """
+    times = sorted(group_data.keys())
+    if t0 is not None:
+        times = [t for t in times if t >= t0]
+    if t1 is not None:
+        times = [t for t in times if t <= t1]
+    records = []
+    for t in times:
+        g = group_data[t]
+        sats = g.get('groups', {}).get(groupid, set())
+        if not sats:
+            records.append([t]+[None]*8)
+            continue
+
+        xs = [sid // N for sid in sats]
+        ys = [sid % N for sid in sats]
+        left_seam = 0 in xs
+        right_seam = (P - 1) in xs
+        if not (left_seam and right_seam):
+            l = (min(xs), max(xs), min(ys), max(ys))
+            record = [t, *l, None, None, None, None]
+        else:
+            split_plane = P // 2
+            lx = [sid // N for sid in sats if sid // N < split_plane]
+            ly = [sid % N for sid in sats if sid // N < split_plane]
+            rx = [sid // N for sid in sats if sid // N >= split_plane]
+            ry = [sid % N for sid in sats if sid // N >= split_plane]
+            l = (min(lx), max(lx), min(ly), max(ly)) if lx else (None, None, None, None)
+            r = (min(rx), max(rx), min(ry), max(ry)) if rx else (None, None, None, None)
+            record = [t, *l, *r]
+        records.append(record)
+    df = pd.DataFrame(records, columns=[
+        'time',
+        'left_xmin','left_xmax','left_ymin','left_ymax',
+        'right_xmin','right_xmax','right_ymin','right_ymax'
+    ])
+    return df
+
+# --- 使用示例 ---
+# df = get_envelope_traces(group_data, groupid=4, P=18, N=36, t0=0, t1=1203)
+
+def plot_envelope_traces(df, title='Group Envelope Evolution'):
+    fig, axs = plt.subplots(2, 1, figsize=(12,7), sharex=True)
+    # 左包络
+    axs[0].set_title("Left Envelope")
+    axs[0].plot(df['time'], df['left_xmin'], label='xmin')
+    axs[0].plot(df['time'], df['left_xmax'], label='xmax')
+    axs[0].plot(df['time'], df['left_ymin'], label='ymin', linestyle='--')
+    axs[0].plot(df['time'], df['left_ymax'], label='ymax', linestyle='--')
+    axs[0].legend()
+    axs[0].set_ylabel("Plane / Node")
+
+    # 右包络
+    axs[1].set_title("Right Envelope")
+    axs[1].plot(df['time'], df['right_xmin'], label='xmin')
+    axs[1].plot(df['time'], df['right_xmax'], label='xmax')
+    axs[1].plot(df['time'], df['right_ymin'], label='ymin', linestyle='--')
+    axs[1].plot(df['time'], df['right_ymax'], label='ymax', linestyle='--')
+    axs[1].legend()
+    axs[1].set_xlabel("Time")
+    axs[1].set_ylabel("Plane / Node")
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+# # 1. 先算表
+# df = get_envelope_traces(group_data, groupid=4, P=18, N=36, t0=0, t1=1203)
+#
+# # 2. 可直接保存df到csv
+# df.to_csv('envelope_trace_group4.csv', index=False)
+#
+# # 3. 画随时间变化的包络范围
+# plot_envelope_traces(df)
