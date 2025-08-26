@@ -113,7 +113,7 @@ def transform_nodes_2_rawedge(nodes, P, N, start_ts, end_ts):
                     rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
                     edge_by_step.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
                     # 无向：对方也加自己
-                    edge_by_step.setdefault(step, {}).setdefault(rightneighbor_id, set()).add(nowid)
+                    # edge_by_step.setdefault(step, {}).setdefault(rightneighbor_id, set()).add(nowid)
 
 
 
