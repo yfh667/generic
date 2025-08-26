@@ -1,4 +1,4 @@
-
+from jupyterlab.commands import ensure_dev
 
 import genaric2.tegnode as tegnode
 
@@ -86,3 +86,36 @@ def transform_nodes_2_adjacent(nodes,P,N):
             #     adj.setdefault(nowid, set()).add(leftneighbor_id)
             #     adj.setdefault(leftneighbor_id, set()).add(nowid)
     return adj
+
+
+
+
+def transform_nodes_2_rawedge(nodes, P, N, start_ts, end_ts):
+    """
+    nodes: dict[(p, s, step) -> tegnode]  或  dict[(p, s) -> tegnode]
+    返回:  {step: { nowid: set([neighbor_id, ...]), ... }, ... }
+    只用 rightneighbor/leftneighbor 两个字段；为 None 的会跳过。
+    """
+    edge_by_step = {}
+
+    for step in range(start_ts, end_ts):
+        for i in range(P):
+            for j in range(N):
+                nowdes = nodes.get((i, j, step))  # 或改成 (i, j, step) 按需
+                if nowdes is None:
+                    continue
+
+                nowid = i * N + j
+
+                # 处理右邻
+                if nowdes.rightneighbor is not None:
+                    rightneighbor = nowdes.rightneighbor
+                    rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
+                    edge_by_step.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
+                    # 无向：对方也加自己
+                    edge_by_step.setdefault(step, {}).setdefault(rightneighbor_id, set()).add(nowid)
+
+
+
+    return edge_by_step
+

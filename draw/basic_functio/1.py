@@ -1,5 +1,6 @@
 # ====================== 基础参数 ======================
 # 星座参数：每轨道卫星数 N，轨道平面数 P
+import sys
 
 from PyQt5 import QtWidgets
 import pyqtgraph as pg
@@ -62,7 +63,29 @@ rects = {
     4: (t3, t4),
 }
 
-raw_edges_by_step, pending_links_by_step = conflict_link.get_no_conflict_link(raw_inter_edge,group_data,offset,rects,start_ts,end_ts,time_2_build,N,P)
+# 这里一般就是规划的地方了，这里进行手动规划，
+nodes = {}
 
+
+# ====================== 绘图初始化 ======================
+# 1) QApplication 实例（全局唯一）
+app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+# 2) 确保 viewer 有全局引用，避免 GC 回收导致崩溃
+if not hasattr(sys.modules[__name__], "_viewer_list"):
+    _viewer_list = []
+# 3) 下面是同构图设计，我们一般从同构图上设计出 motif，然后，再迁移到我们其他图的显示上去
+# 3) 创建并配置 viewer
+viewer = SatelliteViewer(group_data)
+viewer.setWindowTitle("group_data")
+viewer.resize(1200, 700)
+viewer.edges_by_step =raw_inter_edge
+# viewer.pending_links_by_step =
+viewer.show()
+
+_viewer_list.append(viewer)
+# raw_edges_by_step = conflict_link.get_no_conflict_link(raw_inter_edge,offset,rects,start_ts,end_ts,time_2_build,N,P,group_data)
+app.exec_()   # 关键点
 print(1)
+
 
