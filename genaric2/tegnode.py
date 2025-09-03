@@ -34,3 +34,22 @@ class tegnode_new:
     def __repr__(self):
         return f"tegnode(asc_nodes_region_id={self.asc_nodes_region_id}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, state={self.state}),importance={self.importance})"
 
+class tegnode_complete:
+    def __init__(self,asc_nodes_region_id,rightneighbor,leftneighbor,left_state,right_state):
+        self.asc_nodes_region_id = asc_nodes_region_id
+        # if asc_nodes_region_id==-1,it means ,it is not in any region
+        # the region ,always from 0-M,which always in our assumption
+        self.rightneighbor = rightneighbor
+        self.leftneighbor = leftneighbor
+
+
+
+        #state 0 :setting link
+        #state 1: working
+        self.left_state = left_state
+        self.right_state = right_state
+
+
+    def __repr__(self):
+        return f"tegnode(asc_nodes_region_id={self.asc_nodes_region_id}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, left_state={self.left_state}),right_state={self.right_state})"
+
