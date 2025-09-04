@@ -37,75 +37,186 @@ GROUP_COLORS = [
 
 
 
+from pathlib import Path
+import xml.etree.ElementTree as ET
+from typing import Optional, Dict, Set
 
-def parse_xml_group_data(xml_file, start_step=None, end_step=None):
+# 假设已有 STATION_GROUPS: Dict[int, Dict[str, Set[int]]]
+# 例如: STATION_GROUPS = {0: {"stations": {1,2}}, 4: {"stations": {7,8}}}
+
+def parse_xml_group_data(
+    xml_file: str | Path,
+    start_step: Optional[int] = None,
+    end_step: Optional[int] = None,   # 含 end_step
+) -> Dict[int, Dict[str, Dict[int, Set[int]] | Set[int]]]:
     """
-    解析 XML 并（可选）按时间窗口过滤。
-
-    参数
-    ----
-    xml_file   : str | PathLike
-    start_step : int | None   # 起始时间步（含），None 表示从头开始
-    end_step   : int | None   # 结束时间步（含），None 表示读到文件末尾
-
-    返回
-    ----
-    {
-        step: {
-            "groups": {gid: {sat_id, ...}},
-            "all_mentioned": {sat_id, ...}
-        },
-        ...
-    }
+    解析 XML 并按时间窗口过滤（含 end_step）。
+    返回结构:
+      { step: { "groups": {gid: set(sat_id)}, "all_mentioned": set(sat_id) } }
     """
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
+    xml_file = str(xml_file)
 
-    group_data = {}
-    for time_elem in root.findall('time'):
-        step = int(time_elem.get('step'))
+    # -------- 预处理：station_id -> group_id 映射（O(总站数)）--------
+    # 避免对每个 station 都在 STATION_GROUPS 里线性搜索
+    station_to_gid: Dict[int, int] = {}
+    for gid, info in STATION_GROUPS.items():
+        for sid in info["stations"]:
+            station_to_gid[sid] = gid
 
-        # -------- 时间窗口过滤 --------
+    # 结果字典
+    group_data: Dict[int, Dict[str, Dict[int, Set[int]] | Set[int]]] = {}
+
+    # 为了速度做局部绑定
+    station_to_gid_get = station_to_gid.get
+    groups_template = {gid: set() for gid in STATION_GROUPS}
+
+    # iterparse 流式解析，内存友好
+    # 仅在遇到 <time> 结束标签时处理这个 time 块
+    context = ET.iterparse(xml_file, events=("end",))
+    for event, elem in context:
+        if elem.tag != "time":
+            continue
+
+        step_attr = elem.get("step")
+        if step_attr is None:
+            elem.clear()
+            continue
+
+        try:
+            step = int(step_attr)
+        except ValueError:
+            elem.clear()
+            continue
+
+        # 时间窗口（不含 end_step）
         if start_step is not None and step < start_step:
+            elem.clear()
             continue
         if end_step is not None and step >= end_step:
-            continue
-        # --------------------------------
-
-        group_data[step] = {
-            "groups": {gid: set() for gid in STATION_GROUPS},
-            "all_mentioned": set()
-        }
-
-        stations_elem = time_elem.find('stations')
-        if stations_elem is None:
+            elem.clear()
             continue
 
-        for station_elem in stations_elem.findall('station'):
-            station_id = int(station_elem.get('id'))
+        # 初始化当前 step 的容器（深拷贝 groups_template 的“空壳”）
+        # 用字典推导比 deepcopy 更轻量
+        groups = {gid: set() for gid in groups_template}
+        all_mentioned: Set[int] = set()
 
-            # 判断地面站属于哪一组
-            assigned_gid = next(
-                (gid for gid, info in STATION_GROUPS.items()
-                 if station_id in info["stations"]),
-                None
-            )
+        # stations 元素
+        stations_elem = elem.find("stations")
+        if stations_elem is not None:
+            # 局部绑定以减少属性查找开销
+            station_findall = stations_elem.findall
+            for station_elem in station_findall("station"):
+                sid_attr = station_elem.get("id")
+                if sid_attr is None:
+                    continue
+                try:
+                    sid = int(sid_attr)
+                except ValueError:
+                    continue
 
-            if assigned_gid is None:
-                continue  # 该地面站未划分到任何组
+                gid = station_to_gid_get(sid)
+                if gid is None:
+                    # 未分组的地面站直接跳过
+                    continue
 
-            # 读取并转换卫星 ID
-            valid_ids = {
-                int(float(sat.get('id')))
-                for sat in station_elem.findall('satellite')
-                if sat.get('id') is not None
-            }
+                sats = groups[gid]
+                # 直接遍历子元素，比多次 findall+临时集合快
+                for sat_elem in station_elem:
+                    if sat_elem.tag != "satellite":
+                        continue
+                    sat_id_attr = sat_elem.get("id")
+                    if not sat_id_attr:
+                        continue
+                    # 一些 XML 会把 id 写成 "123" 或 "123.0"；先尝试 int，退回 float->int
+                    try:
+                        sat_id = int(sat_id_attr)
+                    except ValueError:
+                        try:
+                            sat_id = int(float(sat_id_attr))
+                        except ValueError:
+                            continue
 
-            group_data[step]["groups"][assigned_gid].update(valid_ids)
-            group_data[step]["all_mentioned"].update(valid_ids)
+                    sats.add(sat_id)
+                    all_mentioned.add(sat_id)
+
+        group_data[step] = {"groups": groups, "all_mentioned": all_mentioned}
+
+        # 释放已处理节点，降低内存
+        elem.clear()
 
     return group_data
 
+#
+#
+# def parse_xml_group_data(xml_file, start_step=None, end_step=None):
+#     """
+#     解析 XML 并（可选）按时间窗口过滤。
+#
+#     参数
+#     ----
+#     xml_file   : str | PathLike
+#     start_step : int | None   # 起始时间步（含），None 表示从头开始
+#     end_step   : int | None   # 结束时间步（含），None 表示读到文件末尾
+#
+#     返回
+#     ----
+#     {
+#         step: {
+#             "groups": {gid: {sat_id, ...}},
+#             "all_mentioned": {sat_id, ...}
+#         },
+#         ...
+#     }
+#     """
+#     tree = ET.parse(xml_file)
+#     root = tree.getroot()
+#
+#     group_data = {}
+#     for time_elem in root.findall('time'):
+#         step = int(time_elem.get('step'))
+#
+#         # -------- 时间窗口过滤 --------
+#         if start_step is not None and step < start_step:
+#             continue
+#         if end_step is not None and step >= end_step:
+#             continue
+#         # --------------------------------
+#
+#         group_data[step] = {
+#             "groups": {gid: set() for gid in STATION_GROUPS},
+#             "all_mentioned": set()
+#         }
+#
+#         stations_elem = time_elem.find('stations')
+#         if stations_elem is None:
+#             continue
+#
+#         for station_elem in stations_elem.findall('station'):
+#             station_id = int(station_elem.get('id'))
+#
+#             # 判断地面站属于哪一组
+#             assigned_gid = next(
+#                 (gid for gid, info in STATION_GROUPS.items()
+#                  if station_id in info["stations"]),
+#                 None
+#             )
+#
+#             if assigned_gid is None:
+#                 continue  # 该地面站未划分到任何组
+#
+#             # 读取并转换卫星 ID
+#             valid_ids = {
+#                 int(float(sat.get('id')))
+#                 for sat in station_elem.findall('satellite')
+#                 if sat.get('id') is not None
+#             }
+#
+#             group_data[step]["groups"][assigned_gid].update(valid_ids)
+#             group_data[step]["all_mentioned"].update(valid_ids)
+#
+#     return group_data
+#
 
 
 
