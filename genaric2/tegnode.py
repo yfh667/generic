@@ -51,5 +51,5 @@ class tegnode_complete:
 
 
     def __repr__(self):
-        return f"tegnode(asc_nodes_region_id={self.asc_nodes_region_id}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, left_state={self.left_state}),right_state={self.right_state})"
+        return f"tegnode(asc_nodes_region_id={self.asc_nodes_region_id}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, left_state={self.left_state},right_state={self.right_state}"
 

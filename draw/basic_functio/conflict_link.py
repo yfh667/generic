@@ -807,4 +807,4 @@ def get_no_conflict_link_nodes3(nodes: dict[tuple[int, int, int], tegnode.tegnod
 
     pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
 
-    return edges_by_step,pending_edges
+    return edges_by_step,pending_edges,nownodes
