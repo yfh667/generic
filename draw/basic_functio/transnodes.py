@@ -21,7 +21,7 @@ def transnodes(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
                 rightneighbor=rightneighbor,
                 leftneighbor=None,
                 right_state=right_state,
-                left_state=None
+                left_state=-1
             )
         else:
             # 如果已存在，只补右邻和右邻状态

@@ -54,6 +54,9 @@ def trans_nodes2edges(nodes, P, N):
             dst_id = rx * N + ry
             edges_by_step[step].setdefault(src_id, set()).add(dst_id)
     return edges_by_step
+
+
+
 import draw.basic_functio.motif as motif
 
 
