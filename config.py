@@ -13,3 +13,13 @@ OUTPUT_DIR = DATA_DIR / "output"
 # 确保这些目录存在
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+#
+# from config import INPUT_DIR, OUTPUT_DIR
+#
+# file_in = INPUT_DIR / "example.csv"
+# file_out = OUTPUT_DIR / "result.json"
+#
+# # 用法
+# with open(file_in) as f:
+#     data = f.read()
