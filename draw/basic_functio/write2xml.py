@@ -5,6 +5,8 @@ import os
 import ast
 
 import genaric2.tegnode as tegnode
+
+
 def nodes_to_xml(nodes, filename):
     """
     将 nodes 字典保存为 XML 文件
@@ -166,7 +168,7 @@ if __name__ == '__main__':
     # 保存
     #nodes_to_xml(nodes, "test_nodes.xml")
 
-    # 读取    dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
+    # 读取    dummy_file_name = "E:\\code\\dataresult\\station_visible_satellites_100_test.xml"
     nodes_loaded = xml_to_nodes("test_nodes.xml", tegnode.tegnode)
 
      # print(nodes)

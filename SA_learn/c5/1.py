@@ -75,12 +75,12 @@ def run_parameter_tuning_experiment(temperature_ranges, cooling_rates, step_size
     return experiments
 
 def visualize_parameter_tuning_results(experiments):
-    # Extract the data for plotting
+    # Extract the dataresult for plotting
     T_starts = sorted(set(exp["T_start"] for exp in experiments))
     alphas = sorted(set(exp["alpha"] for exp in experiments))
     step_sizes = sorted(set(exp["step_size"] for exp in experiments))
 
-    # Prepare data structures for plotting
+    # Prepare dataresult structures for plotting
     quality_data = {T: {alpha: [] for alpha in alphas} for T in T_starts}
     convergence_data = {T: {alpha: [] for alpha in alphas} for T in T_starts}
     for exp in experiments:

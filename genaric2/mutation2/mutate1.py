@@ -70,7 +70,7 @@ def establishment_mutate(coordinate,chromosome,distinct,P, N, T,setuptime,test=0
 #first we need delet the  (x y t) raw link
 
 
-# we first need delet the raw chosen_righbor data
+# we first need delet the raw chosen_righbor dataresult
 
 
     afect_region=[]

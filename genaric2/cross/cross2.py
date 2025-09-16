@@ -362,7 +362,7 @@ def crossover_wenti2(p1_left, p2_right, point,P, N, T, setuptime):
                                 modified_p2_right[rightneighbor].leftneighbor = (point, j, t)
     # test = merge_node_dicts_safe(p1_left, modified_p2_right)
     # flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceValidator(test, P, N, T,    setuptime)
-    #    writetoxml.nodes_to_xml(test, "E:\\code\\data\\1\\test.xml")
+    #    writetoxml.nodes_to_xml(test, "E:\\code\\dataresult\\1\\test.xml")
 
     #3. we need change the affect region
     for i in range(2):
@@ -484,7 +484,7 @@ if __name__ == '__main__':
 
     writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2.xml")
 
-    # writetoxml.nodes_to_xml(child1, "E:\\code\\data\\1\\child1.xml")
+    # writetoxml.nodes_to_xml(child1, "E:\\code\\dataresult\\1\\child1.xml")
 
     # 2D 动态图可视化
     connection_list = action_table.action_map2_shanpshots(individual1, P, N, T)

@@ -126,7 +126,7 @@ def extract_region_satellites_from_file(xml_file_path, start_ts, end_ts):
         5: set(range(17, 19))  # Region 5: stations 18-20
     }
 
-    # Initialize a list to store the region data for each time step
+    # Initialize a list to store the region dataresult for each time step
     result_lists = []
 
     try:

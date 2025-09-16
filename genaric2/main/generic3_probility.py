@@ -261,10 +261,10 @@ def genetic_algorithm():
                 #
                 # except Exception as e:  # 捕获所有可能的错误（包括验证器内部的报错）
                 #     # 保存关键数据（确保即使验证崩溃也能保存）
-                #     writetoxml.nodes_to_xml(child1, "E:\\code\\data\\2\\child1_debug.xml")
-                #     writetoxml.nodes_to_xml(child2, "E:\\code\\data\\2\\child2_debug.xml")
-                #     writetoxml.nodes_to_xml(parent1, "E:\\code\\data\\2\\parent1_debug.xml")
-                #     writetoxml.nodes_to_xml(parent2, "E:\\code\\data\\2\\parent2_debug.xml")
+                #     writetoxml.nodes_to_xml(child1, "E:\\code\\dataresult\\2\\child1_debug.xml")
+                #     writetoxml.nodes_to_xml(child2, "E:\\code\\dataresult\\2\\child2_debug.xml")
+                #     writetoxml.nodes_to_xml(parent1, "E:\\code\\dataresult\\2\\parent1_debug.xml")
+                #     writetoxml.nodes_to_xml(parent2, "E:\\code\\dataresult\\2\\parent2_debug.xml")
                 #
                 #     # 打印错误信息
                 #     print(f"【致命错误】{str(e)}", flush=True)

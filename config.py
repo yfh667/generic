@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # 数据目录
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = PROJECT_ROOT / "dataresult"
 
 # 子目录
 INPUT_DIR = DATA_DIR / "input"
@@ -22,4 +22,4 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 #
 # # 用法
 # with open(file_in) as f:
-#     data = f.read()
+#     dataresult = f.read()

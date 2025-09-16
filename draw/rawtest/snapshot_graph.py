@@ -156,7 +156,7 @@ def plot_grouped_satellites(group_data):
     steps = sorted(group_data.keys())
 
     if not steps:
-         print("Error: No time steps found in XML data after parsing.")
+         print("Error: No time steps found in XML dataresult after parsing.")
          sys.exit(1) # 退出程序如果没有任何时间步数据
 
     time_slider = Slider(
@@ -244,8 +244,8 @@ if __name__ == "__main__":
         group_data = read_snap_xml.parse_xml_group_data(xml_file, start_ts, end_ts)
 
         if not group_data:
-            print(f"Error: No valid group visibility data parsed from {xml_file}.")
-            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' data.")
+            print(f"Error: No valid group visibility dataresult parsed from {xml_file}.")
+            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' dataresult.")
             sys.exit(1) # 退出程序如果解析失败或没有数据
 
         # 绘制可视化图

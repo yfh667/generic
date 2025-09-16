@@ -118,7 +118,7 @@ def simulated_annealing(initial_solution, objective_function, T_start, alpha, nu
             neighbor, P, N, T,regions_to_color, setuptime)
         if flag1 == 0:
             # print(f"mutate node {mutate_node},neighbor ={chose}")
-            # writetoxml.nodes_to_xml(individual, "E:\\code\\data\\2\\para.xml")
+            # writetoxml.nodes_to_xml(individual, "E:\\code\\dataresult\\2\\para.xml")
             print("0")
             writetoxml.nodes_to_xml(neighbor, "E:\\code\\data\\2\\sa_debug.xml")
 # here

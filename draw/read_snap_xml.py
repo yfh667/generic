@@ -336,7 +336,7 @@ def plot_grouped_satellites(group_data):
     steps = sorted(group_data.keys())
 
     if not steps:
-         print("Error: No time steps found in XML data after parsing.")
+         print("Error: No time steps found in XML dataresult after parsing.")
          sys.exit(1) # 退出程序如果没有任何时间步数据
 
     time_slider = Slider(
