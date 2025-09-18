@@ -771,15 +771,6 @@ def get_no_conflict_link_nodes3(nodes: dict[tuple[int, int, int], tegnode.tegnod
                         n1_neighbor_next_node=nownodes.get((right_neighbor[0],right_neighbor[1],time))
                         n1_neighbor_next_node.leftneighbor = (i,j,time)
 
-
-
-
-
-
-
-
-
-
     edges_by_step = motif.transform_nodes_2_rawedge(nownodes, P, N, start_ts, end_ts)
 
     pendingnodes = {}

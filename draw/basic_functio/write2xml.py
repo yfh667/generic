@@ -137,59 +137,71 @@ def nodes_to_xml2(nodes, filename):
 
 def xml_to_nodes2(filename, tegnode_cls):
     """
-    更快的 XML -> nodes(dict) 读取：
-      - 只对 <Node> 触发事件（tag 过滤）
-      - lxml: huge_tree + deep clear，低内存高吞吐
-      - 轻量字符串解析
+    快速 XML -> nodes(dict)：
+      - lxml: iterparse(huge_tree=True) + deep-clear
+      - 兼容 stdlib xml.etree
+      - 如果某实现不支持 tag=，退化为循环内判断 elem.tag
     返回: dict[(x, y, step)] -> tegnode
     """
     nodes = {}
-    cls = tegnode_cls                      # 本地化查找更快
+    cls = tegnode_cls
     ptuple = _parse_tuple_int
+    ATTR_TRUE = {'True', 'true', '1'}
 
+    # 1) 建 iterparse 上下文（兼容不同实现）
     try:
         if _HAS_LXML:
-            # lxml 解析器：更快，并允许大文件
-            parser = _ET.XMLParser(huge_tree=True, recover=True)
-            context = _ET.iterparse(str(filename), events=('end',), tag='Node', parser=parser)
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node', huge_tree=True)
         else:
-            # stdlib 也支持 tag 过滤（少很多事件）
             context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+        use_tag_filter = True
+    except TypeError:
+        # 某些实现没有 tag= 或 huge_tree=；退化为不带 tag
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',))
+        use_tag_filter = False
 
+    try:
         for _, elem in context:
-            at = elem.attrib
+            if use_tag_filter is False and elem.tag != 'Node':
+                # 手动过滤
+                if _HAS_LXML:
+                    # lxml deep-clear
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
 
-            # 坐标（用 split/三次 int，比 map+tuple 还快一点）
+            at = elem.attrib
             coord = at.get('coordination')
             if not coord:
-                # 没关键字段，跳过
                 if _HAS_LXML:
-                    elem.clear()
-                else:
-                    elem.clear()
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
                 continue
+
+            # 坐标解析（比 map+tuple 略快）
             try:
                 x_str, y_str, s_str = coord.split(',')
                 coords = (int(x_str), int(y_str), int(s_str))
             except Exception:
                 if _HAS_LXML:
-                    elem.clear()
-                else:
-                    elem.clear()
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
                 continue
 
-            # 轻量字段解析
             rn = ptuple(at.get('rightneighbor'))
             ln = ptuple(at.get('leftneighbor'))
 
-            asc_str = at.get('asc_nodes_region_id')
-            # 快速 bool：避免构造新字符串
-            asc_flag = True if asc_str in ('True', 'true', '1') else False
+            asc_flag = (at.get('asc_nodes_region_id') in ATTR_TRUE)
 
-            ls = at.get('left_state');   left_state  = int(ls) if ls  and ls.strip()  else -1
+            ls = at.get('left_state');   left_state  = int(ls) if ls and ls.strip() else -1
             rs = at.get('right_state');  right_state = int(rs) if rs and rs.strip() else -1
 
-            # 构造节点（按你现在的字段命名）
             node = cls(
                 asc_nodes_region_id=asc_flag,
                 rightneighbor=rn,
@@ -199,22 +211,20 @@ def xml_to_nodes2(filename, tegnode_cls):
             )
             nodes[coords] = node
 
-            # 清理：lxml 下做 deep clear，释放前序兄弟；stdlib 只能 elem.clear()
+            # 清理：先 clear，再剥离已处理兄弟（lxml）
             if _HAS_LXML:
-                parent = elem.getparent()
                 elem.clear()
-                # 释放已经处理过的兄弟节点，防止 parent.children 累积
-                while parent is not None and parent.getprevious() is not None:
-                    del parent.getparent()[0]
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
             else:
                 elem.clear()
 
     except Exception as e:
         print(f"解析XML时出错: {e}")
-        # 返回空 dict，避免后续 update(None) 再报错
-        return {}
+        return {}     # 返回空 dict，避免后续 update(None) 报错
 
     return nodes
+
 #
 # def xml_to_nodes2(filename, tegnode_cls):
 #     """
@@ -272,43 +282,61 @@ _ATTR_TRUE = {'True', 'true', '1'}
 
 def iter_nodes2(filename, tegnode_cls):
     """
-    迭代器版本：逐个 yield (coords, node)
-    - 只监听 <Node> 的 'end' 事件
-    - lxml: huge_tree + deep-clear，内存占用低
+    迭代器：逐个 yield (coords, node)
+    - lxml: iterparse(huge_tree=True) + deep-clear
+    - 兼容 stdlib；不支持 tag= 时退化到手动过滤
     """
     cls = tegnode_cls
     ptuple = _parse_tuple_int
+    ATTR_TRUE = {'True', 'true', '1'}
 
-    if _HAS_LXML:
-        parser = _ET.XMLParser(huge_tree=True, recover=True)
-        context = _ET.iterparse(str(filename), events=('end',), tag='Node', parser=parser)
-    else:
-        context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+    try:
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node', huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+        use_tag_filter = True
+    except TypeError:
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',))
+        use_tag_filter = False
 
     for _, elem in context:
+        if use_tag_filter is False and elem.tag != 'Node':
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            elem.clear()
+            continue
+
         at = elem.attrib
         coord = at.get('coordination')
         if not coord:
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
             elem.clear()
             continue
-        # faster than map/tuple
+
         try:
             x_str, y_str, s_str = coord.split(',')
             coords = (int(x_str), int(y_str), int(s_str))
         except Exception:
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
             elem.clear()
             continue
 
         rn = ptuple(at.get('rightneighbor'))
         ln = ptuple(at.get('leftneighbor'))
 
-        asc = at.get('asc_nodes_region_id')
-        asc_flag = asc in _ATTR_TRUE
-
+        asc_flag = (at.get('asc_nodes_region_id') in ATTR_TRUE)
         ls = at.get('left_state');   left_state  = int(ls) if ls and ls.strip() else -1
         rs = at.get('right_state');  right_state = int(rs) if rs and rs.strip() else -1
 
-        # 注意：这里用的是你的完整字段版类 tegnode.tegnode_complete
         node = cls(
             asc_nodes_region_id=asc_flag,
             rightneighbor=rn,
@@ -316,18 +344,15 @@ def iter_nodes2(filename, tegnode_cls):
             left_state=left_state,
             right_state=right_state,
         )
-
         yield coords, node
 
-        # 清理
         if _HAS_LXML:
-            parent = elem.getparent()
             elem.clear()
-            # deep clear: 释放已处理的前序兄弟，防止 parent.children 累积
-            while parent is not None and parent.getprevious() is not None:
-                del parent.getparent()[0]
+            while elem.getprevious() is not None:
+                del elem.getparent()[0]
         else:
             elem.clear()
+
 
 
 # 2) 顺序装载（最省内存，通常已足够快）
