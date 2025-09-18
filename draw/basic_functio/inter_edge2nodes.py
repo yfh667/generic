@@ -38,23 +38,59 @@ def trans_edge2node(raw_inter_edges_by_step,P,N):
 
     return nodes
 
-def trans_nodes2edges(nodes, P, N):
+
+# 这个版本更加快
+def trans_nodes2edges(nodes, P, N, check_same_step=False):
     """
     nodes: dict[(x, y, step)] -> tegnode
-    返回: dict[step][src_id] = set([dst_id, ...])
-    只处理 rightneighbor
+    return: dict[step][src_id] = set([dst_id, ...])
+    仅用 rightneighbor；尽量减少 setdefault/属性与方法查找。
     """
     edges_by_step = {}
+    get_step = edges_by_step.get           # 本地绑定，加速查找
     for (x, y, step), node in nodes.items():
-        if node.rightneighbor is not None:
-            rx, ry, rstep = node.rightneighbor
-            if step not in edges_by_step:
-                edges_by_step[step] = {}
-            src_id = x * N + y
-            dst_id = rx * N + ry
-            edges_by_step[step].setdefault(src_id, set()).add(dst_id)
+        rn = node.rightneighbor
+        if rn is None:
+            continue
+        rx, ry, rstep = rn
+        if check_same_step and rstep != step:
+            # 如需严格保证同一时间步才连边，打开上面开关
+            continue
+
+        step_map = get_step(step)
+        if step_map is None:
+            step_map = {}
+            edges_by_step[step] = step_map
+
+        src = x * N + y
+        dst = rx * N + ry
+
+        dsts = step_map.get(src)
+        if dsts is None:
+            # 直接构造包含首个元素的 set，比 setdefault 再 add 更省一次查找
+            step_map[src] = {dst}
+        else:
+            dsts.add(dst)
+
     return edges_by_step
 
+# def trans_nodes2edges(nodes, P, N):
+#     """
+#     nodes: dict[(x, y, step)] -> tegnode
+#     返回: dict[step][src_id] = set([dst_id, ...])
+#     只处理 rightneighbor
+#     """
+#     edges_by_step = {}
+#     for (x, y, step), node in nodes.items():
+#         if node.rightneighbor is not None:
+#             rx, ry, rstep = node.rightneighbor
+#             if step not in edges_by_step:
+#                 edges_by_step[step] = {}
+#             src_id = x * N + y
+#             dst_id = rx * N + ry
+#             edges_by_step[step].setdefault(src_id, set()).add(dst_id)
+#     return edges_by_step
+#
 
 
 import draw.basic_functio.motif as motif
@@ -108,6 +144,35 @@ def trans_nodes2_pendingedges(nodes, start_ts, end_ts,time_2_build,P, N):
                                     state=-1,
                                     importance=0,
                                 )
+
+    pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
+    return pending_edges
+
+
+def trans_nodes2_pendingedges2(nownodes, start_ts, end_ts, time_2_build, P, N):
+# 这一个跟之前的不一样在于，我们是针对新的
+    pendingnodes = {}
+    for step in range(start_ts, end_ts-1):
+        for i in range(P - 1):
+            for j in range(N):
+                n1 = nownodes.get((i, j, step))
+                n2 = nownodes.get((i, j, step + 1))
+                # 防御式判断
+                # 这个表明，某个点在step+1时，其链接改变了，此刻，我们需要直接修改
+                if not n1.rightneighbor and n2.rightneighbor:
+                    #  说明是建链完成了，因此，我们要反向将建链的链路给加进来
+                    right_neighbor = n2.rightneighbor
+                    for k in range(time_2_build):
+                        bias = step-k
+                        if bias<start_ts:
+                            break
+                        pendingnodes[i, j,bias] = tegnode.tegnode_complete(
+                            asc_nodes_region_id=-1,
+                            rightneighbor=right_neighbor,
+                            leftneighbor=None,
+                            left_state=-1,
+                            right_state=-1,
+                        )
 
     pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
     return pending_edges

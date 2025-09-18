@@ -357,66 +357,153 @@ def plot_grouped_satellites(group_data):
 
 import math
 
+import math
 
 
+def find_main_cluster_offset(sats, N=36):
+    """
+    分析给定的卫星点集，找到其中最大聚类的顶部y坐标作为offset。
+    这解决了因周期性边界导致点集被分割的问题。
 
-def modify_group_data(group_data, N=36,groupid=4):
+    :param sats: 包含卫星ID的集合。
+    :param N: y轴的周期长度 (坐标范围 0 到 N-1)。
+    :return: 最佳的offset值。
+    """
+    if not sats:
+        return 0  # 如果没有点，返回默认offset
+
+    # 1. 提取所有点的y坐标并排序
+    y_coords = sorted([sid % N for sid in sats])
+
+    if len(y_coords) <= 1:
+        return y_coords[0]  # 如果只有一个点或没有点，它自身就是offset
+
+    # 2. 计算所有相邻点之间的“间隙”（考虑到周期性）
+    # gaps列表存储 (间隙大小, 间隙起始点的索引)
+    gaps = []
+    for i in range(len(y_coords) - 1):
+        gap_size = y_coords[i + 1] - y_coords[i]
+        gaps.append((gap_size, i))
+
+    # 计算最后一个点到第一个点的“环绕”间隙
+    wraparound_gap = (y_coords[0] + N) - y_coords[-1]
+    gaps.append((wraparound_gap, len(y_coords) - 1))
+
+    # 3. 找到最大的间隙，这个间隙就是不同聚类的分界线
+    max_gap, split_index = max(gaps)
+
+    # 4. 根据最大间隙分割点集，形成两个聚类
+    # split_index是最大间隙之前那个点的索引
+    # cluster1 是从 split_index+1 到结尾的点集
+    # cluster2 是从开头到 split_index 的点集
+    # 这两个集合中，一个是在y轴上连续的，另一个是跨越了周期边界的
+    # 但根据我们的定义，它们分别代表了两个聚类
+
+    cluster1 = y_coords[split_index + 1:]
+    cluster2 = y_coords[:split_index + 1]
+
+    # 5. 选择点数更多的那个聚类作为主聚类
+    if len(cluster1) > len(cluster2):
+        main_cluster = cluster1
+    else:
+        # 如果数量相等，优先选择y值较大的那个聚类，这通常是图形的主体
+        main_cluster = cluster2
+
+    # 6. 返回主聚类的最大y值作为offset
+    return max(main_cluster)
+
+
+def modify_group_data(group_data, N=36, groupid=4):
+    """
+    对分组数据进行坐标变换，使用更鲁棒的offset选择逻辑。
+    """
     new_group_data = {}
     off_sets = {}
-    for step, raw_step_dict in group_data.items():   # ← 改这里
+    for step, raw_step_dict in group_data.items():
         raw_groups = raw_step_dict['groups']
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
 
-        # 1. group 4 中最大 y
-        group4_sats = raw_groups.get(groupid, set())
-        y_up = max((sid % N for sid in group4_sats), default=0)
-        y_down = min((sid % N for sid in group4_sats), default=0)
+        # 1. 获取基准组的所有卫星点
+        group_sats = raw_groups.get(groupid, set())
 
-        if y_down!=0:
-            # 说明此刻大概是没有被上下分割的
-            offset =y_up
-            off_sets[step] = offset
-            for gid, sats in raw_groups.items():
-                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-                for sid in sats:
-                    y = sid % N
-                    x = sid // N
-                    y_new =(y-offset+N-1) %N
-                    new_sid = x * N + y_new
-                    tgt_set.add(new_sid)
-                    new_group_data[step]['all_mentioned'].add(new_sid)
-        else:# here we need sove the down's hights
-            #此时可能存在上下分割
+        # 2. 使用新的健壮算法来确定最佳offset
+        offset = find_main_cluster_offset(group_sats, N)
+        off_sets[step] = offset
 
-            max1 = -math.inf
-
-            offset=0
-            for sid in group4_sats:
+        # 3. 对所有组的点应用这个统一的offset进行变换
+        for gid, sats in raw_groups.items():
+            tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+            for sid in sats:
                 y = sid % N
                 x = sid // N
-                here= y-5
-                if here<=0:
-                    if here>max1:
-                        max1 = here
-            y_up=max1+5
 
+                # 应用变换公式
+                y_new = (y - offset + N - 1) % N
+                new_sid = x * N + y_new
 
-            offset =y_up
-            off_sets[step] = offset
-            for gid, sats in raw_groups.items():
-                tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
-                for sid in sats:
-                    y = sid % N
-                    x = sid // N
+                tgt_set.add(new_sid)
+                new_group_data[step]['all_mentioned'].add(new_sid)
 
-                    y_new = (y - offset + N - 1) % N
-                    new_sid = x * N + y_new
-                    tgt_set.add(new_sid)
-                    new_group_data[step]['all_mentioned'].add(new_sid)
+    return new_group_data, off_sets
 
-
-
-    return new_group_data,off_sets
+#
+# def modify_group_data(group_data, N=36,groupid=4):
+#     new_group_data = {}
+#     off_sets = {}
+#     for step, raw_step_dict in group_data.items():   # ← 改这里
+#         raw_groups = raw_step_dict['groups']
+#         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
+#
+#         # 1. group 4 中最大 y
+#         group4_sats = raw_groups.get(groupid, set())
+#         y_up = max((sid % N for sid in group4_sats), default=0)
+#         y_down = min((sid % N for sid in group4_sats), default=0)
+#
+#         if y_down!=0:
+#             # 说明此刻大概是没有被上下分割的
+#             offset =y_up
+#             off_sets[step] = offset
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#                     y_new =(y-offset+N-1) %N
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#         else:# here we need sove the down's hights
+#             #此时可能存在上下分割
+#
+#             max1 = -math.inf
+#
+#             offset=0
+#             for sid in group4_sats:
+#                 y = sid % N
+#                 x = sid // N
+#                 here= y-5
+#                 if here<=0:
+#                     if here>max1:
+#                         max1 = here
+#             y_up=max1+5
+#
+#
+#             offset =y_up
+#             off_sets[step] = offset
+#             for gid, sats in raw_groups.items():
+#                 tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+#                 for sid in sats:
+#                     y = sid % N
+#                     x = sid // N
+#
+#                     y_new = (y - offset + N - 1) % N
+#                     new_sid = x * N + y_new
+#                     tgt_set.add(new_sid)
+#                     new_group_data[step]['all_mentioned'].add(new_sid)
+#
+#
+#
+#     return new_group_data,off_sets
 
 
 def modify_data(time,number,off_sets, N=36):
