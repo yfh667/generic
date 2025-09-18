@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # 数据目录
-DATA_DIR = PROJECT_ROOT / "dataresult"
+DATA_DIR = PROJECT_ROOT / "data"
 
 # 子目录
 INPUT_DIR = DATA_DIR / "input"
