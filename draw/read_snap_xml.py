@@ -8,6 +8,7 @@ from matplotlib.widgets import Slider
 import xml.etree.ElementTree as ET
 
 
+
 # --- 地面站分组 ---
 # 注意：这里的地面站ID需要与XML文件中station元素的id属性一致
 STATION_GROUPS = {
@@ -357,91 +358,123 @@ def plot_grouped_satellites(group_data):
 
 import math
 
-import math
 
 
-def find_main_cluster_offset(sats, N=36):
+
+
+from collections import defaultdict
+
+def _find_components_by_neighbors(sats: set, P: int, N: int):
     """
-    分析给定的卫星点集，找到其中最大聚类的顶部y坐标作为offset。
-    这解决了因周期性边界导致点集被分割的问题。
-
-    :param sats: 包含卫星ID的集合。
-    :param N: y轴的周期长度 (坐标范围 0 到 N-1)。
-    :return: 最佳的offset值。
+    用并查集按邻接关系把 sats 划分为连通块。
+    邻接：同 x 的 (y±1)%N；以及 x< P-1 时的右邻 (x+1,y)。
+    返回: [set(sid), ...]，按规模降序。
     """
     if not sats:
-        return 0  # 如果没有点，返回默认offset
+        return []
 
-    # 1. 提取所有点的y坐标并排序
-    y_coords = sorted([sid % N for sid in sats])
+    sats = set(sats)
+    parent = {sid: sid for sid in sats}
 
-    if len(y_coords) <= 1:
-        return y_coords[0]  # 如果只有一个点或没有点，它自身就是offset
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
 
-    # 2. 计算所有相邻点之间的“间隙”（考虑到周期性）
-    # gaps列表存储 (间隙大小, 间隙起始点的索引)
-    gaps = []
-    for i in range(len(y_coords) - 1):
-        gap_size = y_coords[i + 1] - y_coords[i]
-        gaps.append((gap_size, i))
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
 
-    # 计算最后一个点到第一个点的“环绕”间隙
-    wraparound_gap = (y_coords[0] + N) - y_coords[-1]
-    gaps.append((wraparound_gap, len(y_coords) - 1))
+    for sid in sats:
+        x, y = divmod(sid, N)
 
-    # 3. 找到最大的间隙，这个间隙就是不同聚类的分界线
-    max_gap, split_index = max(gaps)
+        # 竖直相邻（y 环绕）
+        up    = x * N + ((y + 1) % N)
+        down  = x * N + ((y - 1 + N) % N)
+        if up   in sats: union(sid, up)
+        if down in sats: union(sid, down)
 
-    # 4. 根据最大间隙分割点集，形成两个聚类
-    # split_index是最大间隙之前那个点的索引
-    # cluster1 是从 split_index+1 到结尾的点集
-    # cluster2 是从开头到 split_index 的点集
-    # 这两个集合中，一个是在y轴上连续的，另一个是跨越了周期边界的
-    # 但根据我们的定义，它们分别代表了两个聚类
+        # 水平相邻（x 不环绕）
+        if x < P - 1:
+            right = (x + 1) * N + y
+            if right in sats: union(sid, right)
 
-    cluster1 = y_coords[split_index + 1:]
-    cluster2 = y_coords[:split_index + 1]
+    comps = defaultdict(set)
+    for sid in sats:
+        comps[find(sid)].add(sid)
 
-    # 5. 选择点数更多的那个聚类作为主聚类
-    if len(cluster1) > len(cluster2):
-        main_cluster = cluster1
-    else:
-        # 如果数量相等，优先选择y值较大的那个聚类，这通常是图形的主体
-        main_cluster = cluster2
-
-    # 6. 返回主聚类的最大y值作为offset
-    return max(main_cluster)
+    return sorted(comps.values(), key=len, reverse=True)
 
 
-def modify_group_data(group_data, N=36, groupid=4):
+def _offset_from_component_y(sids: set, N: int) -> int:
     """
-    对分组数据进行坐标变换，使用更鲁棒的offset选择逻辑。
+    在主簇的 y 值上找“最大的环形间隙”，
+    取该间隙后面的 y 作为 start_y，并返回 offset=start_y。
+    这样 y_new = (y - offset + N - 1) % N 会把 start_y 卷到最上面(N-1)。
+    """
+    ys = sorted({sid % N for sid in sids})
+
+
+    m = len(ys)
+    if m == 0:
+        return 0
+    if m == 1:
+        return ys[0]  # 只有一个点，自己就是起点
+
+    # 计算环上的相邻间隙（含 wrap 间隙）
+    # 找到环上的最大间隙，记下间隙后的位置
+    max_gap = -1
+    idx_after_gap = 0
+    for i in range(m - 1):
+        g = ys[i + 1] - ys[i]
+        if g > max_gap:
+            max_gap = g
+            idx_after_gap = i + 1
+    wrap_gap = (ys[0] + N) - ys[-1]
+    if wrap_gap > max_gap:
+        idx_after_gap = 0  # 最大间隙在 ys[-1] 与 ys[0] 之间
+
+    # 注意：主簇的“最后一个 y”是最大间隙的前一个元素
+    offset = ys[idx_after_gap - 1]   # 关键改动：不是 ys[idx_after_gap]
+    return offset
+
+
+def modify_group_data(group_data: dict, P: int, N: int, base_groupid: int = 4):
+    """
+    先把 base_groupid 的点集按邻接分成连通块，
+    选点数最多的“主簇”，在其 y 上找最大环形间隙确定 offset，
+    再用统一 offset 对所有组做 y 平移： y_new = (y - offset + N - 1) % N
     """
     new_group_data = {}
     off_sets = {}
-    for step, raw_step_dict in group_data.items():
-        raw_groups = raw_step_dict['groups']
+
+    for step in sorted(group_data.keys()):
+        if step ==20814:
+            print(1)
+        raw_groups = group_data[step]['groups']
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
 
-        # 1. 获取基准组的所有卫星点
-        group_sats = raw_groups.get(groupid, set())
+        base_sats = raw_groups.get(base_groupid, set())
+        comps = _find_components_by_neighbors(base_sats, P, N)
 
-        # 2. 使用新的健壮算法来确定最佳offset
-        offset = find_main_cluster_offset(group_sats, N)
+        if comps:
+            main_comp = comps[0]           # 选点最多的那块
+            offset = _offset_from_component_y(main_comp, N)
+        else:
+            offset = 0
+
         off_sets[step] = offset
 
-        # 3. 对所有组的点应用这个统一的offset进行变换
+        # 统一 offset 平移所有组
         for gid, sats in raw_groups.items():
-            tgt_set = new_group_data[step]['groups'].setdefault(gid, set())
+            tgt = new_group_data[step]['groups'].setdefault(gid, set())
             for sid in sats:
-                y = sid % N
-                x = sid // N
-
-                # 应用变换公式
+                x, y = divmod(sid, N)
                 y_new = (y - offset + N - 1) % N
                 new_sid = x * N + y_new
-
-                tgt_set.add(new_sid)
+                tgt.add(new_sid)
                 new_group_data[step]['all_mentioned'].add(new_sid)
 
     return new_group_data, off_sets

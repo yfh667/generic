@@ -268,6 +268,111 @@ def xml_to_nodes2(filename, tegnode_cls):
 #
 #     return nodes
 
+_ATTR_TRUE = {'True', 'true', '1'}
+
+def iter_nodes2(filename, tegnode_cls):
+    """
+    迭代器版本：逐个 yield (coords, node)
+    - 只监听 <Node> 的 'end' 事件
+    - lxml: huge_tree + deep-clear，内存占用低
+    """
+    cls = tegnode_cls
+    ptuple = _parse_tuple_int
+
+    if _HAS_LXML:
+        parser = _ET.XMLParser(huge_tree=True, recover=True)
+        context = _ET.iterparse(str(filename), events=('end',), tag='Node', parser=parser)
+    else:
+        context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+
+    for _, elem in context:
+        at = elem.attrib
+        coord = at.get('coordination')
+        if not coord:
+            elem.clear()
+            continue
+        # faster than map/tuple
+        try:
+            x_str, y_str, s_str = coord.split(',')
+            coords = (int(x_str), int(y_str), int(s_str))
+        except Exception:
+            elem.clear()
+            continue
+
+        rn = ptuple(at.get('rightneighbor'))
+        ln = ptuple(at.get('leftneighbor'))
+
+        asc = at.get('asc_nodes_region_id')
+        asc_flag = asc in _ATTR_TRUE
+
+        ls = at.get('left_state');   left_state  = int(ls) if ls and ls.strip() else -1
+        rs = at.get('right_state');  right_state = int(rs) if rs and rs.strip() else -1
+
+        # 注意：这里用的是你的完整字段版类 tegnode.tegnode_complete
+        node = cls(
+            asc_nodes_region_id=asc_flag,
+            rightneighbor=rn,
+            leftneighbor=ln,
+            left_state=left_state,
+            right_state=right_state,
+        )
+
+        yield coords, node
+
+        # 清理
+        if _HAS_LXML:
+            parent = elem.getparent()
+            elem.clear()
+            # deep clear: 释放已处理的前序兄弟，防止 parent.children 累积
+            while parent is not None and parent.getprevious() is not None:
+                del parent.getparent()[0]
+        else:
+            elem.clear()
+
+
+# 2) 顺序装载（最省内存，通常已足够快）
+def load_all_nodes_sequential(paths, tegnode_cls):
+    total = {}
+    for p in paths:
+        for coords, node in iter_nodes2(p, tegnode_cls):
+            total[coords] = node
+    return total
+
+
+# 3) 并行装载（需要 lxml 才有明显收益；注意磁盘带宽）
+def load_all_nodes_parallel(paths, tegnode_cls, workers=None, backend='thread'):
+    """
+    backend: 'thread' (默认, lxml 释放 GIL 时表现好) 或 'process'
+    workers: None -> min(8, os.cpu_count() or 4)
+    """
+    if workers is None:
+        workers = min(8, os.cpu_count() or 4)
+
+    # 子任务：把单个文件解析成 (coords, node) 的 list
+    # （返回 list 而不是生成器，方便在进程/线程间传递）
+    def _one_file(path):
+        out = []
+        for item in iter_nodes2(path, tegnode_cls):
+            out.append(item)
+        return out
+
+    total = {}
+    if backend == 'process':
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            futs = [ex.submit(_one_file, str(p)) for p in paths]
+            for f in as_completed(futs):
+                for coords, node in f.result():
+                    total[coords] = node
+    else:
+        # 默认线程池：lxml 在 C 层释放 GIL，线程并行效果好；也更省内存
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs = [ex.submit(_one_file, str(p)) for p in paths]
+            for f in as_completed(futs):
+                for coords, node in f.result():
+                    total[coords] = node
+    return total
 
 if __name__ == '__main__':
 
