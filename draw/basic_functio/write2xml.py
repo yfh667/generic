@@ -16,33 +16,62 @@ except Exception:
 
 
 
+from xml.sax.saxutils import quoteattr
+from typing import Dict, Tuple
 
-def nodes_to_xml(nodes, filename):
+
+def nodes_to_xml(nodes: Dict[Tuple[int,int,int], object], filename: str):
     """
-    将 nodes 字典保存为 XML 文件
-    nodes: dict[(x, y, step)] -> tegnode
-    filename: 保存的xml路径
+    Streaming writer: very fast & low memory.
+    nodes: dict[(x, y, step)] -> node_obj (has attributes used below)
     """
-    root = ET.Element("Nodes")
-    for coord, node in nodes.items():
-        node_elem = ET.SubElement(root, "Node")
-        node_elem.set("coordination", f"{coord[0]},{coord[1]},{coord[2]}")
-        node_elem.set("asc_nodes_flag", str(node.asc_nodes_flag))
-        node_elem.set("rightneighbor", str(node.rightneighbor) if node.rightneighbor is not None else "None")
-        node_elem.set("leftneighbor", str(node.leftneighbor) if node.leftneighbor is not None else "None")
-        node_elem.set("state", str(node.state))
-        node_elem.set("importance", str(node.importance))
+    with open(filename, 'w', encoding='utf-8', newline='') as f:
+        write = f.write
+        qa = quoteattr  # local binding for speed
 
-    # 格式化输出
-    xml_str = ET.tostring(root, encoding='utf-8')
-    dom = minidom.parseString(xml_str)
-    pretty_xml = dom.toprettyxml(indent="  ")
+        write('<?xml version="1.0" encoding="utf-8"?>\n<Nodes>\n')
+        for (x, y, step), node in nodes.items():
+            # read attributes once (avoid repeated attribute lookups)
+            asc_flag = getattr(node, "asc_nodes_flag", "")
+            rn = getattr(node, "rightneighbor", None)
+            ln = getattr(node, "leftneighbor", None)
+            state = getattr(node, "state", "")
+            imp   = getattr(node, "importance", "")
 
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(pretty_xml)
+            write("  <Node ")
+            write('coordination=' + qa(f"{x},{y},{step}"))
+            write(' asc_nodes_flag=' + qa(str(asc_flag)))
+            write(' rightneighbor=' + qa("None" if rn is None else str(rn)))
+            write(' leftneighbor=' + qa("None"  if ln is None else str(ln)))
+            write(' state=' + qa(str(state)))
+            write(' importance=' + qa(str(imp)))
+            write("/>\n")
+        write("</Nodes>\n")
 
 
-
+# def nodes_to_xml(nodes, filename):
+#     """
+#     将 nodes 字典保存为 XML 文件
+#     nodes: dict[(x, y, step)] -> tegnode
+#     filename: 保存的xml路径
+#     """
+#     root = ET.Element("Nodes")
+#     for coord, node in nodes.items():
+#         node_elem = ET.SubElement(root, "Node")
+#         node_elem.set("coordination", f"{coord[0]},{coord[1]},{coord[2]}")
+#         node_elem.set("asc_nodes_flag", str(node.asc_nodes_flag))
+#         node_elem.set("rightneighbor", str(node.rightneighbor) if node.rightneighbor is not None else "None")
+#         node_elem.set("leftneighbor", str(node.leftneighbor) if node.leftneighbor is not None else "None")
+#         node_elem.set("state", str(node.state))
+#         node_elem.set("importance", str(node.importance))
+#
+#     # 格式化输出
+#     xml_str = ET.tostring(root, encoding='utf-8')
+#     dom = minidom.parseString(xml_str)
+#     pretty_xml = dom.toprettyxml(indent="  ")
+#
+#     with open(filename, 'w', encoding='utf-8') as f:
+#         f.write(pretty_xml)
 
 def _parse_tuple_int(s: str):
     """把 '1,2,3' 或 '(1, 2, 3)' 转成 tuple[int,...]；'None'/空 -> None（比 ast.literal_eval 更快）。"""

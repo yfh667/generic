@@ -414,6 +414,8 @@ def _offset_from_component_y(sids: set, N: int) -> int:
     取该间隙后面的 y 作为 start_y，并返回 offset=start_y。
     这样 y_new = (y - offset + N - 1) % N 会把 start_y 卷到最上面(N-1)。
     """
+
+
     ys = sorted({sid % N for sid in sids})
 
 
@@ -447,32 +449,56 @@ def modify_group_data(group_data: dict, P: int, N: int, base_groupid: int = 4):
     选点数最多的“主簇”，在其 y 上找最大环形间隙确定 offset，
     再用统一 offset 对所有组做 y 平移： y_new = (y - offset + N - 1) % N
     """
+    min_keep = 0.6
     new_group_data = {}
     off_sets = {}
 
+    prev_comp = None  # 仅记录上一次“被选中的蔟”
     for step in sorted(group_data.keys()):
-        if step ==20814:
-            print(1)
+
         raw_groups = group_data[step]['groups']
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
 
         base_sats = raw_groups.get(base_groupid, set())
         comps = _find_components_by_neighbors(base_sats, P, N)
 
+        # if step ==13605:
+        #     print(1)
+        # if step==13606:
+        #     print(1)
+
         if comps:
-            main_comp = comps[0]           # 选点最多的那块
-            offset = _offset_from_component_y(main_comp, N)
+            cand = comps[:max(1, 2)]
+
+            if prev_comp:
+                # 选与 prev_comp 重叠比例最大的候选
+                best_c, best_ratio = cand[0], -1.0
+                for c in cand:
+                    inter = len(prev_comp & c)
+                    ratio = inter / len(prev_comp) if len(prev_comp) else 0.0
+                    if ratio > best_ratio:
+                        best_c, best_ratio = c, ratio
+                chosen_comp = best_c if best_ratio >= min_keep else cand[0]
+            else:
+                chosen_comp = cand[0]
+
+            chosen_offset = _offset_from_component_y(chosen_comp, N)
+            prev_comp = chosen_comp  # 只记蔟，不记 offset
         else:
-            offset = 0
+            # 本帧无蔟：沿用“上一次蔟”计算的 offset；若还没有任何蔟，置 0
+            chosen_offset = _offset_from_component_y(prev_comp, N) if prev_comp else 0
 
-        off_sets[step] = offset
 
-        # 统一 offset 平移所有组
+
+        off_sets[step] = chosen_offset
+
+
+         # 统一 offset 平移所有组
         for gid, sats in raw_groups.items():
             tgt = new_group_data[step]['groups'].setdefault(gid, set())
             for sid in sats:
                 x, y = divmod(sid, N)
-                y_new = (y - offset + N - 1) % N
+                y_new = (y - chosen_offset + N - 1) % N
                 new_sid = x * N + y_new
                 tgt.add(new_sid)
                 new_group_data[step]['all_mentioned'].add(new_sid)
