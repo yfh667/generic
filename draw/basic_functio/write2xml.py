@@ -15,7 +15,7 @@ except Exception:
     _HAS_LXML = False
 
 
-
+print(_HAS_LXML)
 from xml.sax.saxutils import quoteattr
 from typing import Dict, Tuple
 
@@ -85,83 +85,180 @@ def _parse_tuple_int(s: str):
     # 过滤空片段，防止 '1,2,' 之类
     return tuple(int(p.strip()) for p in parts if p.strip())
 
+
 def xml_to_nodes(filename, tegnode_cls):
     """
-    从 XML 文件读取 nodes 字典
-    Args:
-        filename: XML 文件路径
-        tegnode_cls: 你的 tegnode 类
-    Returns:
-        nodes: dict[(x, y, step)] -> tegnode
+    Fast XML -> nodes(dict) for old schema:
+      attrs: coordination, asc_nodes_flag, rightneighbor, leftneighbor, state, importance
+    - Prefer lxml iterparse(tag='Node', huge_tree=True) + deep-clear
+    - Fallback to stdlib xml.etree.ElementTree
+    - No ast.literal_eval; use lightweight tuple parser
     """
     nodes = {}
+    cls = tegnode_cls
+    ptuple = _parse_tuple_int
+    ATTR_TRUE = {'True', 'true', '1'}
+
+    # 1) build iterparse context (tag filter when supported)
     try:
-        tree = ET.parse(filename)
-        root = tree.getroot()
-        for node_elem in root.findall('Node'):
-            # 1. 解析坐标
-            coord_str = node_elem.get('coordination')
-            coords = tuple(map(int, coord_str.split(',')))
-            # 2. 解析右邻居
-            right_str = node_elem.get('rightneighbor')
-            rightneighbor = None
-            if right_str != 'None':
-                try:
-                    rightneighbor = ast.literal_eval(right_str)
-                except Exception:
-                    # 没括号时直接按逗号切分
-                    rightneighbor = tuple(map(int, right_str.split(',')))
-            # 3. 解析左邻居
-            left_str = node_elem.get('leftneighbor')
-            leftneighbor = None
-            if left_str != 'None':
-                try:
-                    leftneighbor = ast.literal_eval(left_str)
-                except Exception:
-                    leftneighbor = tuple(map(int, left_str.split(',')))
-            # 4. 其他属性
-            asc_nodes_flag = node_elem.get('asc_nodes_flag') == 'True'
-            state = int(node_elem.get('state', -1))
-            importance = int(node_elem.get('importance', 0))
-            # 5. 构造节点对象
-            node = tegnode_cls(
-                asc_nodes_flag=asc_nodes_flag,
-                rightneighbor=rightneighbor,
-                leftneighbor=leftneighbor,
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node', huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+        use_tag_filter = True
+    except TypeError:
+        # some backends don't support tag=/huge_tree=
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',))
+        use_tag_filter = False
+
+    try:
+        for _, elem in context:
+            if not use_tag_filter and elem.tag != 'Node':
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            at = elem.attrib
+            coord = at.get('coordination')
+            if not coord:
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            # coords (faster than map+tuple)
+            try:
+                x_str, y_str, s_str = coord.split(',')
+                coords = (int(x_str), int(y_str), int(s_str))
+            except Exception:
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            # neighbors (lightweight parser, handles None / "(..)" / "a,b,c")
+            rn = ptuple(at.get('rightneighbor'))
+            ln = ptuple(at.get('leftneighbor'))
+
+            # flags / ints
+            asc_flag = (at.get('asc_nodes_flag') in ATTR_TRUE)
+            s = at.get('state');       state = int(s) if s and s.strip() else -1
+            im = at.get('importance'); importance = int(im) if im and im.strip() else 0
+
+            node = cls(
+                asc_nodes_flag=asc_flag,
+                rightneighbor=rn,
+                leftneighbor=ln,
                 state=state,
                 importance=importance
             )
             nodes[coords] = node
+
+            # free element memory
+            if _HAS_LXML:
+                elem.clear()
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            else:
+                elem.clear()
+
     except Exception as e:
         print(f"解析XML时出错: {e}")
-        return None
+        return {}  # 返回空 dict 更稳
+
     return nodes
 
+import gzip
 
-
-def nodes_to_xml2(nodes, filename):
+def nodes_to_xml2(
+    nodes: Dict[Tuple[int,int,int], object],
+    filename: str,
+    *,
+    sort_keys: bool = False,          # 需要稳定顺序就开
+    gzip_if_endswith: bool = True,    # 以 .gz 结尾时自动写 gzip
+    buffer_bytes: int = 1024 * 1024   # 大缓冲，减少系统调用
+):
     """
-    将 nodes 字典保存为 XML 文件
-    nodes: dict[(x, y, step)] -> tegnode
-    filename: 保存的xml路径
+    Faster replacement of nodes_to_xml2:
+      - Streaming write (no ElementTree/minidom)
+      - Optional gzip if filename endswith .gz/.gzip
+      - Same attributes: coordination, asc_nodes_region_id, right/leftneighbor, left/right_state
     """
-    root = ET.Element("Nodes")
-    for coord, node in nodes.items():
-        node_elem = ET.SubElement(root, "Node")
-        node_elem.set("coordination", f"{coord[0]},{coord[1]},{coord[2]}")
-        node_elem.set("asc_nodes_region_id", str(node.asc_nodes_region_id))
-        node_elem.set("rightneighbor", str(node.rightneighbor) if node.rightneighbor is not None else "None")
-        node_elem.set("leftneighbor", str(node.leftneighbor) if node.leftneighbor is not None else "None")
-        node_elem.set("left_state", str(node.left_state))
-        node_elem.set("right_state", str(node.right_state))
+    qa = quoteattr  # local binding
 
-    # 格式化输出
-    xml_str = ET.tostring(root, encoding='utf-8')
-    dom = minidom.parseString(xml_str)
-    pretty_xml = dom.toprettyxml(indent="  ")
+    use_gzip = gzip_if_endswith and str(filename).lower().endswith((".gz", ".gzip"))
+    opener = (lambda p, mode: gzip.open(p, mode, encoding="utf-8", newline=""))
+    if not use_gzip:
+        opener = (lambda p, mode: open(p, mode, encoding="utf-8", newline="", buffering=buffer_bytes))
 
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(pretty_xml)
+    with opener(filename, "wt") as f:
+        write = f.write
+        write('<?xml version="1.0" encoding="utf-8"?>\n<Nodes>\n')
+
+        items = nodes.items()
+        if sort_keys:
+            items = sorted(items)  # 按 (x,y,step) 排序
+
+        for (x, y, step), node in items:
+            # 读取属性一次，减少 getattr 次数
+            ascn = getattr(node, "asc_nodes_region_id", getattr(node, "asc_nodes_flag", -1))
+            rn   = getattr(node, "rightneighbor", None)
+            ln   = getattr(node, "leftneighbor", None)
+            ls   = getattr(node, "left_state", -1)
+            rs   = getattr(node, "right_state", -1)
+
+            # 保持你现有的字符串格式：None 或 tuple 的 str()
+            rn_str = "None" if rn is None else str(rn)
+            ln_str = "None" if ln is None else str(ln)
+
+            # 单次拼好一行再写（比多次 write 更省函数开销）
+            line = (
+                "  <Node "
+                "coordination=" + qa(f"{x},{y},{step}") +
+                " asc_nodes_region_id=" + qa(str(ascn)) +
+                " rightneighbor=" + qa(rn_str) +
+                " leftneighbor="  + qa(ln_str) +
+                " left_state="    + qa(str(ls)) +
+                " right_state="   + qa(str(rs)) +
+                "/>\n"
+            )
+            write(line)
+
+        write("</Nodes>\n")
+# def nodes_to_xml2(nodes, filename):
+#     """
+#     将 nodes 字典保存为 XML 文件
+#     nodes: dict[(x, y, step)] -> tegnode
+#     filename: 保存的xml路径
+#     """
+#     root = ET.Element("Nodes")
+#     for coord, node in nodes.items():
+#         node_elem = ET.SubElement(root, "Node")
+#         node_elem.set("coordination", f"{coord[0]},{coord[1]},{coord[2]}")
+#         node_elem.set("asc_nodes_region_id", str(node.asc_nodes_region_id))
+#         node_elem.set("rightneighbor", str(node.rightneighbor) if node.rightneighbor is not None else "None")
+#         node_elem.set("leftneighbor", str(node.leftneighbor) if node.leftneighbor is not None else "None")
+#         node_elem.set("left_state", str(node.left_state))
+#         node_elem.set("right_state", str(node.right_state))
+#
+#     # 格式化输出
+#     xml_str = ET.tostring(root, encoding='utf-8')
+#     dom = minidom.parseString(xml_str)
+#     pretty_xml = dom.toprettyxml(indent="  ")
+#
+#     with open(filename, 'w', encoding='utf-8') as f:
+#         f.write(pretty_xml)
+
+
+
+
 
 
 def xml_to_nodes2(filename, tegnode_cls):
