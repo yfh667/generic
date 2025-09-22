@@ -77,7 +77,7 @@ plt.title('Solution by Iteration')
 plt.subplot(1, 2, 2)
 plt.annotate(f'Best solution: {best_solution:.4f}\nCost: {best_cost:.4f}',
              xy=(num_iterations-1, best_solution),
-             xycoords='dataresult',
+             xycoords='paper_dataresult',
              xytext=(-50, 20),
              textcoords='offset points',
              arrowprops=dict(arrowstyle="->", lw=1),

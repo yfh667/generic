@@ -157,7 +157,7 @@ def plot_grouped_satellites(group_data):
     steps = sorted(group_data.keys())
 
     if not steps:
-         print("Error: No time steps found in XML dataresult after parsing.")
+         print("Error: No time steps found in XML paper_dataresult after parsing.")
          sys.exit(1) # 退出程序如果没有任何时间步数据
 
     time_slider = Slider(
@@ -259,7 +259,7 @@ def plot_grouped_satellites(group_data):
 
 # --- 主程序 ---
 if __name__ == "__main__":
-    #xml_file =  "E:\code\dataresult\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
+    #xml_file =  "E:\code\paper_dataresult\station_visible_satellites_648.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
 
    #  xml_file = "E:\Data\station_visible_satellites_648_1d_real.xml"  # <<<<<<< 请替换为你的XML文件路径 >>>>>>>
     xml_file = "E:\\Data\\station_visible_satellites_648_8_h.xml"
@@ -277,8 +277,8 @@ if __name__ == "__main__":
         group_data = read_snap_xml.parse_xml_group_data(xml_file,start_ts,end_ts)
 
         if not group_data:
-            print(f"Error: No valid group visibility dataresult parsed from {xml_file}.")
-            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' dataresult.")
+            print(f"Error: No valid group visibility paper_dataresult parsed from {xml_file}.")
+            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' paper_dataresult.")
             sys.exit(1) # 退出程序如果解析失败或没有数据
         new_group_data,offset = read_snap_xml.modify_group_data(group_data, N=36,groupid=4)
         # 绘制可视化图

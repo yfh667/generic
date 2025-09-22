@@ -22,7 +22,7 @@ dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
 # Extract and print the satellite lists for each region from the file
 
 
-# Assuming snapshotf_romxml.extract_region_satellites_from_file returns the relevant dataresult
+# Assuming snapshotf_romxml.extract_region_satellites_from_file returns the relevant paper_dataresult
 # I'm not sure if the `extract_region_satellites_from_file` function is implemented, but it should be
 # Uncomment and adjust this line as needed based on your actual function:
 # region_satellite_groups = snapshotf_romxml.extract_region_satellites_from_file(dummy_file_name, target_time_step)

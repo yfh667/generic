@@ -5,7 +5,7 @@ import draw.snapshotf_romxml as snapshotf_romxml
 # Define a dummy file name for demonstration
 
 
-# Write the XML dataresult to the dummy file
+# Write the XML paper_dataresult to the dummy file
 try:
 
     # Specify the time step you want to extract (e.g., 0)

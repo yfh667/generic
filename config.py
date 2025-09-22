@@ -22,4 +22,4 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 #
 # # 用法
 # with open(file_in) as f:
-#     dataresult = f.read()
+#     paper_dataresult = f.read()

@@ -81,7 +81,7 @@ def 	disconenct_mutate(coordinate,chromosome,distinct,P, N, T,setuptime,test=0):
 
     start,end= find_next_setup_time(coordinate, chromosome, P, N, T)
 
-    # we first need delet the raw chosen_righbor dataresult
+    # we first need delet the raw chosen_righbor paper_dataresult
 
     if end-start < setuptime:
         return None

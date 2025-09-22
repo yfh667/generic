@@ -66,11 +66,11 @@ flag1, connection1_test, connection2_test = TopoSeqValidator.TologialSequenceVal
 
 
 #
-# writetoxml.nodes_to_xml(child1, "E:\\code\\dataresult\\1\\child1.xml")
+# writetoxml.nodes_to_xml(child1, "E:\\code\\paper_dataresult\\1\\child1.xml")
 #
-# writetoxml.nodes_to_xml(child2, "E:\\code\\dataresult\\1\\child2.xml")
+# writetoxml.nodes_to_xml(child2, "E:\\code\\paper_dataresult\\1\\child2.xml")
 
-# writetoxml.nodes_to_xml(child1, "E:\\code\\dataresult\\1\\child1.xml")
+# writetoxml.nodes_to_xml(child1, "E:\\code\\paper_dataresult\\1\\child1.xml")
 
 
 

@@ -16,7 +16,7 @@ Dynamic Graph Visualizer
     3. Agg (headless‑PNG only)
   • No API changes – `vis.show()` is still non‑blocking by default.
 
-Input dataresult
+Input paper_dataresult
 ~~~~~~~~~~
 ```
 adjacency_list_array : List[List[Tuple[int,int]]]

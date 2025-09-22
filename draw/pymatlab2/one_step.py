@@ -33,7 +33,7 @@ from config import INPUT_DIR, DATA_DIR
 
 # 星座与建链窗口
 P, N = 18, 36
-TIME_2_BUILD = 120
+
 
 # 输入大 XML（只用于你别处用的 raw_group_data；本脚本不依赖）
 XML_FILE = Path(DATA_DIR) / "station_visible_satellites_648_1d_real.xml"
@@ -45,9 +45,28 @@ RANGES = [
     (18396,19831),(19831,20814),(20814,22005)
 ]
 
-INPUT_DIR = Path(INPUT_DIR)
-OUT_DIR = INPUT_DIR / "modify"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+TIME_2_BUILD = 30
+VERSION = os.getenv("TOPOLOGY_VERSION", f"topology_{TIME_2_BUILD}")
+
+
+INPUT_DIR_RAW    = Path(INPUT_DIR) / VERSION / "raw"
+from pathlib import Path
+
+OUT_DIR = Path(INPUT_DIR) / VERSION / "modify"
+OUT_DIR.mkdir(parents=True, exist_ok=True)  # 没有就创建，已存在不报错
+
+print(f"[OUT_DIR] {OUT_DIR}")
+
+
+
+
+
+# 版本目录：可用环境变量覆盖
+
+
+
+
 
 # ---------------- helpers ----------------
 
@@ -71,9 +90,9 @@ def _process_one_triple(triple) -> str:
     (start1, end1), (start2, end2), (start3, end3) = triple
 
     # 1) load A/B/C nodes
-    fp1 = INPUT_DIR / f"interplane_links_{start1}_{end1}.xml"
-    fp2 = INPUT_DIR / f"interplane_links_{start2}_{end2}.xml"
-    fp3 = INPUT_DIR / f"interplane_links_{start3}_{end3}.xml"
+    fp1 = INPUT_DIR_RAW / f"interplane_links_{start1}_{end1}.xml"
+    fp2 = INPUT_DIR_RAW / f"interplane_links_{start2}_{end2}.xml"
+    fp3 = INPUT_DIR_RAW / f"interplane_links_{start3}_{end3}.xml"
 
     nodes1 = _load_nodes_or_empty(fp1)
     nodes2 = _load_nodes_or_empty(fp2)

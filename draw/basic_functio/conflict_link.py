@@ -644,6 +644,9 @@ def get_no_conflict_link_nodes2(nodes: dict[tuple[int, int, int], tegnode.tegnod
 
 from typing import Dict, Tuple
 
+
+
+
 def get_no_conflict_link_nodes3(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete],
     start_ts: int, end_ts: int, time_2_build: int, N: int, P: int
@@ -687,6 +690,7 @@ def get_no_conflict_link_nodes3(
     e1 = end_ts - 1
     for step in range(start_ts, e1):
         # 只处理 i ∈ [0, P-2]（与你原代码一致）
+        # actually，我们应该考虑的是以时间片为层级的
         for i in range(P - 1):
             for j in range(N):
                 n1 = ensure(i, j, step)
@@ -810,10 +814,9 @@ def get_no_conflict_link_nodes3(
 # 我们下面的合并是有问题的，但是呢，我们暂时不去解决，因为影响并不大，以后再回头解决
 # 我们先做做简单的一步，为每一个建链，留出建连时间，
 # # 也就是，对于任何一个刚开始出现的链接，我们就为他预留建连时间，先不考虑热点区域的问题
-# def get_no_conflict_link_nodes3(nodes: dict[tuple[int, int, int], tegnode.tegnode_complete], start_ts, end_ts, time_2_build, N, P):
-#
-#
-#
+# def get_no_conflict_link_nodes3(nodes: dict[tuple[int, int, int], tegnode.tegnode_complete], start_ts1, end_ts1,start_ts2, end_ts2, start_ts3, end_ts3, time_2_build, N, P):
+#     start_ts = start_ts1
+#     end_ts =end_ts3
 #     nownodes = deepcopy(nodes)
 #
 #
@@ -830,7 +833,9 @@ def get_no_conflict_link_nodes3(
 #                         right_state=-1,
 #                     )
 #
-#
+# # 我们首先要思考的是时间片概念的层级
+#     # 这个意思是，在涉及到交接处，当然，主要就是交界处，我们要思考，
+#     #这个要注意的是，我们这段程序，主要处理交接处的切换问题。
 #     for step in range(start_ts, end_ts-1):
 #         for i in range(P - 1):
 #             for j in range(N):

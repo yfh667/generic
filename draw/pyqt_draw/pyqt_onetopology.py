@@ -234,7 +234,7 @@ class Onetopology(QtWidgets.QWidget):
     def _apply_steps_and_draw(self):
         # if not self.steps:
         #     self.slider.setEnabled(False)
-        #     self.label.setText("Waiting for dataresult...")
+        #     self.label.setText("Waiting for paper_dataresult...")
         #     return
         # self.slider.setEnabled(True)
         # self.slider.setMinimum(self.steps[0])

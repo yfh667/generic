@@ -480,7 +480,24 @@ def iter_nodes2(filename, tegnode_cls):
             elem.clear()
 
 
-
+def _resolve_cls_spec(tegnode_cls) -> Tuple[str, str]:
+    """
+    接受类对象或 'pkg.mod:Class' / 'pkg.mod.Class' 字符串，返回 (module_name, class_name)
+    """
+    if isinstance(tegnode_cls, str):
+        s = tegnode_cls.replace(":", ".")
+        parts = s.split(".")
+        if len(parts) < 2:
+            raise ValueError(f"Invalid class spec: {tegnode_cls}")
+        module_name = ".".join(parts[:-1])
+        class_name = parts[-1]
+        return module_name, class_name
+    # 类对象
+    module_name = getattr(tegnode_cls, "__module__", None)
+    class_name = getattr(tegnode_cls, "__name__", None)
+    if not module_name or not class_name:
+        raise ValueError("tegnode_cls must be a class or 'pkg.mod:Class' string")
+    return module_name, class_name
 # 2) 顺序装载（最省内存，通常已足够快）
 def load_all_nodes_sequential(paths, tegnode_cls):
     total = {}
@@ -490,39 +507,101 @@ def load_all_nodes_sequential(paths, tegnode_cls):
     return total
 
 
-# 3) 并行装载（需要 lxml 才有明显收益；注意磁盘带宽）
-def load_all_nodes_parallel(paths, tegnode_cls, workers=None, backend='thread'):
-    """
-    backend: 'thread' (默认, lxml 释放 GIL 时表现好) 或 'process'
-    workers: None -> min(8, os.cpu_count() or 4)
-    """
-    if workers is None:
-        workers = min(8, os.cpu_count() or 4)
 
-    # 子任务：把单个文件解析成 (coords, node) 的 list
-    # （返回 list 而不是生成器，方便在进程/线程间传递）
-    def _one_file(path):
-        out = []
-        for item in iter_nodes2(path, tegnode_cls):
-            out.append(item)
-        return out
+
+import importlib
+
+def _import_cls(module_name: str, class_name: str):
+    mod = importlib.import_module(module_name)
+    cls = getattr(mod, class_name)
+    return cls
+
+from typing import Tuple, Iterable
+
+
+
+
+# ===== 顶层 worker：可被 ProcessPoolExecutor pickl e =====
+def _worker_load_file_to_items(path: str, module_name: str, class_name: str):
+    """
+    子进程/线程执行：把单个文件解析成 [(coords, node), ...]
+    用 list 返回，主进程再汇总；如果文件非常大，也可以改成返回 dict。
+    """
+    cls = _import_cls(module_name, class_name)
+    items = []
+    for item in iter_nodes2(path, cls):  # 复用你已有的高效迭代器
+        items.append(item)
+    return items
+import sys
+import traceback
+
+
+# 3) 并行装载（需要 lxml 才有明显收益；注意磁盘带宽）
+def load_all_nodes_parallel(
+    paths: Iterable[str | os.PathLike],
+    tegnode_cls,
+    workers: int | None = None,
+    backend: str = 'thread',
+):
+    """
+    并行读取多个 XML 并合并为 dict[(x,y,step)] -> node
+    backend: 'thread' | 'process'
+      - 若 _HAS_LXML=True，线程模式即可（lxml 解析释放 GIL）
+      - 若 _HAS_LXML=False，建议用 'process'，才能真正多核
+    """
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+    import multiprocessing as mp
+
+    # 解析类到 (module, class) 形式，保证子进程可导入
+    module_name, class_name = _resolve_cls_spec(tegnode_cls)
+
+    paths = [str(p) for p in paths]  # 统一成字符串
+    if workers is None:
+        # 128 核建议给到 32~64（磁盘允许的话可以更高）
+        workers = min(max(32, (os.cpu_count() or 8)//2), os.cpu_count() or 8, len(paths))
 
     total = {}
+
     if backend == 'process':
-        from concurrent.futures import ProcessPoolExecutor, as_completed
-        with ProcessPoolExecutor(max_workers=workers) as ex:
-            futs = [ex.submit(_one_file, str(p)) for p in paths]
-            for f in as_completed(futs):
-                for coords, node in f.result():
-                    total[coords] = node
+        # Windows/macOS 用 spawn 更稳；Linux 默认 fork 也 OK
+        ctx = mp.get_context("spawn")
+        # 限制数值库线程，避免每个子进程内再开 N 线程抢 CPU
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as ex:
+            futs = {
+                ex.submit(_worker_load_file_to_items, p, module_name, class_name): p
+                for p in paths
+            }
+            for fut in as_completed(futs):
+                p = futs[fut]
+                try:
+                    items = fut.result()
+                    for coords, node in items:
+                        total[coords] = node
+                except Exception as e:
+                    print(f"[FAIL process] {p}: {e}", file=sys.stderr)
+                    traceback.print_exc()
+
     else:
-        # 默认线程池：lxml 在 C 层释放 GIL，线程并行效果好；也更省内存
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        # 线程模式：_HAS_LXML=True 时能并行吃满核；否则可能受 GIL 限制
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs = [ex.submit(_one_file, str(p)) for p in paths]
-            for f in as_completed(futs):
-                for coords, node in f.result():
-                    total[coords] = node
+            futs = {
+                ex.submit(_worker_load_file_to_items, p, module_name, class_name): p
+                for p in paths
+            }
+            for fut in as_completed(futs):
+                p = futs[fut]
+                try:
+                    items = fut.result()
+                    for coords, node in items:
+                        total[coords] = node
+                except Exception as e:
+                    print(f"[FAIL thread] {p}: {e}", file=sys.stderr)
+                    traceback.print_exc()
+
     return total
 
 if __name__ == '__main__':
@@ -530,7 +609,7 @@ if __name__ == '__main__':
     # 保存
     #nodes_to_xml(nodes, "test_nodes.xml")
 
-    # 读取    dummy_file_name = "E:\\code\\dataresult\\station_visible_satellites_100_test.xml"
+    # 读取    dummy_file_name = "E:\\code\\paper_dataresult\\station_visible_satellites_100_test.xml"
     nodes_loaded = xml_to_nodes("test_nodes.xml", tegnode.tegnode)
 
      # print(nodes)

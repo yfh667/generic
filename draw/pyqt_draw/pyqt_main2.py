@@ -207,7 +207,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         step_layout.addWidget(self.next_btn)
         self.layout.addLayout(step_layout)
 
-        self.label = QtWidgets.QLabel("Waiting for dataresult..." if not self.steps else "")
+        self.label = QtWidgets.QLabel("Waiting for paper_dataresult..." if not self.steps else "")
         self.layout.addWidget(self.label)
 
         self.plot_widget.setRange(xRange=[-0.5, P-0.5], yRange=[-0.5, N-0.5])
@@ -226,7 +226,7 @@ class SatelliteViewer(QtWidgets.QWidget):
     def _apply_steps_and_draw(self):
         if not self.steps:
             self.slider.setEnabled(False)
-            self.label.setText("Waiting for dataresult...")
+            self.label.setText("Waiting for paper_dataresult...")
             return
         self.slider.setEnabled(True)
         self.slider.setMinimum(self.steps[0])
