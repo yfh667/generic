@@ -644,8 +644,7 @@ def get_no_conflict_link_nodes2(nodes: dict[tuple[int, int, int], tegnode.tegnod
 
 from typing import Dict, Tuple
 
-
-
+#
 
 def get_no_conflict_link_nodes3(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete],
@@ -664,6 +663,7 @@ def get_no_conflict_link_nodes3(
 
     # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
     nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete] = dict(nodes)
+   # nownodes = deepcopy(nodes)
     nget = nownodes.get
 
     # 按需创建的默认节点（每次必须新建实例，不能复用同一个）
@@ -691,8 +691,12 @@ def get_no_conflict_link_nodes3(
     for step in range(start_ts, e1):
         # 只处理 i ∈ [0, P-2]（与你原代码一致）
         # actually，我们应该考虑的是以时间片为层级的
+        if step==1233:
+            print(1)
         for i in range(P - 1):
             for j in range(N):
+                if (i,j)==(15,26):
+                    print(1)
                 n1 = ensure(i, j, step)
                 n2 = ensure(i, j, step + 1)
 
@@ -744,6 +748,8 @@ def get_no_conflict_link_nodes3(
                         if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
                             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
 
+    print(nownodes[15,26,1203])
+    print(nodes[15,26,1203])
     # ============== 第二轮：“断代”覆盖处理（把空白期回填为同一 rightneighbor） ==============
     for step in range(start_ts, e1):
         for i in range(P - 1):
