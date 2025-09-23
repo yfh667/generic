@@ -46,30 +46,70 @@ def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
     return (nextnode_x,nextnode_y)
 
 
+def setnode_node(start_x, start_y, end_x, end_y, nodes):
+    s = (start_x, start_y, -1)
+    e = (end_x,   end_y,   -1)
 
-def setnode_node(start_x, start_y, end_x, end_y,nodes):
-    if (start_x, start_y, -1) not in nodes:
-        nodes[(start_x, start_y, -1)] = tegnode.tegnode(
-            asc_nodes_flag=False,
-            rightneighbor=( end_x, end_y, -1),
-            leftneighbor=None,
-            state=-1,
-            importance=0,
+    # --- 确保两端节点对象存在 ---
+    if s not in nodes:
+        nodes[s] = tegnode.tegnode(
+            asc_nodes_flag=False, rightneighbor=None, leftneighbor=None,
+            state=-1, importance=0,
         )
-    else:
-        nodes[(start_x, start_y, -1) ].rightneighbor =( end_x, end_y, -1)
+    if e not in nodes:
+        nodes[e] = tegnode.tegnode(
+            asc_nodes_flag=False, rightneighbor=None, leftneighbor=None,
+            state=-1, importance=0,
+        )
 
-    # 处理左邻居
-    if ( end_x, end_y, -1) not in nodes:
-        nodes[( end_x, end_y, -1)] = tegnode.tegnode(
-            asc_nodes_flag=False,
-            rightneighbor=None,
-            leftneighbor=(start_x, start_y, -1) ,
-            state=-1,
-            importance=0,
-        )
-    else:
-        nodes[( end_x, end_y, -1)].leftneighbor =(start_x, start_y, -1)
+    # --- 对称地断开旧的关联（非常关键） ---
+    # s 之前指向的旧 end
+    old_e = nodes[s].rightneighbor
+    if old_e is not None and old_e in nodes and nodes[old_e].leftneighbor == s:
+        nodes[old_e].leftneighbor = None
+    # e 之前的旧 start
+    old_s = nodes[e].leftneighbor
+    if old_s is not None and old_s in nodes and nodes[old_s].rightneighbor == e:
+        nodes[old_s].rightneighbor = None
+
+    # --- 建立新的双向一致的关联 ---
+    nodes[s].rightneighbor = e
+    nodes[e].leftneighbor  = s
+
+# def setnode_node(start_x, start_y, end_x, end_y,nodes):
+#     # 首先，我们要先覆盖end_X 和end_Y的内容
+#     # 处理左邻居
+#     if (start_x, start_y)==(9,30) or (end_x, end_y)==(9,30):
+#         print(1)
+#     if ( end_x, end_y, -1) not in nodes:
+#         nodes[( end_x, end_y, -1)] = tegnode.tegnode(
+#             asc_nodes_flag=False,
+#             rightneighbor=None,
+#             leftneighbor=(start_x, start_y, -1) ,
+#             state=-1,
+#             importance=0,
+#         )
+#     else:
+#         if  nodes[( end_x, end_y, -1)].leftneighbor:
+#             left = nodes[( end_x, end_y, -1)].leftneighbor
+#             nodes[left].rightneighbor = None
+#         nodes[( end_x, end_y, -1)].leftneighbor =(start_x, start_y, -1)
+#
+#         nodes[( end_x, end_y, -1)].leftneighbor =(start_x, start_y, -1)
+#
+#
+#     if (start_x, start_y, -1) not in nodes:
+#         nodes[(start_x, start_y, -1)] = tegnode.tegnode(
+#             asc_nodes_flag=False,
+#             rightneighbor=( end_x, end_y, -1),
+#             leftneighbor=None,
+#             state=-1,
+#             importance=0,
+#         )
+#     else:
+#         nodes[(start_x, start_y, -1) ].rightneighbor =( end_x, end_y, -1)
+
+
 
 
 from collections import defaultdict
