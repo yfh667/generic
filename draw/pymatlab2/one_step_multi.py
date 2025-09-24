@@ -44,7 +44,7 @@ RANGES: list[Tuple[int, int]] = [
 
 
 # TTB_VALUES = [  40,50,60, 70, 90, 100, 110, 120,130,140]
-TTB_VALUES = [  30 ]
+TTB_VALUES = [  60 ]
 # 每个 TTB 内并行 worker 数（别把磁盘打爆；你 128C 可拉到 32/48 先压测）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
 

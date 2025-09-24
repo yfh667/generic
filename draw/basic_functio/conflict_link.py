@@ -645,6 +645,32 @@ def get_no_conflict_link_nodes2(nodes: dict[tuple[int, int, int], tegnode.tegnod
 from typing import Dict, Tuple
 
 #
+import traceback
+
+# 想重点观察的坐标（可加多个）
+
+class NodeProxy:
+    __slots__ = ("_obj", "_key")
+    def __init__(self, obj, key):
+        object.__setattr__(self, "_obj", obj)   # 真正的节点对象
+        object.__setattr__(self, "_key", key)   # (i,j,t)
+
+    # 读取转发
+    def __getattr__(self, name):
+        return getattr(self._obj, name)
+
+    # 写入拦截（只关注左右邻）
+    def __setattr__(self, name, value):
+        if name in ("rightneighbor", "leftneighbor"):
+            old = getattr(self._obj, name, None)
+            if old != value:
+                print(f"[WRITE] {self._key}.{name}: {old} -> {value}")
+                # 打印调用栈最后几层，定位是哪个分支/函数写的
+                for f in traceback.format_stack(limit=6):
+                    print("   ", f.strip())
+        setattr(self._obj, name, value)
+
+
 
 def get_no_conflict_link_nodes3(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete],
@@ -665,6 +691,7 @@ def get_no_conflict_link_nodes3(
     nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete] = dict(nodes)
    # nownodes = deepcopy(nodes)
     nget = nownodes.get
+    # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
 
     # 按需创建的默认节点（每次必须新建实例，不能复用同一个）
     def _mk_empty():
@@ -683,20 +710,24 @@ def get_no_conflict_link_nodes3(
         if n is None:
             n = _mk_empty()
             nownodes[k] = n
+        # 关键：若在观察名单内且还不是代理，则包一层
+        # if k in WATCH and not isinstance(n, NodeProxy):
+        #     n = NodeProxy(n, k)
+        #     nownodes[k] = n
         return n
-
+    # print(nownodes[15,26,1203])
     # ============== 第一轮：处理“切换/建链/断链”的冲突与回溯 ==============
     # 仅遍历必要范围（end_ts-1，因为我们总是看 t 与 t+1）
     e1 = end_ts - 1
     for step in range(start_ts, e1):
         # 只处理 i ∈ [0, P-2]（与你原代码一致）
         # actually，我们应该考虑的是以时间片为层级的
-        if step==1233:
-            print(1)
+        # if step==1233:
+        #     print(1)
         for i in range(P - 1):
             for j in range(N):
-                if (i,j)==(15,26):
-                    print(1)
+                # if (i,j)==(15,26):
+                #     print(1)
                 n1 = ensure(i, j, step)
                 n2 = ensure(i, j, step + 1)
 
@@ -731,10 +762,22 @@ def get_no_conflict_link_nodes3(
 
                         # 如果对方在某帧有 leftneighbor，则把那条旧左邻断开
                         ln = node_neighbor_rev.leftneighbor
-                        if ln:
-                            ln_node = ensure(ln[0], ln[1], bias)
-                            ln_node.rightneighbor = None
+                        # 只在“对端左邻 == 我这条 (i,j,bias)”时，才允许拆
+                        if ln and ln[0] == i and ln[1] == j and ln[2] == bias:
+                            ln_node = ensure(i, j, bias)
+
+                            # 可选：再加一道保险——仅当我这边的 rightneighbor 的确不是目标 rn2 时才清
+                            if ln_node.rightneighbor and (ln_node.rightneighbor[0], ln_node.rightneighbor[1]) != (
+                                    rn2[0], rn2[1]):
+                                ln_node.rightneighbor = None
+
                             node_neighbor_rev.leftneighbor = None
+
+                        # ln = node_neighbor_rev.leftneighbor
+                        # if ln:
+                        #     ln_node = ensure(ln[0], ln[1], bias)
+                        #     ln_node.rightneighbor = None
+                        #     node_neighbor_rev.leftneighbor = None
 
                 # 情况 C：前一步有、后一步没有 -> 看对方左邻在 t/t+1 是否切换，若切则调整
                 elif rn1 and (not rn2):
@@ -748,8 +791,8 @@ def get_no_conflict_link_nodes3(
                         if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
                             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
 
-    print(nownodes[15,26,1203])
-    print(nodes[15,26,1203])
+    # print(nownodes[15,26,1203])
+
     # ============== 第二轮：“断代”覆盖处理（把空白期回填为同一 rightneighbor） ==============
     for step in range(start_ts, e1):
         for i in range(P - 1):
