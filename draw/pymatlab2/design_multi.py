@@ -23,14 +23,14 @@ XML_FILE = Path(DATA_DIR) / "station_visible_satellites_648_1d_real.xml"
 
 # 你的区间（左闭右开）
 RANGES = [
-    (0,1204),(1204,3669),(3669,4094),(4094,6814),(6814,8485),(8485,9355),
-    (9355,11640),(11640,13057),(13057,14065),(14065,16604),(16604,18396),
+    (0,1204),(1204,3669),(3669,4094),(4094,6814),(6814,8485),(8485,11640),
+    (11640,13057),(13057,14065),(14065,16604),(16604,18396),
     (18396,19831),(19831,20814),(20814,22005)
 ]
 
 # 要批量跑的建链时间
-TTB_VALUES = [30,40,50,60, 70, 90, 100, 110, 120,130,140]
-
+# TTB_VALUES = [30,40,50,60, 70, 90, 100, 110, 120,130,140]
+TTB_VALUES = [80]
 # 每个 TTB 的并行进程数（别把磁盘打爆，32 已很猛）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
 
@@ -108,50 +108,52 @@ def _worker_one_range(ttb: int, start_ts: int, end_ts: int, pkl_path: str, out_d
     cfg_path = CONFIG_DIR / f"{start_ts}_{end_ts}.json"
     if not cfg_path.exists():
         raise FileNotFoundError(f"缺少配置文件: {cfg_path}")
-    cfg = topology_config.load_config(str(cfg_path))
 
-    # 3) 反向缝对齐
+
+    cfg = topology_config.load_config(CONFIG_DIR / f"{start_ts}_{end_ts}.json")
     rev_group_data, offset = read_snap_xml.modify_group_data(
         group_data, P=cfg.P, N=cfg.N, base_groupid=cfg.base_groupid
     )
+    # 渲染时提供变量环境（可以动态变更 time_2_build 等）
+    env = {
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "time_2_build": ttb,
+    }
 
-    # 4) motifs -> 同构邻接
-    nodes = {}
-    for m in cfg.motifs:
-        motif.write_distinct_motif(
-            m.p_start, m.p_end, m.y_start, m.y_end,
-            cfg.P, cfg.N, nodes, option=getattr(m, "option", 0)
-        )
+    rec = topology_config.TopologyRecorder(cfg.P, cfg.N)
+    rec.base_groupid = cfg.base_groupid
+    rec._motifs = cfg.motifs
+
+    # 渲染某一秒的邻接
+    # adj_1232 = rec.render_adj_at(1232, eval_env=env)
+
+    # 渲染整段并生成 all_rev_inter_edge（你的老变量名）
+    all_rev_inter_edge = rec.render_adj_range(start_ts, end_ts, eval_env=env)
 
 
-
-
-    rev_inter_edge = motif.transform_nodes_2_adjacent(nodes, cfg.P, cfg.N)
-
-    # 5) 扩展到整段
-    all_rev_inter_edge = {t: rev_inter_edge for t in range(start_ts, end_ts)}
 
     # 6) 还原编号
     raw_inter_edge = revdata2rawdata.revedge2rawedge(all_rev_inter_edge, offset)
 
     # 7) 包络（可选，失败忽略）
-    rects = {}
-    try:
-        rects[0] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 0, cfg.P, cfg.N)
-    except Exception:
-        pass
-    try:
-        rects[cfg.base_groupid] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], cfg.base_groupid, cfg.P, cfg.N)
-    except Exception:
-        pass
+    # rects = {}
+    # try:
+    #     rects[0] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 0, cfg.P, cfg.N)
+    # except Exception:
+    #     pass
+    # try:
+    #     rects[cfg.base_groupid] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], cfg.base_groupid, cfg.P, cfg.N)
+    # except Exception:
+    #     pass
 
     # 8) 建链时间约束
-    raw_edges_by_step, pending_edges = conflict_link.get_no_conflict_link(
-        raw_inter_edge, offset, rects, start_ts, end_ts, ttb, cfg.N, cfg.P
-    )
+    # raw_edges_by_step, pending_edges = conflict_link.get_no_conflict_link(
+    #     raw_inter_edge, offset, rects, start_ts, end_ts, ttb, cfg.N, cfg.P
+    # )
 
     # 9) 边 -> 节点
-    all_nodes = inter_edge2nodes.trans_edge2node(raw_edges_by_step, cfg.P, cfg.N)
+    all_nodes = inter_edge2nodes.trans_edge2node(raw_inter_edge, cfg.P, cfg.N)
 
     # 10) 写 XML
     out_dir_p = Path(out_dir)
