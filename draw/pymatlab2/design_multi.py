@@ -29,8 +29,8 @@ RANGES = [
 ]
 
 # 要批量跑的建链时间
-TTB_VALUES = [10,20,30,40,50,60, 70,80, 90, 100, 110, 120,130,140]
-# TTB_VALUES = [10,20]
+TTB_VALUES = [10,20,30,50,60, 70,80, 90, 100, 110, 120,130,140]
+# TTB_VALUES = [40]
 # 每个 TTB 的并行进程数（别把磁盘打爆，32 已很猛）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
 
@@ -49,9 +49,9 @@ import draw.basic_functio.topology_config as topology_config
 import draw.basic_functio.revdata2rawdata as revdata2rawdata
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 import draw.basic_functio.conflict_link as conflict_link
-from draw.basic_functio.get_rectangular_size_interval import calc_envelope_for_group
-import draw.basic_functio.write2xml as write2xml
 
+import draw.basic_functio.write2xml as write2xml
+import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_interval
 import draw.basic_functio.conflict_link as conflict_link
 # =============== 工具函数 ===============
 def _slice_group_data(raw_group_data: dict, start: int, end: int) -> dict:
@@ -138,19 +138,28 @@ def _worker_one_range(ttb: int, start_ts: int, end_ts: int, pkl_path: str, out_d
      # here 我们就得在这里进行一次简练切换
 
 
-    # # 这个是目前最新的，仍然有小bug，但是暂时不修了，等后面再修
 
 
     # 7) 包络（可选，失败忽略）
-    rects = {}
-    try:
-        rects[0] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 0, cfg.P, cfg.N)
-    except Exception:
-        pass
-    try:
-        rects[cfg.base_groupid] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], cfg.base_groupid, cfg.P, cfg.N)
-    except Exception:
-        pass
+
+    t1, t2 = get_rectangular_size_interval.calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 0, cfg.P, cfg.N)
+    t3, t4 = get_rectangular_size_interval.calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 4, cfg.P, cfg.N)
+
+
+    rects = {
+        0: (t1, t2),
+        4: (t3, t4),
+    }
+
+    # rects = {}
+    # try:
+    #     rects[0] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], 0, cfg.P, cfg.N)
+    # except Exception:
+    #     pass
+    # try:
+    #     rects[cfg.base_groupid] = calc_envelope_for_group(rev_group_data, [start_ts, end_ts], cfg.base_groupid, cfg.P, cfg.N)
+    # except Exception:
+    #     pass
 
     # 8) 建链时间约束
     raw_edges_by_step, pending_edges = conflict_link.get_no_conflict_link(
