@@ -9,7 +9,7 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import argparse
 import multiprocessing as mp
-
+import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 # ==== 你的工程依赖 ====
 from config import INPUT_DIR  # 只需要 INPUT_DIR
 import genaric2.tegnode as tegnode
@@ -27,8 +27,8 @@ RANGES = [
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]  # [0, 22005)
 
 # 默认要批量计算的建链时长（秒）
-# DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
-DEFAULT_TTB_VALUES = [ 60 ]
+DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
+# DEFAULT_TTB_VALUES = [ 60 ]
 
 def version_name(ttb: int) -> str:
     return f"topology_{ttb}"
@@ -74,16 +74,18 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     # 顺序读取最稳（IO 型任务），也最节省内存
     totalnode = write2xml.load_all_nodes_sequential(xml_paths, tegnode.tegnode_complete)
 
-    print(f"[TTB={ttb}] 计算 pending_edges（time_2_build={ttb}）…")
-    pending_edges = inter_edge2nodes.trans_nodes2_pendingedges2(
-        totalnode, START_TS, END_TS, ttb, P, N
-    )
+    all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
+
+    print(f"[TTB={ttb}] 计算 all_inter_edge（time_2_build={ttb}）…")
+    # pending_edges = inter_edge2nodes.trans_nodes2_pendingedges2(
+    #     totalnode, START_TS, END_TS, ttb, P, N
+    # )
 
     print(f"[TTB={ttb}] 导出 CSV …")
     out_paths = psn.export_pending_series_to_origin(
-        pending_edges,
+        all_inter_edge,
         out_dir=figure_dir,
-        basename=f"pending_edges_ttb{ttb}",
+        basename=f"all_inter_edge{ttb}",
         to=("csv",),          # 需要 Excel 同时导出可改为 ("csv","xlsx")
         fill_missing=True,
         max_t_seconds=None,

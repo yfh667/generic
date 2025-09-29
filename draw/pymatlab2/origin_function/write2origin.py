@@ -46,3 +46,7 @@ def ensure_sheet(book_name: str = 'Book1',
             pass
 
     return target
+
+
+#     ws = write2origin.ensure_sheet('Book1', 'Ration', clear_existing=True, activate=True)
+#     ws.from_df(df_sum[cols])
