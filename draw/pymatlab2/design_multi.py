@@ -29,8 +29,8 @@ RANGES = [
 ]
 
 # 要批量跑的建链时间
-TTB_VALUES = [10,20,30,50,60, 70,80, 90, 100, 110, 120,130,140]
-# TTB_VALUES = [40]
+# TTB_VALUES = [10,20,30,40,50, 70,80, 90, 100, 110, 120,130,140]
+TTB_VALUES = [40]
 # 每个 TTB 的并行进程数（别把磁盘打爆，32 已很猛）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
 
@@ -174,6 +174,12 @@ def _worker_one_range(ttb: int, start_ts: int, end_ts: int, pkl_path: str, out_d
     out_path = out_dir_p / f"interplane_links_{start_ts}_{end_ts}.xml"
     # 你已有更快的 writer 可替换：write2xml.nodes_to_xml2(all_nodes, out_path)
     write2xml.nodes_to_xml(all_nodes, out_path)
+
+    out_path2 = out_dir_p / f"interplane_pending_links_{start_ts}_{end_ts}.xml"
+    # 你已有更快的 writer 可替换：write2xml.nodes_to_xml2(all_nodes, out_path)
+    pending_nodes = inter_edge2nodes.trans_edge2node(pending_edges, cfg.P, cfg.N)
+    write2xml.nodes_to_xml(pending_nodes, out_path2)
+
 
     print(f"[OK ttb={ttb}] ({start_ts},{end_ts}) -> {out_path}")
     return str(out_path)
