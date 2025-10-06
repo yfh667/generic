@@ -257,7 +257,7 @@ def compute_intergroup_avg_shortest_path(
         gB_sz_list.append(len(gB))
 
     df = pd.DataFrame({
-        "step": use_steps,
+        "time": use_steps,
         "avg_shortest_path": avg_list,
         "pairs_counted": pair_cnt_list,
         f"|G{group_a}|": gA_sz_list,

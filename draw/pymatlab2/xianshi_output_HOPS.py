@@ -128,7 +128,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     csv_path = avgsp.export_intergroup_avgspath_to_origin(
         all_edges, group_data,
         out_dir=figure_dir,
-        basename=f"avgspath_g0_4_ttb{ttb}",
+        basename=f"avgspath_{ttb}",
         group_a=0, group_b=4,
         steps=(START_TS, END_TS-1),
         undirected=True
