@@ -28,36 +28,13 @@ RANGES = [
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]  # [0, 22005)
 
 # 默认要批量计算的建链时长（秒）
-# DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
-DEFAULT_TTB_VALUES = [ 50 ]
+DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
+# DEFAULT_TTB_VALUES = [ 50 ]
 
 def version_name(ttb: int) -> str:
     return f"topology_{ttb}"
 
 
-# def dirs_and_xmls(ttb: int):
-#     """
-#     返回 (modify_dir, figure_dir, xml_paths)
-#     modify_dir: INPUT_DIR/topology_{ttb}/modify
-#     figure_dir: INPUT_DIR/topology_{ttb}/figure
-#     xml_paths:  该 TTB 对应的 13 段 XML 完整路径列表
-#     """
-#     version = version_name(ttb)
-#     modify_dir = Path(INPUT_DIR) / version / "modify"
-#     raw_dir = Path(INPUT_DIR) / version / "raw"
-#     figure_dir = Path(INPUT_DIR) / version / "figure"
-#     figure_dir.mkdir(parents=True, exist_ok=True)
-#
-#     P1_DIR = Path(INPUT_DIR) / version / "p1_pending_edges"
-#
-#     P2_DIR = Path(INPUT_DIR) / version / "p2_pending_edges"
-#
-#
-#
-#
-#     xml_paths = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
-#     raw_xml_paths = [raw_dir / f"interplane_pending_links_{s}_{e}.xml" for (s, e) in RANGES]
-#     return P1_DIR, P2_DIR,xml_paths,raw_xml_paths
 
 
 def dirs_and_xmls(ttb: int):
@@ -77,10 +54,10 @@ def dirs_and_xmls(ttb: int):
     for d in (figure_dir, P1_DIR, P2_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
-    xml_paths      = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
-    raw_xml_paths  = [raw_dir    / f"interplane_pending_links_{s}_{e}.xml" for (s, e) in RANGES]
+    # xml_paths      = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
+    # raw_xml_paths  = [raw_dir    / f"interplane_pending_links_{s}_{e}.xml" for (s, e) in RANGES]
 
-    return P1_DIR, P2_DIR, xml_paths, raw_xml_paths,figure_dir
+    return P1_DIR, P2_DIR,  figure_dir
 
 
 def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
@@ -94,60 +71,30 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
     t0 = time.time()
-    P1_DIR, P2_DIR, xml_paths, raw_xml_paths,figure_dir = dirs_and_xmls(ttb)
+    P1_DIR, P2_DIR,  figure_dir = dirs_and_xmls(ttb)
+
+
+    file_path_p1 = P1_DIR / f"interplane_P1_pending_links_{ttb}_{START_TS}_{END_TS}.xml"
+
 
     # 基本检查
-    missing = [str(p) for p in xml_paths if not p.exists()]
+    missing = [str(file_path_p1)] if not file_path_p1.exists() else []
     if missing:
-        raise FileNotFoundError(
-            f"[TTB={ttb}] 缺少 XML（{len(missing)} 个），例如：{missing[:2]} ..."
-        )
-    missing = [str(p) for p in raw_xml_paths if not p.exists()]
+        raise FileNotFoundError(f"[TTB={ttb}] 缺少 XML：{missing[0]}")
+
+    p1_pending_nodes = write2xml.xml_to_nodes2(file_path_p1, tegnode.tegnode_complete)
+    p1_pending = inter_edge2nodes.trans_nodes2edges(p1_pending_nodes, P, N)
+
+    file_path_p2 = P2_DIR / f"interplane_P2_pending_links_{ttb}_{START_TS}_{END_TS}.xml"
+
+    missing = [str(file_path_p2)] if not file_path_p2.exists() else []
     if missing:
-        raise FileNotFoundError(
-            f"[TTB={ttb}] 缺少 XML（{len(missing)} 个），例如：{missing[:2]} ..."
-        )
+        raise FileNotFoundError(f"[TTB={ttb}] 缺少 XML：{missing[0]}")
+
+    p2_pending_nodes = write2xml.xml_to_nodes2(file_path_p2, tegnode.tegnode_complete)
+    p2_pending = inter_edge2nodes.trans_nodes2edges(p2_pending_nodes, P, N)
 
 
-
-    print(f"[TTB={ttb}] 读取 XML（{len(xml_paths)} 个）…")
-    # 顺序读取最稳（IO 型任务），也最节省内存
-
-
-
-    totalnode = write2xml.load_all_nodes_sequential(xml_paths, tegnode.tegnode_complete)
-    pending_nodes = write2xml.load_all_nodes_sequential(raw_xml_paths, tegnode.tegnode_complete)
-
-    print(f"[TTB={ttb}] 计算 pending_edges（time_2_build={ttb}）…")
-    pending_edges = inter_edge2nodes.trans_nodes2_pendingedges2(
-        totalnode, START_TS, END_TS, ttb, P, N
-    )
-
-    raw_pending_edges = inter_edge2nodes.trans_nodes2edges(pending_nodes, P, N)
-
-    p1_pending = pending_function.intersect_edge_series(pending_edges, raw_pending_edges)
-    p2_pending = pending_function.difference_edge_series(pending_edges, p1_pending)
-
-    p1_pending_nodes = inter_edge2nodes.trans_edge2node(p1_pending, P, N)
-    # 推荐：用 raw string 防止反斜杠转义，并改成有意义的文件名
-    # 这里，我们要把原始的边转为node进行存储
-
-    # p1_file_path = P1_DIR / f"interplane_P1_pending_links_{START_TS}_{END_TS}.xml"
-    #
-    # write2xml.nodes_to_xml(
-    #     p1_pending_nodes,
-    #     p1_file_path
-    # )
-    #
-    #
-    # p2_pending_nodes = inter_edge2nodes.trans_edge2node(p2_pending, P, N)
-    #
-    # p2_file_path = P2_DIR / f"interplane_P2_pending_links_{START_TS}_{END_TS}.xml"
-    #
-    # write2xml.nodes_to_xml(
-    #     p2_pending_nodes,
-    #     p2_file_path
-    # )
 
     print(f"[TTB={ttb}] 导出 CSV …")
 

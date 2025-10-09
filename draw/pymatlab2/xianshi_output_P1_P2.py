@@ -27,36 +27,13 @@ RANGES = [
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]  # [0, 22005)
 
 # 默认要批量计算的建链时长（秒）
-# DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
-DEFAULT_TTB_VALUES = [ 50 ]
+DEFAULT_TTB_VALUES = [10,20,30,40,50, 60,70,80, 90, 100, 110, 120, 130, 140]
+# DEFAULT_TTB_VALUES = [ 50 ]
 
 def version_name(ttb: int) -> str:
     return f"topology_{ttb}"
 
 
-# def dirs_and_xmls(ttb: int):
-#     """
-#     返回 (modify_dir, figure_dir, xml_paths)
-#     modify_dir: INPUT_DIR/topology_{ttb}/modify
-#     figure_dir: INPUT_DIR/topology_{ttb}/figure
-#     xml_paths:  该 TTB 对应的 13 段 XML 完整路径列表
-#     """
-#     version = version_name(ttb)
-#     modify_dir = Path(INPUT_DIR) / version / "modify"
-#     raw_dir = Path(INPUT_DIR) / version / "raw"
-#     figure_dir = Path(INPUT_DIR) / version / "figure"
-#     figure_dir.mkdir(parents=True, exist_ok=True)
-#
-#     P1_DIR = Path(INPUT_DIR) / version / "p1_pending_edges"
-#
-#     P2_DIR = Path(INPUT_DIR) / version / "p2_pending_edges"
-#
-#
-#
-#
-#     xml_paths = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
-#     raw_xml_paths = [raw_dir / f"interplane_pending_links_{s}_{e}.xml" for (s, e) in RANGES]
-#     return P1_DIR, P2_DIR,xml_paths,raw_xml_paths
 
 
 def dirs_and_xmls(ttb: int):
@@ -131,7 +108,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     # 推荐：用 raw string 防止反斜杠转义，并改成有意义的文件名
     # 这里，我们要把原始的边转为node进行存储
 
-    p1_file_path = P1_DIR / f"interplane_P1_pending_links_{START_TS}_{END_TS}.xml"
+    p1_file_path = P1_DIR / f"interplane_P1_pending_links_{ttb}_{START_TS}_{END_TS}.xml"
 
     write2xml.nodes_to_xml(
         p1_pending_nodes,
@@ -141,7 +118,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
 
     p2_pending_nodes = inter_edge2nodes.trans_edge2node(p2_pending, P, N)
 
-    p2_file_path = P2_DIR / f"interplane_P2_pending_links_{START_TS}_{END_TS}.xml"
+    p2_file_path = P2_DIR / f"interplane_P2_pending_links_{ttb}_{START_TS}_{END_TS}.xml"
 
     write2xml.nodes_to_xml(
         p2_pending_nodes,
