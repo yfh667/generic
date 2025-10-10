@@ -1,0 +1,49 @@
+{
+  "P": 18,
+  "N": 36,
+  "base_groupid": 4,
+  "motifs": [
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 0,
+      "y_end": 8,
+      "option": 1
+    },
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 9,
+      "y_end": 29,
+      "option": 0
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 30,
+      "y_end": 31,
+      "option": 2
+    },
+    {
+      "p_start": 0,
+      "p_end": 9,
+      "y_start": 30,
+      "y_end": 31,
+      "option": 0
+    },
+    {
+      "p_start": 15,
+      "p_end": 17,
+      "y_start": 32,
+      "y_end": 35,
+      "option": 2
+    },
+    {
+      "p_start": 0,
+      "p_end": 15,
+      "y_start": 32,
+      "y_end": 35,
+      "option": 0
+    }
+  ]
+}

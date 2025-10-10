@@ -1,0 +1,75 @@
+{
+  "P": 18,
+  "N": 36,
+  "base_groupid": 4,
+  "motifs": [
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 0,
+      "y_end": 18,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 8,
+      "y_start": 19,
+      "y_end": 27,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 8,
+      "y_start": 28,
+      "y_end": 29,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 6,
+      "y_start": 30,
+      "y_end": 35,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 6,
+      "p_end": 8,
+      "y_start": 30,
+      "y_end": 35,
+      "option": 2,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 8,
+      "p_end": 17,
+      "y_start": 28,
+      "y_end": 35,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 8,
+      "p_end": 17,
+      "y_start": 19,
+      "y_end": 27,
+      "option": 1,
+      "t_start": null,
+      "t_end": null
+    }
+  ],
+  "symbols": [
+    "start_ts",
+    "end_ts",
+    "time_2_build"
+  ]
+}

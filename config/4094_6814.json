@@ -1,0 +1,21 @@
+{
+  "P": 18,
+  "N": 36,
+  "base_groupid": 4,
+  "motifs": [
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 9,
+      "y_end": 35,
+      "option": 0
+    },
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 0,
+      "y_end": 8,
+      "option": 1
+    }
+  ]
+}

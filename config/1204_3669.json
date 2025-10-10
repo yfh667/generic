@@ -1,0 +1,120 @@
+{
+  "P": 18,
+  "N": 36,
+  "base_groupid": 4,
+  "motifs": [
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 0,
+      "y_end": 8,
+      "option": 1,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 9,
+      "y_end": 29,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 9,
+      "y_start": 30,
+      "y_end": 31,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 15,
+      "p_end": 17,
+      "y_start": 32,
+      "y_end": 35,
+      "option": 2,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 0,
+      "p_end": 17,
+      "y_start": 32,
+      "y_end": 35,
+      "option": 0,
+      "t_start": null,
+      "t_end": null
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 30,
+      "y_end": 31,
+      "option": 2,
+      "t_start": 1204,
+      "t_end": 1232
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 31,
+      "y_end": 32,
+      "option": 2,
+      "t_start": "1232",
+      "t_end": "1204 + time_2_build + 1"
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 30,
+      "y_end": 30,
+      "option": 0,
+      "t_start": "1232",
+      "t_end": "1204 + time_2_build + 1"
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 32,
+      "y_end": 32,
+      "option": 0,
+      "t_start": "1204 + time_2_build",
+      "t_end": "1204 + time_2_build*2"
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 31,
+      "y_end": 31,
+      "option": 2,
+      "t_start": "1204 + time_2_build",
+      "t_end": "1204 + time_2_build*2"
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 30,
+      "y_end": 30,
+      "option": 0,
+      "t_start": "1204 + time_2_build",
+      "t_end": "1204 + time_2_build*2"
+    },
+    {
+      "p_start": 9,
+      "p_end": 17,
+      "y_start": 30,
+      "y_end": 31,
+      "option": 0,
+      "t_start": "1204 + time_2_build*2",
+      "t_end": "end_ts"
+    }
+  ],
+  "symbols": [
+    "start_ts",
+    "end_ts",
+    "time_2_build"
+  ]
+}
