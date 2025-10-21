@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>2D Ground Tracks (Gray/White Theme)</title>
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+  #map { position:absolute; inset:0; }
+  /* 只把底图转为灰色（不影响 deck 覆盖层） */
+  #map canvas.maplibregl-canvas { filter: saturate(0%) brightness(100%) contrast(95%); }
+
+  #panel {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(255,255,255,0.92); border: 1px solid #ddd; border-radius: 10px;
+    padding: 10px 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.1); width: 360px;
+  }
+  #panel h3 { margin: 0 0 8px 0; font-size: 16px; }
+  .row { display:flex; align-items:center; gap:8px; margin: 6px 0; }
+  .grow { flex: 1; }
+  input[type="range"] { width:100%; }
+  .muted { color:#666; font-size:12px; }
+  .pill { padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px; background:#fafafa; }
+  button { border: 1px solid #ccc; background: #fff; border-radius: 8px; padding:6px 10px; cursor:pointer; }
+  button:active { transform: translateY(1px); }
+  .toggle { display:flex; gap:10px; }
+  .legend { display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="panel">
+  <h3>Subsatellite Points (2D) & Links</h3>
+  <div class="row">
+    <button id="btnPlay">▶︎ Play</button>
+    <div id="timeLabel" class="pill grow">—</div>
+  </div>
+  <div class="row">
+    <input id="timeSlider" type="range" min="0" max="0" step="1" value="0" />
+  </div>
+  <div class="row toggle">
+    <label><input type="checkbox" id="chkShowSats" checked /> Satellites</label>
+    <label><input type="checkbox" id="chkShowTracks" checked /> Ground tracks</label>
+    <label><input type="checkbox" id="chkShowLinks" checked /> Links</label>
+  </div>
+  <div class="row">
+    <label class="muted">Track window (min)</label>
+    <input id="trackMins" type="number" min="1" max="720" value="90" style="width:70px" />
+    <div class="grow"></div>
+    <button id="btnFit">Fit world</button>
+  </div>
+  <div class="legend">
+    <span class="dot" style="background:#111"></span> Satellite / subpoint
+    <span class="dot" style="background:#d62728"></span> Ground track
+    <span class="dot" style="background:#d62728"></span> Link
+  </div>
+  <div class="muted" style="margin-top:6px">
+    数据文件：<code>subs.csv</code>（id,t,lat,lon），<code>links.csv</code>（t,src,dst）
+  </div>
+</div>
+
+<script>
+(async function () {
+  const USE_DEMO = true; // ← 用你数据时改为 false
+
+  // ——— 自定义灰白底图（Carto Positron 无标注，免 token）———
+  const grayWhiteStyle = {
+    "version": 8,
+    "name": "gray-white",
+    "sources": {
+      "carto-positron": {
+        "type": "raster",
+        "tiles": ["https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"],
+        "tileSize": 256,
+        "attribution": "© CartoDB"
+      }
+    },
+    "layers": [
+      {"id":"bg","type":"background","paint":{"background-color":"#f3f3f3"}}, /* 淡灰背景 */
+      {"id":"carto","type":"raster","source":"carto-positron","minzoom":0,"maxzoom":22}
+    ]
+  };
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: grayWhiteStyle,
+    center: [0, 20],
+    zoom: 1.6,
+    attributionControl: true
+  });
+
+  const {ScatterplotLayer, PathLayer, ArcLayer, MapboxLayer} = deck;
+
+  // ========= 数据 =========
+  let subs = [], links = [];
+  if (USE_DEMO) {
+    const start = Date.parse('2025-10-15T00:00:00Z');
+    const step = 60 * 1000, n = 180;
+    const wrapLon = x => ((x+180)%360+360)%360-180;
+    for (let i=0;i<n;i++){
+      const t = start + i*step;
+      subs.push({id:'S-01', t, lat: 5*Math.sin(i/40),  lon: wrapLon(-150 + i*2)});
+      subs.push({id:'S-02', t, lat: 60*Math.sin(i/25), lon: wrapLon(  60 + i*1.2)});
+      if (i % 10 === 0) links.push({t, src:'S-01', dst:'S-02'});
+    }
+  } else {
+    subs  = await loadCSV('subs.csv',  r=>({id:r.id, t:Date.parse(r.t), lat:+r.lat, lon:+r.lon}));
+    links = await loadCSV('links.csv', r=>({t:Date.parse(r.t), src:r.src, dst:r.dst}));
+  }
+
+  // ========= 索引 =========
+  const times = Array.from(new Set(subs.map(s=>s.t))).sort((a,b)=>a-b);
+  const subsByTime = new Map(times.map(t=>[t,[]]));
+  const bySat = new Map();
+  for (const s of subs){ subsByTime.get(s.t).push(s); if(!bySat.has(s.id)) bySat.set(s.id,[]); bySat.get(s.id).push(s); }
+  for (const arr of bySat.values()) arr.sort((a,b)=>a.t-b.t);
+  const linksByTime = new Map(times.map(t=>[t,[]]));
+  for (const e of links) if (linksByTime.has(e.t)) linksByTime.get(e.t).push(e);
+
+  // ========= UI =========
+  const elTime = document.getElementById('timeLabel');
+  const slider = document.getElementById('timeSlider');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnFit = document.getElementById('btnFit');
+  const chkSats = document.getElementById('chkShowSats');
+  const chkTracks = document.getElementById('chkShowTracks');
+  const chkLinks = document.getElementById('chkShowLinks');
+  const inputTrackMins = document.getElementById('trackMins');
+  slider.max = Math.max(0, times.length - 1);
+  slider.value = 0;
+
+  let playing=false, rafId=null;
+  btnPlay.onclick = ()=>{ playing=!playing; btnPlay.textContent = playing ? '⏸ Pause' : '▶︎ Play'; if(playing) animate(); else cancelAnimationFrame(rafId); };
+  btnFit.onclick = ()=> map.fitBounds([[-180,-85],[180,85]], {padding:20, animate:false});
+  slider.oninput = ()=>{ playing=false; btnPlay.textContent='▶︎ Play'; render(); };
+  chkSats.onchange = chkTracks.onchange = chkLinks.onchange = render;
+  inputTrackMins.onchange = render;
+
+  // ========= deck 图层 =========
+  map.on('load', () => {
+    map.addLayer(new MapboxLayer({ id:'sat-points',    type: ScatterplotLayer, renderingMode:'2d', data: [] }));
+    map.addLayer(new MapboxLayer({ id:'ground-tracks', type: PathLayer,       renderingMode:'2d', data: [] }));
+    map.addLayer(new MapboxLayer({ id:'links',         type: ArcLayer,        renderingMode:'2d', data: [] }));
+    render();
+  });
+
+  function render() {
+    const idx = +slider.value;
+    const t = times[idx];
+    elTime.textContent = new Date(t).toISOString();
+
+    const windowMs = Math.max(1, +inputTrackMins.value) * 60 * 1000;
+    const tStart = t - windowMs;
+
+    const nowPoints = (subsByTime.get(t) || []).map(s => ({ position: [s.lon, s.lat], id: s.id }));
+
+    const tracks = [];
+    if (chkTracks.checked) {
+      for (const [id,arr] of bySat) {
+        const pts=[];
+        for (let i=arr.length-1;i>=0;i--) {
+          if (arr[i].t < tStart) break;
+          if (arr[i].t <= t) pts.push([arr[i].lon, arr[i].lat]);
+        }
+        if (pts.length>=2) tracks.push({ path: pts.reverse(), id });
+      }
+    }
+
+    const linkArcs=[];
+    if (chkLinks.checked) {
+      const edges = linksByTime.get(t) || [];
+      const curPos = new Map(nowPoints.map(d=>[d.id,d.position]));
+      for (const e of edges) {
+        const a = curPos.get(e.src), b = curPos.get(e.dst);
+        if (!a || !b) continue;
+        linkArcs.push({ sourcePosition:a, targetPosition:b, src:e.src, dst:e.dst });
+      }
+    }
+
+    // —— 颜色与风格（灰白主题）——
+    const SAT_FILL = [17,17,17,255];       // #111 黑
+    const SAT_STROKE = [255,255,255,255];  // 白描边
+    const RED = [214,39,40,220];           // #d62728 红（略透明）
+
+    const satLayer = new MapboxLayer({
+      id:'sat-points', type: ScatterplotLayer,
+      data: chkSats.checked ? nowPoints : [],
+      getPosition: d => d.position,
+      getRadius: 50000, radiusUnits:'meters',
+      radiusMinPixels:3, radiusMaxPixels:8,
+      getFillColor: SAT_FILL,
+      getLineColor: SAT_STROKE,
+      lineWidthMinPixels: 1.5,
+      pickable: true
+    });
+
+    const pathLayer = new MapboxLayer({
+      id:'ground-tracks', type: PathLayer,
+      data: tracks,
+      getPath: d => d.path,
+      widthUnits:'pixels',
+      getWidth: 2,
+      getColor: RED,
+      greatCircle: true,
+      pickable: false
+    });
+
+    const linkLayer = new MapboxLayer({
+      id:'links', type: ArcLayer,
+      data: linkArcs,
+      getSourcePosition: d => d.sourcePosition,
+      getTargetPosition: d => d.targetPosition,
+      getWidth: 2,
+      getSourceColor: RED,
+      getTargetColor: RED,
+      greatCircle: true,
+      pickable: true
+    });
+
+    // 覆盖更新
+    map.setLayer(satLayer, 'carto');     // 插到底图之上
+    map.setLayer(pathLayer, 'carto');
+    map.setLayer(linkLayer, 'carto');
+  }
+
+  function animate(){
+    if (!playing) return;
+    const max = +slider.max;
+    slider.value = String((+slider.value + 1) % (max + 1));
+    render();
+    rafId = requestAnimationFrame(animate);
+  }
+
+  // CSV loader（当 USE_DEMO=false）
+  async function loadCSV(url, mapRow){
+    const res = await fetch(url, {cache:'no-store'});
+    if (!res.ok) { console.error('Failed to load', url, res.status); return []; }
+    const text = await res.text();
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    const header = lines.shift().split(',').map(s=>s.trim());
+    const out = [];
+    for (const line of lines){
+      const cols = line.split(',').map(s=>s.trim());
+      const obj = {};
+      header.forEach((h,i)=> obj[h] = cols[i]);
+      out.push(mapRow(obj));
+    }
+    return out;
+  }
+})();
+</script>
+</body>
+</html>

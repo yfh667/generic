@@ -33,7 +33,7 @@ def _neighbors_from(obj: Any):
 
 def count_unique_edges(snapshot: Snapshot, undirected: bool = True) -> int:
     if not isinstance(snapshot, Mapping):
-        raise TypeError("Snapshot must be a mapping {src: neighbors}.")
+        raise TypeError("Snapshot must be a mapping {basicSa: neighbors}.")
     seen: Set[Tuple[Node, Node]] = set()
     c = 0
     for u, nbrs in snapshot.items():
@@ -99,7 +99,7 @@ def plot_all_vs_pending_timeseries(
 ):
     """
     绘制：已建链(all_edges) vs 正在建链(pending_edges) 的时间序列（双 y 轴）。
-    all_edges/pending_edges: dict{t: {src: set(dst)}} 或 list[ snapshot ]
+    all_edges/pending_edges: dict{t: {basicSa: set(dst)}} 或 list[ snapshot ]
     """
     import pandas as pd
     from matplotlib.ticker import FormatStrFormatter

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium Satellite Example</title>
+    <script src="Cesium/Cesium.js"></script>
+    <!-- Include the CesiumSensorVolumes plugin -->
+    <script src="Cesium/cesium-sensor-volumes.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        /* Ensure the HTML and body elements fill the screen */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* Ensure the Cesium container fills the screen */
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<script>
+    // Initialize Cesium Viewer
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+        shouldAnimate: true,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        baseLayerPicker: false,
+        navigationHelpButton: false,
+        timeline: false,
+        fullscreenButton: false,
+        animation: false,
+        infoBox: false,
+    });
+    // number of the station
+
+    //  const  stationnum = 3
+    // Store references to entities to avoid duplicates
+    const groundStationEntities = {};
+    const satelliteEntities = {}; // Store satellite entity references
+    const lineEntities = {};      // Store line entities
+    var satelliteConicSensors = {}; // Store conic sensors for satellites
+    const  satangle = 45
+    const socket = new WebSocket("ws://localhost:8765");
+
+    socket.onopen = function() {
+        console.log("WebSocket connection established");
+    };
+
+    socket.onmessage = function(event) {
+        // Update ground stations and satellites
+        updateStationsAndSatellites(event);
+        updateLineEntities(event);
+    };
+
+    function updateStationsAndSatellites(event) {
+        // Parse the received JSON data
+        const data = JSON.parse(event.data);
+        const groundStations = data.stations;  // Static ground station data
+        const satellites = data.sats;          // Dynamic satellite data
+
+        // Update or create ground station entities (static)
+        groundStations.forEach(station => {
+            const id = station.id.toUpperCase();
+            if (!groundStationEntities[id]) {
+                // If the ground station entity doesn't exist, create it
+                groundStationEntities[id] = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromElements(
+                        station.position[0],
+                        station.position[1],
+                        station.position[2]
+                    ),
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.YELLOW,
+                    },
+                    label: {
+                        text: id,
+                        font: '12pt sans-serif',
+                        fillColor: Cesium.Color.YELLOW,
+                        style: Cesium.LabelStyle.FILL,
+                        outlineWidth: 2,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                    }
+                });
+            } else {
+                // If the entity exists, update its position
+                groundStationEntities[id].position = Cesium.Cartesian3.fromElements(
+                    station.position[0],
+                    station.position[1],
+                    station.position[2]
+                );
+            }
+        });
+
+        // Update or create satellite entities (dynamic)
+        satellites.forEach(satellite => {
+            const id = satellite.id.toUpperCase();
+            if (!satelliteEntities[id]) {
+                // If the satellite entity doesn't exist, create it
+                satelliteEntities[id] = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromElements(
+                        satellite.position[0],
+                        satellite.position[1],
+                        satellite.position[2]
+                    ),
+                    model: {
+                        uri: 'simple_satellite_low_poly_free.glb',  // Satellite 3D model URI
+                        scale: 0.2,                                 // Model scale
+                        minimumPixelSize: 20                        // Minimum pixel size
+                    },
+                    label: {
+                        text: id,
+                        font: '14pt sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        style: Cesium.LabelStyle.FILL,
+                        outlineWidth: 2,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                    }
+                });
+            } else {
+                // If the entity exists, update its position
+                satelliteEntities[id].position = Cesium.Cartesian3.fromElements(
+                    satellite.position[0],
+                    satellite.position[1],
+                    satellite.position[2]
+                );
+            }
+
+            // Add or update the conic sensor for the satellite
+            if (!satelliteConicSensors[id]) {
+                let sensorOrientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    satelliteEntities[id].position.getValue(Cesium.JulianDate.now()),
+                    new Cesium.HeadingPitchRoll(
+                        Cesium.Math.toRadians(0),
+                        Cesium.Math.toRadians(180),
+                        0
+                    )
+                );
+
+                // Create a conic sensor for the satellite
+                let sensorEntity = viewer.entities.add({
+                    position: satelliteEntities[id].position,
+                    orientation: sensorOrientation,
+                    // Sensor parameters
+                    conicSensor: new CesiumSensorVolumes.ConicSensorGraphics({
+                        radius: 10030000, // Coverage radius (meters), adjust as needed
+                        innerHalfAngle: Cesium.Math.toRadians(0),
+                        outerHalfAngle: Cesium.Math.toRadians(satangle), // Set the cone angle
+                        lateralSurfaceMaterial: Cesium.Color.GOLD.withAlpha(0.15), // Lateral surface material
+                        intersectionColor: Cesium.Color.GOLD.withAlpha(0.3), // Intersection color
+                        intersectionWidth: 2,
+                    })
+                });
+                satelliteConicSensors[id] = sensorEntity;
+            } else {
+                // Update existing sensor's position and orientation
+                let sensorEntity = satelliteConicSensors[id];
+                sensorEntity.position = satelliteEntities[id].position;
+                sensorEntity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    satelliteEntities[id].position.getValue(Cesium.JulianDate.now()),
+                    new Cesium.HeadingPitchRoll(
+                        Cesium.Math.toRadians(0),
+                        Cesium.Math.toRadians(180),
+                        0
+                    )
+                );
+            }
+        });
+    }
+    function updateLineEntities(event) {
+        const data = JSON.parse(event.data);
+        const satellites = data.sats;
+        const stationnum = data.stations.length; // 获取地面站数量
+
+        // 保持当前活动的连线ID
+        const currentLineIds = new Set();
+
+        satellites.forEach((satellite) => {
+            const sourceId = satellite.id.toUpperCase();
+            const linkArray = satellite.link_array;
+
+            linkArray.forEach((targetIndex) => {
+                if (targetIndex !== -1) {
+                    let targetId;
+                    let isTargetGroundStation = false;
+
+                    if (targetIndex < stationnum) {
+                        // 目标是地面站
+                        const groundStation = data.stations[targetIndex];
+                        targetId = groundStation.id.toUpperCase();
+                        isTargetGroundStation = true;
+                    } else {
+                        // 目标是卫星
+                        const targetSatellite = data.sats[targetIndex - stationnum];
+                        targetId = targetSatellite.id.toUpperCase();
+                    }
+
+                    // 确保连线ID的一致性，避免重复
+                    const lineId = sourceId < targetId ? `${sourceId}_to_${targetId}` : `${targetId}_to_${sourceId}`;
+                    currentLineIds.add(lineId);
+
+                    if (!lineEntities[lineId]) {
+                        // 如果连线不存在，创建新的连线
+                        lineEntities[lineId] = viewer.entities.add({
+                            polyline: {
+                                positions: new Cesium.CallbackProperty(function () {
+                                    const sourcePosition = satelliteEntities[sourceId].position.getValue(Cesium.JulianDate.now());
+
+                                    let targetPosition;
+                                    if (isTargetGroundStation) {
+                                        targetPosition = groundStationEntities[targetId].position.getValue(Cesium.JulianDate.now());
+                                    } else {
+                                        targetPosition = satelliteEntities[targetId].position.getValue(Cesium.JulianDate.now());
+                                    }
+
+                                    return [sourcePosition, targetPosition];
+                                }, false),
+                                width: 2,
+                                material: Cesium.Color.YELLOW,
+                                arcType: Cesium.ArcType.NONE  // 将 arcType 设置为 NONE 以绘制直线
+                            },
+                        });
+                    }
+
+                    // 不需要更新positions；CallbackProperty会自动处理
+                }
+            });
+        });
+
+        // 移除不再活动的连线
+        for (const lineId in lineEntities) {
+            if (!currentLineIds.has(lineId)) {
+                viewer.entities.remove(lineEntities[lineId]);
+                delete lineEntities[lineId];
+            }
+        }
+    }
+
+
+
+    socket.onclose = function() {
+        console.log("WebSocket connection closed");
+    };
+
+    // Adjust camera view to display satellites
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-75.0, 40.0, 10000000), // Set camera destination above Earth's surface
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-90),
+            roll: 0.0
+        },
+        complete: function() {
+            viewer.camera.zoomOut(5000000); // Adjust as needed to change initial zoom level
+        }
+    });
+</script>
+</body>
+</html>

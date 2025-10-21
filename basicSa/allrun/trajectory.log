@@ -1,0 +1,1 @@
+2025-03-25 11:14:58,294 - ERROR - 目录处理失败: 'TrajectoryLoader' object has no attribute 'load_single_file'

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium Satellite Example</title>
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        /* 确保HTML和body元素充满整个屏幕 */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* 确保Cesium容器充满整个屏幕 */
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<script>
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+        shouldAnimate: true,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        baseLayerPicker: false,
+        navigationHelpButton: false,
+        timeline: false,
+        fullscreenButton: false,
+        animation: false,
+        infoBox: false,
+    });
+
+
+
+
+
+    // 预设的卫星节点位置
+    const satellitePositions = [
+        { id: 'sat0', position: Cesium.Cartesian3.fromElements(1075670.610, 6884610.809, 0) },
+        { id: 'sat1', position: Cesium.Cartesian3.fromElements(-1343875.841, 6837318.990, 0) },
+        { id: 'sat2', position: Cesium.Cartesian3.fromElements(-3601331.032, 5965345.593, 0) },
+        { id: 'sat3', position: Cesium.Cartesian3.fromElements(-1262830.211, 6424978.201, 2383243.215) },
+        { id: 'sat4', position: Cesium.Cartesian3.fromElements(-1335910, 6686470, 1443450) },
+        { id: 'sat5', position: Cesium.Cartesian3.fromElements(-1262830.211, 6424978.201, -2383243.215) }
+
+
+    ];
+
+    // 创建卫星实体并标注
+    satellitePositions.forEach((satellite) => {
+        viewer.entities.add({
+            position: satellite.position,
+            point: {
+                pixelSize: 10,
+                color: Cesium.Color.WHITE,
+            },
+            label: {
+                text: satellite.id.toUpperCase(),
+                font: '14pt sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                style: Cesium.LabelStyle.FILL,
+                outlineWidth: 2,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10)
+            }
+        });
+    });
+
+    // 添加地面站节点位置
+    const groundStationPositions = [
+
+
+
+
+        { id: 'gs0', position: Cesium.Cartesian3.fromElements(-1159.388221 * 1000, 6270.180168 * 1000, 145.425828 * 1000) },
+        { id: 'gs1', position: Cesium.Cartesian3.fromElements(-3330.416038 * 1000, 5432.320718 * 1000, 279.864892 * 1000) },
+        { id: 'gs2', position: Cesium.Cartesian3.fromElements(-1026.070264 * 1000, 5803.649126 * 1000, 2430.157814 * 1000)},
+
+        { id: 'gs3', position: Cesium.Cartesian3.fromElements(1059258.741, 6286974.615, 179818.758) },
+        { id: 'gs4', position: Cesium.Cartesian3.fromElements(-1121670.064, 5894144.937, -2156433.001) },
+        { id: 'gs5', position: Cesium.Cartesian3.fromElements(     -1222370.674  ,   6118190.112  ,  1320018.202) }
+
+    ];
+
+    // 创建地面站实体并标注
+    groundStationPositions.forEach((station) => {
+        viewer.entities.add({
+            position: station.position,
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.YELLOW,
+            },
+            label: {
+                text: station.id.toUpperCase(),
+                font: '12pt sans-serif',
+                fillColor: Cesium.Color.YELLOW,
+                style: Cesium.LabelStyle.FILL,
+                outlineWidth: 2,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10)
+            }
+        });
+    });
+
+    // 调整相机视角以便全屏显示卫星
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-75.0, 40.0, 10000000), // 设置相机的目的地为地球表面上空
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-90),
+            roll: 0.0
+        },
+        complete: function() {
+            viewer.camera.zoomOut(5000000); // 根据需要调整数值以改变初始缩放级别
+        }
+    });
+</script>
+</body>
+</html>

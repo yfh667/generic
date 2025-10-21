@@ -72,7 +72,7 @@ def load_group_data_cached() -> dict:
 
 # ===== 工具 =====
 def make_edges_bidirectional(edge_dict):
-    """{src: set(dsts)} -> 双向"""
+    """{basicSa: set(dsts)} -> 双向"""
     new_edges = {}
     for src, dsts in edge_dict.items():
         for dst in dsts:

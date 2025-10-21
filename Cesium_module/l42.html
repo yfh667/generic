@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium Satellite Example</title>
+    <script src="Cesium/Cesium.js"></script>
+
+    <script src="Cesium/cesium-sensor-volumes.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+
+
+        #homeButton {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 1000; /* 确保按钮显示在Cesium容器之上 */
+}
+
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <button id="homeButton">Home</button>
+
+    <script>
+        Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            shouldAnimate: true,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            baseLayerPicker: false,
+            navigationHelpButton: false,
+            timeline: false,
+            fullscreenButton: false,
+            animation: true,
+            infoBox: false,
+        });
+
+        let satelliteEntities = [];
+        let groundStationEntities = [];
+        let lineEntities = [];
+        const GROUND_STATION_COUNT = 4; // 地面站的数量
+        var satelliteConicSensors = {}; // 存储每个卫星的视锥实体的映射
+        const earthRadius = 6357000;
+
+        const ws = new WebSocket('ws://localhost:8765');
+
+
+
+// 处理WebSocket消息事件
+ws.onmessage = function(event) {
+    const nodeDataArray = JSON.parse(event.data);
+
+    // 推迟所有更新的处理到浏览器空闲时
+    requestAnimationFrame(() => {
+        // 预先计算待移除的实体ID集合
+        let toRemove = new Set(lineEntities.map(entity => entity.id));
+
+        // 更新或创建地面站和卫星实体
+        updateStationsAndSatellites(nodeDataArray);
+
+        // 更新或创建连线实体
+        updateLineEntities(nodeDataArray, toRemove);
+
+        // 移除不再需要的连线实体
+        removeUnusedLineEntities(toRemove);
+
+        ws.send('ACK');
+    });
+};
+
+
+
+
+function updateStationsAndSatellites(nodeDataArray) {
+    nodeDataArray.forEach((nodeData, index) => {
+        if (index < GROUND_STATION_COUNT) {
+            // 处理地面站
+            let groundStationEntity = groundStationEntities[index];
+            if (!groundStationEntity) {
+                groundStationEntity = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromElements(nodeData.x, nodeData.y, nodeData.z),
+                    point: {
+                        pixelSize: 10,
+                        color: Cesium.Color.RED,
+                    },
+                    label: {
+                        text: 'Ground Station ' + (index + 1),
+                        font: '10pt monospace',
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        outlineWidth: 2,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                    }
+                });
+                groundStationEntities[index] = groundStationEntity;
+            } else {
+                groundStationEntity.position = Cesium.Cartesian3.fromElements(nodeData.x, nodeData.y, nodeData.z);
+            }
+        } else {
+            // 处理卫星
+            const satelliteIndex = index - GROUND_STATION_COUNT;
+            let satelliteEntity = satelliteEntities[satelliteIndex];
+            if (!satelliteEntity) {
+                satelliteEntity = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromElements(nodeData.x, nodeData.y, nodeData.z),
+                    model: {
+                        uri: 'simple_satellite_low_poly_free.glb',
+                        scale: 1,
+                        minimumPixelSize: 15
+                    },
+                    label: {
+                        text: 'GW' + (satelliteIndex + 1),
+                        font: '10pt monospace',
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        outlineWidth: 2,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -20)
+                    }
+                });
+                satelliteEntities[satelliteIndex] = satelliteEntity;
+            } else {
+                satelliteEntity.position = Cesium.Cartesian3.fromElements(nodeData.x, nodeData.y, nodeData.z);
+            }
+
+
+
+
+            if (!satelliteConicSensors[satelliteIndex]) {
+                let sensorOrientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    satelliteEntity.position.getValue(Cesium.JulianDate.now()),
+                    new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(0), Cesium.Math.toRadians(180), 0)
+                );
+
+                // 为卫星创建视锥
+                let sensorEntity = viewer.entities.add({
+                    position: satelliteEntity.position,
+                    orientation: sensorOrientation,
+                    // 视锥参数......
+                    conicSensor: new CesiumSensorVolumes.ConicSensorGraphics({
+                    radius: 10030000, // 覆盖半径（单位：米），根据实际情况调整
+                    innerHalfAngle: Cesium.Math.toRadians(0),
+                    outerHalfAngle: Cesium.Math.toRadians(45), // 增加锥角以使效果更明显
+                  //  lateralSurfaceMaterial: Cesium.Color.RED.withAlpha(0.5), // 根据需要调整材质和颜色
+                    //intersectionColor: Cesium.Color.RED.withAlpha(0.6),
+                    lateralSurfaceMaterial: Cesium.Color.GOLD.withAlpha(0.15), // 侧面材料
+            intersectionColor: Cesium.Color.GOLD.withAlpha(0.3), // 交点颜色
+
+
+                    intersectionWidth: 2,
+                })
+
+
+
+                });
+                satelliteConicSensors[satelliteIndex] = sensorEntity;
+            } else {
+                // 更新现有视锥的位置和方向
+                let sensorEntity = satelliteConicSensors[satelliteIndex];
+                sensorEntity.position = satelliteEntity.position;
+                sensorEntity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    satelliteEntity.position.getValue(Cesium.JulianDate.now()),
+                    new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(0), Cesium.Math.toRadians(180), 0)
+                );
+            }
+
+
+
+
+         }
+    });
+}
+
+
+
+function calculateConeRadius(position, outerHalfAngleDegrees) {
+   // var earthRadius = 6357000; // 地球半径（米）
+    var outerHalfAngleRadians = Cesium.Math.toRadians(outerHalfAngleDegrees); // 将角度转换为弧度
+
+    // 将笛卡尔坐标转换为地理坐标
+    var cartographicPosition = Cesium.Cartographic.fromCartesian(position);
+
+    // 计算卫星到地球表面的高度（米）
+    var heightAboveEarth = cartographicPosition.height;
+
+    // 根据外半锥角和卫星高度计算视锥底面半径
+    var radius = heightAboveEarth * Math.tan(outerHalfAngleRadians);
+
+    return radius;
+}
+
+
+function updateLineEntities(nodeDataArray, toRemove) {
+    nodeDataArray.forEach((nodeData, index) => {
+
+        let nexthops = Array.isArray(nodeData.nexthop) ? nodeData.nexthop : [nodeData.nexthop];
+        console.log(`nexthops for node ${index}:`, nexthops);
+
+        nexthops.forEach((nexthop) => {
+    if (nexthop !== undefined && nexthop !== -1) {
+        // 使用起点和终点的索引生成唯一ID
+        let lineEntityId = `line-${index}-${nexthop}`;
+        console.log(`Adding or updating line entity: ${lineEntityId}`);
+
+        toRemove.delete(lineEntityId);
+
+        let lineEntity = viewer.entities.getById(lineEntityId);
+        if (!lineEntity) {
+            lineEntity = viewer.entities.add({
+                id: lineEntityId,
+                polyline: createPolylineDefinition(index, nexthop),
+            });
+            lineEntities.push(lineEntity);
+        } else {
+            // 如果线实体已存在，确保其定义是最新的
+            lineEntity.polyline = createPolylineDefinition(index, nexthop);
+        }
+    }
+});
+
+
+
+    });
+}
+
+
+
+
+
+function createPolylineDefinition(index, nexthop) {
+    return {
+        positions: new Cesium.CallbackProperty(() => {
+            let fromPosition = getPositionByIndex(index);
+            let toPosition = getPositionByIndex(nexthop);
+            return [fromPosition, toPosition];
+        }, false),
+        width: 1,
+        material: Cesium.Color.YELLOW,
+    };
+}
+
+function getPositionByIndex(index) {
+    if (index < GROUND_STATION_COUNT) {
+        return groundStationEntities[index].position.getValue(Cesium.JulianDate.now());
+    } else {
+        return satelliteEntities[index - GROUND_STATION_COUNT].position.getValue(Cesium.JulianDate.now());
+    }
+}
+
+function removeUnusedLineEntities(toRemove) {
+    // 初始化一个数组来存储被删除的直线的ID
+    let removedLines = [];
+
+    toRemove.forEach(id => {
+        let entity = viewer.entities.getById(id);
+        if (entity) {
+            viewer.entities.remove(entity);
+            lineEntities = lineEntities.filter(e => e.id !== id);
+            // 添加当前已删除的直线ID到数组中
+            removedLines.push(id);
+        }
+    });
+
+    // 如果有直线被删除，输出被删除的直线的ID
+    if (removedLines.length > 0) {
+        console.log("Removed line entities:", removedLines);
+    } else {
+        console.log("No line entities were removed.");
+    }
+}
+
+
+
+
+
+        // 设置初始视角
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(-90.0, 0.0, 10000000),
+            orientation: {
+                heading: Cesium.Math.toRadians(0.0),
+                pitch: Cesium.Math.toRadians(-90.0),
+                roll: 0.0
+            }
+        });
+
+        document.getElementById('homeButton').addEventListener('click', function() {
+    var center = Cesium.Cartesian3.fromDegrees(-90.0, 0.0, 10000000); // 地球中心点，高度适当调整以适合视图
+    var hpr = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(0), Cesium.Math.toRadians(-90), 0); // 直视下方
+    var orientation = Cesium.Transforms.headingPitchRollQuaternion(center, hpr);
+
+    viewer.camera.setView({
+        destination: center,
+        orientation: {
+            heading: Cesium.Math.toRadians(0), // 朝北
+            pitch: Cesium.Math.toRadians(-90), // 向下看
+            roll: 0.0
+        }
+    });
+
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 重置相机的变换矩阵
+});
+
+
+
+
+    </script>
+</body>
+</html>

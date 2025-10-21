@@ -202,17 +202,17 @@ group_data,offset = read_snap_xml.modify_group_data(group_data, N=36, groupid=4)
 #         all_cols = sat_ids // N
 #         all_rows = sat_ids % N
 #
-#         for src, dsts in edges.items():
+#         for basicSa, dsts in edges.items():
 #             for dst in dsts:
-#                 if abs(all_cols[src] - all_cols[dst]) > 1:
+#                 if abs(all_cols[basicSa] - all_cols[dst]) > 1:
 #                     # “跳线” 画贝塞尔曲线
 #                     item = self.draw_curved_edge(
-#                         all_cols[src], all_rows[src], all_cols[dst], all_rows[dst], curve=0.5
+#                         all_cols[basicSa], all_rows[basicSa], all_cols[dst], all_rows[dst], curve=0.5
 #                     )
 #                     self._edges_line_items.append(item)
 #                 else:
-#                     xs.extend([all_cols[src], all_cols[dst], np.nan])
-#                     ys.extend([all_rows[src], all_rows[dst], np.nan])
+#                     xs.extend([all_cols[basicSa], all_cols[dst], np.nan])
+#                     ys.extend([all_rows[basicSa], all_rows[dst], np.nan])
 #
 #         # 3. 直线继续用 PlotDataItem
 #         if not hasattr(self, "_edges_line"):

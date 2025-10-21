@@ -1,7 +1,7 @@
 def average_switches(pending_edges: dict, *, steps=None) -> float:
     """
     计算平均切换数（每秒 pending 边数的平均）。
-    pending_edges[t] 通常是 {src: set(dst)}，也兼容 list/tuple/dict-of-dst 或直接整数。
+    pending_edges[t] 通常是 {basicSa: set(dst)}，也兼容 list/tuple/dict-of-dst 或直接整数。
     steps: 可选，指定参与统计的步列表；默认用 pending_edges 的所有键。
     """
     import numpy as np

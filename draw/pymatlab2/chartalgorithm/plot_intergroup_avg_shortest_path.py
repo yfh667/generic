@@ -2,12 +2,12 @@ from pathlib import Path
 import networkx as nx
 
 def plot_intergroup_avg_shortest_path(
-    all_edges: dict,            # {step: {src: iterable(dsts)}}
+    all_edges: dict,            # {step: {basicSa: iterable(dsts)}}
     group_data: dict,           # {step: {'groups': {group_id: set(nodes), ...}}}
     *,
     group_a=0,
     group_b=4,
-    steps=None,                 # None=用 all_edges 的全部 step；或传 (start,end) / 迭代器
+    steps=None,                 # None=用 all_edges 的全部 step；或传 (basicSa,end) / 迭代器
     undirected=True,            # True=无向图；False=有向图
     # 绘图
     figsize=(10,4),
@@ -175,12 +175,12 @@ import pandas as pd
 import networkx as nx
 
 def compute_intergroup_avg_shortest_path(
-    all_edges: dict,            # {step: {src: iterable(dsts)}}
+    all_edges: dict,            # {step: {basicSa: iterable(dsts)}}
     group_data: dict,           # {step: {'groups': {group_id: set(nodes), ...}}}
     *,
     group_a: int = 0,
     group_b: int = 4,
-    steps: Optional[Iterable[int]] = None,   # None=all steps; (start,end); or iterable
+    steps: Optional[Iterable[int]] = None,   # None=all steps; (basicSa,end); or iterable
     undirected: bool = True
 ) -> pd.DataFrame:
     """

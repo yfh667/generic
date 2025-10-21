@@ -4,7 +4,7 @@ Triple-window -> middle-window writer, batch for TIME_2_BUILD in [30..150].
 
 For each TIME_2_BUILD (TTB):
   read A/B/C from INPUT_DIR/topology_{TTB}/raw
-  merge -> transnodes -> get_no_conflict_link_nodes3 on [A.start, C.end)
+  merge -> transnodes -> get_no_conflict_link_nodes3 on [A.basicSa, C.end)
   filter to middle window B
   write to INPUT_DIR/topology_{TTB}/modify
 
@@ -128,7 +128,7 @@ def _one_triple_job(ttb: int,
     # 2) 补齐左右邻接
     total_complete = transnodes.transnodes(total_nodes)
 
-    # 3) 在 [A.start, C.end) 上做冲突消解
+    # 3) 在 [A.basicSa, C.end) 上做冲突消解
     _, _, modified_nodes = conflict_link.get_no_conflict_link_nodes3(
         total_complete, start1, end3, ttb, N, P
     )

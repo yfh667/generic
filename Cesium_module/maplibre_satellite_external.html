@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Satellite Network • 外部数据演示</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- MapLibre GL CSS/JS -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+    /* 灰白滤镜，与 map3 样式保持一致 */
+    #map canvas.maplibregl-canvas {
+      filter: saturate(0%) brightness(100%) contrast(95%);
+    }
+    /* 图例样式与演示一致 */
+    .legend {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .legend h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .colorbar {
+      width: 180px;
+      height: 12px;
+      border-radius: 6px;
+      margin: 6px 0 2px;
+      background: linear-gradient(90deg, #fff5e6 0%, #ffd28c 25%, #ff9b50 50%, #ff5a2a 75%, #c02b12 100%);
+      border: 1px solid #ccc;
+    }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      color: #444;
+    }
+    .key {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #d22;
+    }
+    .dot-fail {
+      background: #000;
+    }
+    .dot-normal {
+      background: #bbb;
+      border: 1px solid #888;
+    }
+    /* 方向指示箭头 */
+    .arrow-box {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      font-size: 12px;
+    }
+    .arrow {
+      width: 50px;
+      height: 12px;
+      position: relative;
+      display: inline-block;
+      margin-left: 6px;
+      background: linear-gradient(90deg, transparent 0 70%, #222 70% 100%);
+    }
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid #222;
+      border-top: 2px solid #222;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <!-- 颜色图例 -->
+  <div class="legend">
+    <h4>Vulnerability (ignored here)</h4>
+    <div class="colorbar"></div>
+    <div class="ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div>
+    <div class="key"><span class="dot"></span><span>示例卫星</span></div>
+    <div class="key"><span class="dot-fail"></span><span>示例故障</span></div>
+    <div class="key"><span class="dot dot-normal"></span><span>其它卫星</span></div>
+  </div>
+  <!-- 方向指示 -->
+  <div class="arrow-box">Direction of movement <span class="arrow"></span></div>
+  <script>
+  (async function() {
+    // 创建 MapLibre 地图
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: 'raster',
+            tiles: ['https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors, © CARTO'
+          }
+        },
+        layers: [
+          { id: 'bg', type: 'background', paint: { 'background-color': '#f3f3f3' } },
+          { id: 'carto', type: 'raster', source: 'carto' }
+        ]
+      },
+      center: [0, 0],
+      zoom: 1.5,
+      renderWorldCopies: false
+    });
+
+    // 读取外部数据文件
+    const response = await fetch('./satellite_network.json');
+    const data = await response.json();
+    const satellites = data.satellites;
+    const links = data.links;
+
+    // 将卫星点转换为 GeoJSON FeatureCollection
+    const pointFeatures = satellites.map((sat) => ({
+      type: 'Feature',
+      properties: {
+        id: sat.id,
+        altitude: sat.alt
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [sat.lng, sat.lat]
+      }
+    }));
+    // 构建连接线 FeatureCollection
+    const coordsById = Object.fromEntries(satellites.map((sat) => [sat.id, [sat.lng, sat.lat]]));
+    const lineFeatures = links
+      .map((link) => {
+        const sourceCoord = coordsById[link.source];
+        const targetCoord = coordsById[link.target];
+        if (!sourceCoord || !targetCoord) return null;
+        return {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [sourceCoord, targetCoord]
+          }
+        };
+      })
+      .filter(Boolean);
+    const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
+    const linesFC = { type: 'FeatureCollection', features: lineFeatures };
+    // 等待地图载入后添加图层
+    map.on('load', () => {
+      // 添加卫星连接线源及图层
+      map.addSource('sat_links', { type: 'geojson', data: linesFC });
+      map.addLayer({
+        id: 'sat-links',
+        type: 'line',
+        source: 'sat_links',
+        paint: {
+          'line-color': '#666',
+          'line-width': 1.0,
+          'line-opacity': 0.4
+        }
+      });
+      // 添加卫星点源及图层
+      map.addSource('sat_points', { type: 'geojson', data: pointsFC });
+      map.addLayer({
+        id: 'sat-circles-outline',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 6.0,
+          'circle-color': '#000',
+          'circle-opacity': 0.25
+        }
+      });
+      map.addLayer({
+        id: 'sat-circles',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 4.2,
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 0.6,
+          'circle-color': '#ff5722'
+        }
+      });
+      // 添加弹窗显示卫星信息
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+      map.on('mousemove', 'sat-circles', (e) => {
+        const f = e.features && e.features[0];
+        if (!f) return;
+        const id = f.properties.id;
+        const altitude = f.properties.altitude;
+        const [x, y] = e.lngLat.toArray();
+        popup.setLngLat([x, y])
+          .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
+          .addTo(map);
+      });
+      map.on('mouseleave', 'sat-circles', () => popup.remove());
+    });
+  })();
+  </script>
+</body>
+</html>

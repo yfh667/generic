@@ -1,0 +1,16 @@
+{
+  "satellites": [
+    {"id": "SAT_A", "lng": 0.0, "lat": 10.0, "alt": 550},
+    {"id": "SAT_B", "lng": 30.0, "lat": 20.0, "alt": 550},
+    {"id": "SAT_C", "lng": 45.0, "lat": -10.0, "alt": 550},
+    {"id": "SAT_D", "lng": -60.0, "lat": 40.0, "alt": 550},
+    {"id": "SAT_E", "lng": -100.0, "lat": -20.0, "alt": 550}
+  ],
+  "links": [
+    {"source": "SAT_A", "target": "SAT_B"},
+    {"source": "SAT_A", "target": "SAT_C"},
+    {"source": "SAT_B", "target": "SAT_C"},
+    {"source": "SAT_C", "target": "SAT_D"},
+    {"source": "SAT_D", "target": "SAT_E"}
+  ]
+}

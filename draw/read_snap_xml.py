@@ -124,7 +124,7 @@ def parse_xml_group_data(
                 sats = groups[gid]
                 # 直接遍历子元素，比多次 findall+临时集合快
                 for sat_elem in station_elem:
-                    if sat_elem.tag != "satellite":
+                    if sat_elem.tag != "basicSa":
                         continue
                     sat_id_attr = sat_elem.get("id")
                     if not sat_id_attr:
@@ -209,7 +209,7 @@ def parse_xml_group_data(
 #             # 读取并转换卫星 ID
 #             valid_ids = {
 #                 int(float(sat.get('id')))
-#                 for sat in station_elem.findall('satellite')
+#                 for sat in station_elem.findall('basicSa')
 #                 if sat.get('id') is not None
 #             }
 #

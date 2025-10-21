@@ -4,7 +4,7 @@ Batch triple-window processing with parallelism (PyCharm script version)
 
 For each consecutive triple (A,B,C) in RANGES:
   1) Read interplane_links_{A}.xml, {B}.xml, {C}.xml
-  2) Merge -> transnodes -> get_no_conflict_link_nodes3 on [A.start, C.end)
+  2) Merge -> transnodes -> get_no_conflict_link_nodes3 on [A.basicSa, C.end)
   3) Filter nodes for middle window B only
   4) Write to INPUT_DIR/modify/interplane_links_{B}.xml
 
@@ -107,7 +107,7 @@ def _process_one_triple(triple) -> str:
     # 2) fill left/right neighbors
     total_complete = transnodes.transnodes(total_nodes)
 
-    # 3) resolve conflicts on the wide window [A.start, C.end)
+    # 3) resolve conflicts on the wide window [A.basicSa, C.end)
     _, _, modified_nodes = conflict_link.get_no_conflict_link_nodes3(
         total_complete, start1, end3, TIME_2_BUILD, N, P
     )

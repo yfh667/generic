@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Satellite Network • 单幅世界地图</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- MapLibre CSS and JS -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+    /* 灰白滤镜，与 map3 保持一致 */
+    #map canvas.maplibregl-canvas {
+      filter: saturate(0%) brightness(100%) contrast(95%);
+    }
+    /* 图例样式 */
+    .legend {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .legend h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .colorbar {
+      width: 180px;
+      height: 12px;
+      border-radius: 6px;
+      margin: 6px 0 2px;
+      background: linear-gradient(90deg, #fff5e6 0%, #ffd28c 25%, #ff9b50 50%, #ff5a2a 75%, #c02b12 100%);
+      border: 1px solid #ccc;
+    }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      color: #444;
+    }
+    .key {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #d22;
+    }
+    .dot-fail {
+      background: #000;
+    }
+    .dot-normal {
+      background: #bbb;
+      border: 1px solid #888;
+    }
+    /* 左上角方向箭头 */
+    .arrow-box {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      font-size: 12px;
+    }
+    .arrow {
+      width: 50px;
+      height: 12px;
+      position: relative;
+      display: inline-block;
+      margin-left: 6px;
+      background: linear-gradient(90deg, transparent 0 70%, #222 70% 100%);
+    }
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid #222;
+      border-top: 2px solid #222;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <!-- 颜色图例 -->
+  <div class="legend">
+    <h4>Vulnerability</h4>
+    <div class="colorbar"></div>
+    <div class="ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div>
+    <div class="key"><span class="dot"></span><span>高脆弱（由算法识别）</span></div>
+    <div class="key"><span class="dot-fail"></span><span>事故导致的卫星故障</span></div>
+    <div class="key"><span class="dot dot-normal"></span><span>其它卫星</span></div>
+  </div>
+  <!-- 方向指示 -->
+  <div class="arrow-box">Direction of movement <span class="arrow"></span></div>
+  <script>
+  (async function() {
+    // 初始化 MapLibre，禁用世界复制
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: 'raster',
+            tiles: ['https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors, © CARTO'
+          }
+        },
+        layers: [
+          { id: 'bg', type: 'background', paint: { 'background-color': '#f3f3f3' } },
+          { id: 'carto', type: 'raster', source: 'carto' }
+        ]
+      },
+      center: [0, 10],
+      zoom: 1.6,
+      renderWorldCopies: false
+    });
+
+    // 生成示例卫星数据
+    function generateGrid() {
+      const features = [];
+      const failures = new Set();
+      while (failures.size < 10) failures.add(Math.floor(Math.random() * 400));
+      let idx = 0;
+      for (let lat = -60; lat <= 60; lat += 12) {
+        for (let lon = -180; lon <= 180; lon += 18) {
+          const v = Math.max(0, Math.min(1, Math.abs(Math.sin(lon * Math.PI / 180)) * 0.7 + Math.random() * 0.3));
+          features.push({
+            type: 'Feature',
+            id: idx,
+            properties: {
+              vulnerability: +v.toFixed(3),
+              failure: failures.has(idx) ? 1 : 0
+            },
+            geometry: { type: 'Point', coordinates: [lon, lat] }
+          });
+          idx++;
+        }
+      }
+      return { type: 'FeatureCollection', features };
+    }
+    function connectNeighbors(pointsFC) {
+      const Lons = 21;
+      const Lats = 11;
+      const lines = [];
+      for (let r = 0; r < Lats; r++) {
+        for (let c = 0; c < Lons; c++) {
+          const i = r * Lons + c;
+          const p = pointsFC.features[i].geometry.coordinates;
+          if (c < Lons - 1) {
+            const q = pointsFC.features[i + 1].geometry.coordinates;
+            lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [p, q] } });
+          }
+          if (r < Lats - 1) {
+            const q = pointsFC.features[i + Lons].geometry.coordinates;
+            lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [p, q] } });
+          }
+        }
+      }
+      return { type: 'FeatureCollection', features: lines };
+    }
+    const points = generateGrid();
+    const links = connectNeighbors(points);
+    map.on('load', () => {
+      map.addSource('sat_points', { type: 'geojson', data: points });
+      map.addSource('sat_links', { type: 'geojson', data: links });
+      map.addLayer({
+        id: 'sat-links',
+        type: 'line',
+        source: 'sat_links',
+        paint: {
+          'line-color': '#6e6e6e',
+          'line-width': 0.6,
+          'line-opacity': 0.35
+        }
+      });
+      map.addLayer({
+        id: 'sat-circles-outline',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 4.4,
+          'circle-color': '#000',
+          'circle-opacity': 0.18
+        }
+      });
+      map.addLayer({
+        id: 'sat-circles',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 3.0,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 0.6,
+          'circle-color': [
+            'case',
+            ['==', ['get', 'failure'], 1], '#000000',
+            ['interpolate', ['linear'], ['get', 'vulnerability'],
+              0.00, '#fff5e6',
+              0.25, '#ffd28c',
+              0.50, '#ff9b50',
+              0.75, '#ff5a2a',
+              1.00, '#c02b12'
+            ]
+          ]
+        }
+      });
+      // 鼠标悬停信息
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+      map.on('mousemove', 'sat-circles', (e) => {
+        const f = e.features && e.features[0];
+        if (!f) return;
+        const { vulnerability, failure } = f.properties;
+        const [x, y] = e.lngLat.toArray();
+        popup.setLngLat([x, y]).setHTML(
+          `<div style="font-size:12px">
+             <div><b>Vulnerability:</b> ${(+vulnerability).toFixed(3)}</div>
+             <div><b>Failure:</b> ${failure == 1 ? 'Yes' : 'No'}</div>
+           </div>`
+        ).addTo(map);
+      });
+      map.on('mouseleave', 'sat-circles', () => popup.remove());
+    });
+  })();
+  </script>
+</body>
+</html>

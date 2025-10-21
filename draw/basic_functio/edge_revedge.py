@@ -6,12 +6,12 @@ import  draw.read_snap_xml as read_snap_xml
 # def revedge2rawedge(edge_by_step,off_sets):
 #     modify_edge_by_step = {}
 #     for step, src_to_dsts in edge_by_step.items():
-#         for src, dsts in src_to_dsts.items():  # dsts是个集合
+#         for basicSa, dsts in src_to_dsts.items():  # dsts是个集合
 #             # 只取集合中的第一个（如果你确认每个集合只有一个dst的话）
 #
 #
 #
-#             modify_src = read_snap_xml.rev_modify_data(step, src, off_sets)
+#             modify_src = read_snap_xml.rev_modify_data(step, basicSa, off_sets)
 #             modify_dst = read_snap_xml.rev_modify_data(step, dst, off_sets)
 #
 #             # 先初始化

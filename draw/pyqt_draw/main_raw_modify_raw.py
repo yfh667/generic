@@ -80,9 +80,9 @@ if __name__ == "__main__":
 
     # raw_edges_by_step = {}
     # for step, edges in edges_by_step.items():  # step 是时间片
-    #     for src, dsts in edges.items():  # src 是起点
+    #     for basicSa, dsts in edges.items():  # basicSa 是起点
     #         for dst in dsts:  # dst 是终点集合里的每一个
-    #             print(step, src, dst)
+    #             print(step, basicSa, dst)
                 # 在这里做你要做的事，比如绘制、统计等
 
     # edges_by_step = {
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     for step, edges in edges_by_step.items():  # step: 时间片
         raw_edges_by_step[step] = {}
 
-        for src, dsts in edges.items():  # src: 起点id, dsts: 终点集合
+        for src, dsts in edges.items():  # basicSa: 起点id, dsts: 终点集合
             raw_src = read_snap_xml.rev_modify_data(step, src, off_sets)
 
             for dst in dsts:
@@ -183,9 +183,9 @@ if __name__ == "__main__":
                 for dst in to_remove:
                     raw_edges_by_step[k][src].remove(dst)
                     # 如果是 set()，用 discard(dst) 更安全（不存在不会报错）
-                    # raw_edges_by_step[k][src].discard(dst)
+                    # raw_edges_by_step[k][basicSa].discard(dst)
 
-    pending_links_by_step = {}  # key: step, value: dict: src -> set(dst)
+    pending_links_by_step = {}  # key: step, value: dict: basicSa -> set(dst)
 
     def xy_to_id(x, y, N):
         return x * N + y

@@ -104,10 +104,10 @@ if __name__ == "__main__":
     #
     # # 计算所有 region1->region2 节点对的最短路径
     # path_lengths = []
-    # for src in region1:
+    # for basicSa in region1:
     #     for dst in region2:
     #         try:
-    #             l = nx.shortest_path_length(G, src, dst)
+    #             l = nx.shortest_path_length(G, basicSa, dst)
     #             path_lengths.append(l)
     #         except nx.NetworkXNoPath:
     #             pass  # 跳过无路可达的情况
@@ -126,12 +126,12 @@ if __name__ == "__main__":
     #     for nbr in neighbors:
     #         G.add_edge(node, nbr)
     #
-    # src = 193
+    # basicSa = 193
     # paths = {}
     #
     # for dst in region2:
     #     try:
-    #         path = nx.shortest_path(G, src, dst)
+    #         path = nx.shortest_path(G, basicSa, dst)
     #         length = len(path) - 1
     #         paths[dst] = (length, path)
     #     except nx.NetworkXNoPath:
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # # 输出
     # for dst, (length, path) in paths.items():
     #     path_coords = [node_to_ij(n, N) for n in path]
-    #     print(f"192({node_to_ij(src, N)}) → {dst}({node_to_ij(dst, N)}): 跳数 {length}, 路径 {path_coords}")
+    #     print(f"192({node_to_ij(basicSa, N)}) → {dst}({node_to_ij(dst, N)}): 跳数 {length}, 路径 {path_coords}")
     #
     # # 平均最短跳数
     # if paths:
@@ -164,10 +164,10 @@ if __name__ == "__main__":
     #
     #     # 计算所有 region1->region2 节点对的最短路径
     #     path_lengths = []
-    #     for src in region1:
+    #     for basicSa in region1:
     #         for dst in region2:
     #             try:
-    #                 l = nx.shortest_path_length(G, src, dst)
+    #                 l = nx.shortest_path_length(G, basicSa, dst)
     #                 path_lengths.append(l)
     #             except nx.NetworkXNoPath:
     #                 pass  # 跳过无路可达的情况

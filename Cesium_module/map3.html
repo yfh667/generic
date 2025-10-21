@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Static Satellite Grid</title>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    #map { position: absolute; inset: 0; }
+    #map canvas.maplibregl-canvas {
+      filter: saturate(0%) brightness(100%) contrast(95%);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+(async function () {
+  window.mapboxgl = maplibregl;
+  const {ScatterplotLayer, ArcLayer, MapboxLayer} = deck;
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      sources: {
+        carto: {
+          type: 'raster',
+          tiles: ['https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'],
+          tileSize: 256,
+          attribution: '© CartoDB'
+        }
+      },
+      layers: [
+        {id: 'bg', type: 'background', paint: {'background-color': '#f3f3f3'}},
+        {id: 'carto', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 22}
+      ]
+    },
+    center: [0, 0], zoom: 1.6
+  });
+
+  // 模拟静态卫星数据
+  const satellites = [];
+  const vulnerable = new Set([15, 33, 48, 66]);
+  for (let i = 0; i < 100; i++) {
+    const lat = -60 + 120 * Math.random();
+    const lon = -180 + 360 * Math.random();
+    satellites.push({
+      position: [lon, lat],
+      isVulnerable: vulnerable.has(i)
+    });
+  }
+
+  const layerSatellites = new MapboxLayer({
+    id: 'sat-points',
+    type: ScatterplotLayer,
+    data: satellites,
+    getPosition: d => d.position,
+    getRadius: 6,
+    radiusUnits: 'pixels',
+    getFillColor: d => d.isVulnerable ? [255, 0, 0, 255] : [255, 255, 255, 255],
+    getLineColor: [51, 51, 51, 255],
+    lineWidthMinPixels: 1,
+    pickable: true
+  });
+
+  map.on('load', () => {
+    map.addLayer(layerSatellites);
+  });
+})();
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 - 子进程：每个任务只读自己的切片 .pkl + 自己的 config.json，跑完整流水线并写出 XML。
 
 注意：
-- CONFIG_DIR 我设为 INPUT_DIR/config（与 TTB 无关，所有 TTB 复用同一套 {start}_{end}.json）
+- CONFIG_DIR 我设为 INPUT_DIR/config（与 TTB 无关，所有 TTB 复用同一套 {basicSa}_{end}.json）
 - 输出目录按 TTB 建：INPUT_DIR/topology_{TTB}/raw
 """
 
@@ -55,7 +55,7 @@ import draw.basic_functio.get_rectangular_size_interval as get_rectangular_size_
 import draw.basic_functio.conflict_link as conflict_link
 # =============== 工具函数 ===============
 def _slice_group_data(raw_group_data: dict, start: int, end: int) -> dict:
-    """从完整 group_data 中裁剪 [start, end)（保持你原来的结构：{step: {'groups': {gid:set}, 'all_mentioned': set}}）"""
+    """从完整 group_data 中裁剪 [basicSa, end)（保持你原来的结构：{step: {'groups': {gid:set}, 'all_mentioned': set}}）"""
     return {
         step: raw_group_data[step]
         for step in range(start, end)
@@ -104,7 +104,7 @@ def _worker_one_range(ttb: int, start_ts: int, end_ts: int, pkl_path: str, out_d
     if not group_data:
         raise RuntimeError(f"空切片: {pkl_path}")
 
-    # 2) 配置（约定放在 CONFIG_DIR/{start}_{end}.json）
+    # 2) 配置（约定放在 CONFIG_DIR/{basicSa}_{end}.json）
     cfg_path = CONFIG_DIR / f"{start_ts}_{end_ts}.json"
     if not cfg_path.exists():
         raise FileNotFoundError(f"缺少配置文件: {cfg_path}")

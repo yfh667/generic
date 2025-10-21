@@ -447,7 +447,7 @@ if __name__ == "__main__":
         group_data = read_snap_xml.modify_group_data(group_data, N=36,groupid=4)
         if not group_data:
             print(f"Error: No valid group visibility paper_dataresult parsed from {xml_file}.")
-            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'satellite' paper_dataresult.")
+            print("Please check if the XML file exists and contains 'time' elements with 'stations' and 'basicSa' paper_dataresult.")
             sys.exit(1) # 退出程序如果解析失败或没有数据
 
         # 绘制可视化图

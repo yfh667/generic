@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium Satellite Example</title>
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        /* 确保HTML和body元素充满整个屏幕 */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* 确保Cesium容器充满整个屏幕 */
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <script>
+        Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            shouldAnimate: true,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            baseLayerPicker: false,
+            navigationHelpButton: false,
+            timeline: false,
+            fullscreenButton: false,
+            animation: false,
+            infoBox: false,
+        });
+
+        // 创建并添加一个卫星实体到场景
+        const satellitePosition = Cesium.Cartesian3.fromElements(-1765547.893, -3641932.184, -5663452.269);
+        viewer.entities.add({
+            position: satellitePosition,
+            point: { // 使用点代替模型进行简化展示
+                pixelSize: 10,
+                color: Cesium.Color.WHITE,
+            },
+            label: {
+                text: 'Satellite',
+                font: '14pt sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                style: Cesium.LabelStyle.FILL,
+                outlineWidth: 2,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10)
+            }
+        });
+
+        // 调整相机视角以便全屏显示卫星
+        viewer.camera.flyTo({
+            destination: satellitePosition,
+            orientation: {
+                heading: Cesium.Math.toRadians(0),
+                pitch: Cesium.Math.toRadians(-90),
+                roll: 0.0
+            },
+            complete: function() {
+                viewer.camera.zoomOut(5000000); // 根据需要调整数值以改变初始缩放级别
+            }
+        });
+    </script>
+</body>
+</html>

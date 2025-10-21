@@ -52,7 +52,7 @@ class Onetopology(QtWidgets.QWidget):
         self._active_step = None  # 当前使用的 step key（从 edges_by_step 里选一个）
 
         # 新增：无 step 的边存储
-        self.edges = {}  # {src: {dst, ...}, ...}
+        self.edges = {}  # {basicSa: {dst, ...}, ...}
         self.pending_links = {}  # 可选虚线边，同结构
         self._init_ui_core()
 
@@ -68,12 +68,12 @@ class Onetopology(QtWidgets.QWidget):
     def edges_by_step(self, value):
         d = value or {}
 
-        # 情况1：传进来就是单层 {src: set(dst)}
+        # 情况1：传进来就是单层 {basicSa: set(dst)}
         if d and all(isinstance(v, set) for v in d.values()):
             self._edges_by_step = {0: d}
             step = 0
         else:
-            # 情况2：两层 {step: {src: set(dst)}}
+            # 情况2：两层 {step: {basicSa: set(dst)}}
             self._edges_by_step = d
             if not self._edges_by_step:
                 # 清空
@@ -95,7 +95,7 @@ class Onetopology(QtWidgets.QWidget):
         if hasattr(self, 'draw_edges'):
             self.draw_edges(step, self._edges_by_step[step])
         elif hasattr(self, '_redraw_edges'):
-            self.edges = self._edges_by_step[step]  # dict: src -> set(dst)
+            self.edges = self._edges_by_step[step]  # dict: basicSa -> set(dst)
             self.pending_links = getattr(self, 'pending_links_by_step', {}).get(step, {})
             self._redraw_edges()
 

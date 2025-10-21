@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 按 RANGES 逐段运行：
-1) 读取配置 (INPUT_DIR/<VERSION>/config/{start}_{end}.json)
+1) 读取配置 (INPUT_DIR/<VERSION>/config/{basicSa}_{end}.json)
 2) modify_group_data -> motifs -> 同构边
 3) 反变换为原始边 + 建链时间约束 + 包络矩形约束
-4) 边->节点 并写出 XML 到 RAW_DIR (INPUT_DIR/<VERSION>/raw/interplane_links_{start}_{end}.xml)
+4) 边->节点 并写出 XML 到 RAW_DIR (INPUT_DIR/<VERSION>/raw/interplane_links_{basicSa}_{end}.xml)
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ import draw.basic_functio.write2xml as write2xml
 
 # ========= 工具函数 =========
 def slice_group_data(raw_group_data: dict, start: int, end: int) -> dict:
-    """裁剪时间区间 [start, end)"""
+    """裁剪时间区间 [basicSa, end)"""
     return {step: raw_group_data[step] for step in range(start, end) if step in raw_group_data}
 
 def process_one_range(raw_group_data: dict, start_ts: int, end_ts: int) -> str:

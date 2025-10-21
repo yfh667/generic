@@ -10,8 +10,8 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("-t", "--ttb", type=int, required=True,
                     help="time-to-build (seconds), e.g. 30/40/.../140")
-parser.add_argument("--start", type=int, default=0,
-                    help="global start step (default: 0)")
+parser.add_argument("--basicSa", type=int, default=0,
+                    help="global basicSa step (default: 0)")
 parser.add_argument("--end", type=int, default=22005,
                     help="global end step (default: 22005)")
 args = parser.parse_args()
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"XML not found: {xml_file}")
 
     def slice_group_data(raw_group_data, start, end):
-        """裁剪时间区间 [start, end)"""
+        """裁剪时间区间 [basicSa, end)"""
         return {step: raw_group_data[step] for step in range(start, end) if step in raw_group_data}
 
     # 解析“组数据”
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         totalnode, RAW_START, RAW_END, TIME_2_BUILD, P, N
     )
 
-    # 裁剪展示区间（如果你只想展示子区间，可以改 start/end）
+    # 裁剪展示区间（如果你只想展示子区间，可以改 basicSa/end）
     group_data = slice_group_data(raw_group_data, RAW_START, RAW_END)
 
     # ===== Qt 与可视化 =====

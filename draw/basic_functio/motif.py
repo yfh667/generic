@@ -35,6 +35,11 @@ def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
 
         nextnode_x = x + 2
         nextnode_y = y
+      # 4-2
+    elif option == 4:
+
+        nextnode_x = x + 1
+        nextnode_y = (y+1) % N
 
 
     if nextnode_x < x_min or nextnode_x > x_max:
@@ -67,7 +72,7 @@ def setnode_node(start_x, start_y, end_x, end_y, nodes):
     old_e = nodes[s].rightneighbor
     if old_e is not None and old_e in nodes and nodes[old_e].leftneighbor == s:
         nodes[old_e].leftneighbor = None
-    # e 之前的旧 start
+    # e 之前的旧 basicSa
     old_s = nodes[e].leftneighbor
     if old_s is not None and old_s in nodes and nodes[old_s].rightneighbor == e:
         nodes[old_s].rightneighbor = None

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script src="Cesium/Cesium.js"></script>
+  <link href="Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <style>
+    html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; }
+    * { box-sizing: border-box; }
+  </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<script>
+  Cesium.Ion.defaultAccessToken =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+  // === 2D（Web Mercator）===
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    sceneMode: Cesium.SceneMode.SCENE2D,
+    mapProjection: new Cesium.WebMercatorProjection(),
+    skyBox: false,
+    skyAtmosphere: false,
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: true,          // 打开 Home 按钮
+    infoBox: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    shouldAnimate: true,
+    contextOptions: { webgl: { alpha: true } }
+  });
+
+  // 背景/底图
+  const scene = viewer.scene;
+  scene.backgroundColor = Cesium.Color.WHITE;
+  const globe = scene.globe;
+  globe.imageryLayers.removeAll();
+  globe.baseColor = Cesium.Color.WHITE;
+
+  const outlineLayer = globe.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({
+      url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+      credit: '© CartoDB'
+    })
+  );
+  outlineLayer.alpha = 1.0;
+  outlineLayer.brightness = 1.0;
+
+  // 2D 设置：允许超远缩小 + 无限平铺
+  const ssc = scene.screenSpaceCameraController;
+  ssc.enableTilt = false;
+  ssc.enableZoom = true;
+  ssc.minimumZoomDistance = 1;        // 贴近
+  ssc.maximumZoomDistance = Number.POSITIVE_INFINITY; // 不设上限
+  ssc.zoomFactor = 10;                // 放大滚轮缩放速度
+  scene.mapMode2D = Cesium.MapMode2D.INFINITE_SCROLL; // 水平无限平铺
+
+  // —— 定义全局“超远景”Home 视角（两幅地球宽度）——
+  function setUltraWideHome() {
+    // 纬度在 WebMercator 下最大约 ±85
+    const north = 85.0, south = -85.0;
+    // 宽度 = [-360, +360]（两幅地球），看起来更“远”
+    const west  = -360.0, east = 360.0;
+    const rect = Cesium.Rectangle.fromDegrees(west, south, east, north);
+    viewer.camera.setView({ destination: rect });
+  }
+
+  // 覆盖 Home 按钮行为为“超远景”
+  viewer.homeButton.viewModel.command.beforeExecute.addEventListener(function(e) {
+    e.cancel = true;
+    setUltraWideHome();
+  });
+
+  // 初始就给一个超远景
+  setUltraWideHome();
+
+  // 加载 CZML（注意：不再 flyTo，以免被拉近）
+  Cesium.CzmlDataSource.load('Cesium/satellite_trajectory.czml').then(function (czmlData) {
+    viewer.dataSources.add(czmlData);
+    viewer.clock.shouldAnimate = true;
+
+    // 给卫星一个点样式 + 轨迹（按需）
+    czmlData.entities.values.forEach(function (entity) {
+      if (!entity.position) return;
+
+      if (!entity.point && !entity.billboard) {
+        entity.point = new Cesium.PointGraphics({
+          pixelSize: 6,
+          color: Cesium.Color.fromCssColorString('#1f77b4'),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 1.5,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        });
+      }
+
+      if (!entity.path) {
+        entity.path = new Cesium.PathGraphics({
+          leadTime: 0,
+          trailTime: 3600,
+          width: 1.0,
+          material: Cesium.Color.GRAY.withAlpha(0.6)
+        });
+      }
+    });
+
+    // 仍保持超远景
+    setUltraWideHome();
+  }).catch(function (err) {
+    console.error('Failed to load CZML file:', err);
+  });
+
+  // 分辨率缩放
+  viewer.resolutionScale = window.devicePixelRatio;
+
+  // 快捷键：G 回到超远景
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'g' || e.key === 'G') setUltraWideHome();
+  });
+</script>
+</body>
+</html>

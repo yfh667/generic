@@ -3,12 +3,12 @@
 Parallel runner for independent (start_ts, end_ts) ranges.
 
 For each range:
-  - load config: INPUT_DIR/<VERSION>/config/{start}_{end}.json
-  - read group_data from raw XML for [start, end)
+  - load config: INPUT_DIR/<VERSION>/config/{basicSa}_{end}.json
+  - read group_data from raw XML for [basicSa, end)
   - modify_group_data -> motifs -> rev_inter_edge
   - revedge2rawedge -> get_no_conflict_link (time_2_build + envelopes)
   - edges -> nodes
-  - write XML to: INPUT_DIR/<VERSION>/raw/interplane_links_{start}_{end}.xml
+  - write XML to: INPUT_DIR/<VERSION>/raw/interplane_links_{basicSa}_{end}.xml
 """
 
 from __future__ import annotations

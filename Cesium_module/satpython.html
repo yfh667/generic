@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium White Earth Demo</title>
+    <script src="Cesium/Cesium.js"></script>
+    <script src="Cesium/cesium-sensor-volumes.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<script>
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+    // 初始化Viewer并配置白色地球
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+        skyBox: false,              // 关闭天空盒
+        skyAtmosphere: false,       // 关闭大气效果
+        baseLayerPicker: false,     // 隐藏底图选择器
+        geocoder: false,            // 隐藏地理编码搜索框
+        homeButton: false,          // 隐藏主页按钮
+        sceneModePicker: false,     // 隐藏场景模式选择器
+        navigationHelpButton: false,// 隐藏导航帮助
+        timeline: false,            // 隐藏时间线
+        fullscreenButton: false,    // 隐藏全屏按钮
+        animation: false,           // 隐藏动画控件
+        infoBox: false,             // 隐藏信息框
+        shouldAnimate: true         // 启用场景动画
+    });
+
+    // 设置白色背景
+    viewer.scene.backgroundColor = Cesium.Color.WHITE;
+
+    // 配置地球底图
+    const globe = viewer.scene.globe;
+    globe.imageryLayers.removeAll();  // 移除默认影像
+    globe.baseColor = Cesium.Color.WHITE;  // 设置地球底色
+
+    // 添加浅色轮廓底图（CartoDB Light）
+    globe.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+            credit: '© CartoDB'
+        })
+    );
+
+    // 实体管理
+    const groundStationEntities = {};
+    const satelliteEntities = {};
+    const lineEntities = {};
+    const satelliteConicSensors = {};
+    const satangle = 45;  // 卫星传感器角度
+
+    // WebSocket连接
+    const socket = new WebSocket("ws://localhost:8765");
+    socket.onopen = () => console.log("WebSocket连接已建立");
+    socket.onclose = () => console.log("WebSocket连接已关闭");
+
+    // 处理数据更新
+    socket.onmessage = (event) => {
+        //console.log("收到原始数据:", event.data); // 打印原始数据
+        const data = JSON.parse(event.data);
+        console.log("Parsed stations data:", data.stations); // 新增验证
+        updateStationsAndSatellites(event);
+        updateLineEntities(event);
+        //  socket.send("ACK");
+    };
+
+    // 更新地面站和卫星位置
+    function updateStationsAndSatellites(event) {
+        const data = JSON.parse(event.data);
+
+        // 处理地面站
+        data.stations.forEach(station => {
+            const id = station.id.toUpperCase();
+            const position = Cesium.Cartesian3.fromElements(...station.position);
+
+            if (!groundStationEntities[id]) {
+                groundStationEntities[id] = viewer.entities.add({
+                    position: position,
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.RED
+                    },
+                    label: {
+                        text: id,
+                        font: '12pt sans-serif',
+                        fillColor: Cesium.Color.BLACK,
+                        style: Cesium.LabelStyle.FILL,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                    }
+                });
+            } else {
+                groundStationEntities[id].position = position;
+            }
+        });
+
+        // 处理卫星（关键修改点）
+        data.sats.forEach(satellite => {
+            //      const rawId = satellite.id; // 获取原始ID
+            //      const id2 = rawId.toUpperCase();
+            //      console.log(`处理卫星:
+            // 原始ID: ${rawId}
+            // 转换后ID: ${id2}
+            // 是否已存在: ${satelliteEntities[id2] ? '是' : '否'}`);
+
+
+            const id = satellite.id.toUpperCase();
+            const position = Cesium.Cartesian3.fromElements(...satellite.position);
+
+            // 更新卫星本体
+            if (!satelliteEntities[id]) {
+                satelliteEntities[id] = viewer.entities.add({
+                    position: position,
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.BLACK,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: id,
+                        font: '10pt sans-serif',
+                        fillColor: Cesium.Color.BLACK,
+                        style: Cesium.LabelStyle.FILL,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                    }
+                });
+            } else {
+                // 更新卫星位置时同步更新传感器
+                satelliteEntities[id].position = position;
+            }
+
+            // ====================== 关键修改开始 ======================
+            // 更新/创建传感器
+            if (satelliteConicSensors[id]) {
+                // 更新现有传感器位置和方向
+                satelliteConicSensors[id].position = position;
+
+                // 动态计算传感器朝向（始终指向地心）
+                const orientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    position,
+                    new Cesium.HeadingPitchRoll(
+                        0,
+                        Cesium.Math.toRadians(180), // 俯仰角180度指向地心
+                        0
+                    )
+                );
+                satelliteConicSensors[id].orientation = orientation;
+            } else {
+                // 创建新传感器
+                const orientation = Cesium.Transforms.headingPitchRollQuaternion(
+                    position,
+                    new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(180), 0)
+                );
+
+                satelliteConicSensors[id] = viewer.entities.add({
+                    position: position,
+                    orientation: new Cesium.CallbackProperty(function() {
+                        return Cesium.Transforms.headingPitchRollQuaternion(
+                            position,
+                            new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(180), 0)
+                        );
+                    }, false),
+                    conicSensor: new CesiumSensorVolumes.ConicSensorGraphics({
+                        radius: 10030000,
+                        innerHalfAngle: 0,
+                        outerHalfAngle: Cesium.Math.toRadians(satangle),
+                        lateralSurfaceMaterial: Cesium.Color.GOLD.withAlpha(0.15)
+                    })
+                });
+            }
+            // ====================== 关键修改结束 ======================
+        });
+    }
+
+
+    // 更新连接线
+    function updateLineEntities(event) {
+        const data = JSON.parse(event.data);
+        const currentLines = new Set();
+        const stationCount = data.stations.length;
+
+        // 处理卫星间的激光链路（从下标1开始）
+        data.sats.forEach(satellite => {
+            const sourceId = satellite.id.toUpperCase();
+
+            // 从索引1开始遍历，跳过星地微波链路
+            for (let i = 1; i < satellite.link_array.length; i++) {
+                const targetIndex = satellite.link_array[i];
+                if (targetIndex === -1) continue;
+
+                // 确认目标是卫星（索引超出地面站总数）
+                if (targetIndex < stationCount) {
+                    console.warn(`卫星间链路指向地面站，索引: ${targetIndex}`);
+                    continue;
+                }
+
+                const satIndex = targetIndex - stationCount;
+                if (satIndex >= data.sats.length) {
+                    console.warn(`无效卫星索引: ${satIndex}`);
+                    continue;
+                }
+
+                const targetId = data.sats[satIndex].id.toUpperCase();
+                const lineId = [sourceId, targetId].sort().join('_');
+                currentLines.add(lineId);
+
+                if (!lineEntities[lineId]) {
+                    lineEntities[lineId] = viewer.entities.add({
+                        polyline: {
+                            positions: new Cesium.CallbackProperty(() => [
+                                satelliteEntities[sourceId].position.getValue(Cesium.JulianDate.now()),
+                                satelliteEntities[targetId].position.getValue(Cesium.JulianDate.now())
+                            ], false),
+                            width: 2,
+                            material: Cesium.Color.RED,  // 用颜色区分激光链路
+                            arcType: Cesium.ArcType.NONE
+                        }
+                    });
+                }
+            }
+        });
+
+        // 处理地面站的星地微波链路（仅link_array[0]）
+        data.stations.forEach(station => {
+            const sourceId = station.id.toUpperCase();
+            const targetIndex = station.link_array[0];  // 只处理第一个元素
+
+            if (targetIndex === -1 || targetIndex < stationCount) {
+                console.log(`地面站未连接卫星或索引无效: ${targetIndex}`);
+                return;
+            }
+
+            const satIndex = targetIndex - stationCount;
+            if (satIndex >= data.sats.length) {
+                console.warn(`无效卫星索引: ${satIndex}`);
+                return;
+            }
+
+            const targetId = data.sats[satIndex].id.toUpperCase();
+            const lineId = [sourceId, targetId].sort().join('_');
+            currentLines.add(lineId);
+
+            if (!lineEntities[lineId]) {
+                lineEntities[lineId] = viewer.entities.add({
+                    polyline: {
+                        positions: new Cesium.CallbackProperty(() => [
+                            groundStationEntities[sourceId].position.getValue(Cesium.JulianDate.now()),
+                            satelliteEntities[targetId].position.getValue(Cesium.JulianDate.now())
+                        ], false),
+                        width: 2,
+                        material: Cesium.Color.YELLOW,  // 微波链路保持黄色
+                        arcType: Cesium.ArcType.NONE
+                    }
+                });
+            }
+        });
+
+        // 清理旧连线
+        Object.keys(lineEntities).forEach(lineId => {
+            if (!currentLines.has(lineId)) {
+                viewer.entities.remove(lineEntities[lineId]);
+                delete lineEntities[lineId];
+            }
+        });
+    }
+
+
+    // 初始视角设置（中国上空）
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000),
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-90),
+            roll: 0.0
+        }
+    });
+</script>
+</body>
+</html>

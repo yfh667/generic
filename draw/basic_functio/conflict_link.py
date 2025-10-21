@@ -8,9 +8,9 @@ import genaric2.tegnode as tegnode
 #     ### then ,we need arange the link reconfiguration,that means,we need arrrange the restablish limitation for the
 #     nodes = {}
 #     for step, edges in raw_edges_by_step.items():
-#         for src, dsts in edges.items():
-#             x1 = src // N
-#             y1 = src % N
+#         for basicSa, dsts in edges.items():
+#             x1 = basicSa // N
+#             y1 = basicSa % N
 #             for dst in dsts:
 #                 x2 = dst // N
 #                 y2 = dst % N
@@ -112,14 +112,14 @@ import genaric2.tegnode as tegnode
 #         for i, j, old, new in changes:
 #             if  new:
 #                 new_dst_id = xy_to_id(*new, N)
-#                 src = i * N + j
+#                 basicSa = i * N + j
 #                 # 标记建链区间内该链路为“pending”
 #                 for k in range(newtime, step):
 #                     if k not in pending_links_by_step:
 #                         pending_links_by_step[k] = {}
-#                     if src not in pending_links_by_step[k]:
-#                         pending_links_by_step[k][src] = set()
-#                     pending_links_by_step[k][src].add(new_dst_id)
+#                     if basicSa not in pending_links_by_step[k]:
+#                         pending_links_by_step[k][basicSa] = set()
+#                     pending_links_by_step[k][basicSa].add(new_dst_id)
 #
 #     for step, changes in allchange.items():
 #         print(f"{step}:")
@@ -128,16 +128,16 @@ import genaric2.tegnode as tegnode
 #             continue
 #         for i, j, old, new in changes:
 #             for k in range(newtime, step):
-#                 src = i * N + j
+#                 basicSa = i * N + j
 #                 # 遍历当前时间k下src的所有目标（dsts 是个 set）
-#                 dsts = raw_edges_by_step[k].get(src, set())
+#                 dsts = raw_edges_by_step[k].get(basicSa, set())
 #                 # 生成需要删除的dst列表（横向链路，即目的节点横坐标和src不一样）
 #                 to_remove = [dst for dst in dsts if dst // N != i]
 #                 # 遍历删除
 #                 for dst in to_remove:
-#                     raw_edges_by_step[k][src].remove(dst)
+#                     raw_edges_by_step[k][basicSa].remove(dst)
 #                     # 如果是 set()，用 discard(dst) 更安全（不存在不会报错）
-#                     # raw_edges_by_step[k][src].discard(dst)
+#                     # raw_edges_by_step[k][basicSa].discard(dst)
 #
 #
 #     return raw_edges_by_step,pending_links_by_step

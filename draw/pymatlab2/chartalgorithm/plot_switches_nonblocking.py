@@ -165,13 +165,13 @@ def _count_snapshot_edges(ed: Any) -> int:
     """
     统计某一时刻的 pending 边数量。
     兼容这几种形态：
-      - {src: set(dst) / list(dst) / tuple(dst) / dict(...)}
+      - {basicSa: set(dst) / list(dst) / tuple(dst) / dict(...)}
       - 直接是 set/list/tuple/dict
       - 直接是整数
     """
     if ed is None:
         return 0
-    # 典型：{src: set(dst)}
+    # 典型：{basicSa: set(dst)}
     if isinstance(ed, dict):
         s = 0
         for dsts in ed.values():
@@ -321,8 +321,8 @@ def export_pending_series_to_origin(
 # ):
 #     """
 #     统计并绘制 pending_edges 的逐秒数量曲线。
-#     pending_edges[t] 的典型结构为: dict {src: set(dst)}，也兼容:
-#       - {src: list/tuple/dict-of-dst}
+#     pending_edges[t] 的典型结构为: dict {basicSa: set(dst)}，也兼容:
+#       - {basicSa: list/tuple/dict-of-dst}
 #       - 直接是整数（已统计好的数量）
 #     """
 #     # ---- 安全导入（避免全局依赖）----
@@ -350,7 +350,7 @@ def export_pending_series_to_origin(
 #     # ---- 与你原函数等价的计数逻辑（更健壮）----
 #     def count_edges_at_t(t):
 #         ed = pending_edges.get(t, {})
-#         # 1) dict: {src: 可迭代的目的集合 或 已计数的整数}
+#         # 1) dict: {basicSa: 可迭代的目的集合 或 已计数的整数}
 #         if isinstance(ed, dict):
 #             total = 0
 #             for dsts in ed.values():

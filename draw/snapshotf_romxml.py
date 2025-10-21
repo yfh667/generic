@@ -25,7 +25,7 @@ def extract_region_satellites_from_file(xml_file_path, target_ts):
         5: set(range(17, 19))  # Region 5: stations 18-20
     }
 
-    # Initialize a list of sets to store unique satellite IDs for each region
+    # Initialize a list of sets to store unique basicSa IDs for each region
     # Using sets automatically handles uniqueness
     region_satellites = [set() for _ in range(len(regions_map))]
 
@@ -61,15 +61,15 @@ def extract_region_satellites_from_file(xml_file_path, target_ts):
                     for region_idx, station_ids_in_region in regions_map.items():
                         if station_id in station_ids_in_region:
                             # If the station is in this region, collect its satellites
-                            for satellite_element in station_element.findall('satellite'):
+                            for satellite_element in station_element.findall('basicSa'):
                                 satellite_id_str = satellite_element.get('id')
                                 if satellite_id_str is not None:
                                     try:
-                                        # Convert satellite ID to float and add to the region's set
+                                        # Convert basicSa ID to float and add to the region's set
                                         region_satellites[region_idx].add(float(satellite_id_str))
                                     except ValueError:
-                                        print(f"Warning: Skipping satellite with non-float id: {satellite_id_str} in station {station_id}")
-                                        continue # Skip if satellite id is not a valid float
+                                        print(f"Warning: Skipping basicSa with non-float id: {satellite_id_str} in station {station_id}")
+                                        continue # Skip if basicSa id is not a valid float
                             # Once a station is found in a region, no need to check other regions
                             break
         else:
@@ -92,7 +92,7 @@ def extract_region_satellites_from_file(xml_file_path, target_ts):
     # Convert the sets of satellites to sorted lists
     result_lists = []
     for sat_set in region_satellites:
-        # Sort the satellite IDs numerically before converting back to list
+        # Sort the basicSa IDs numerically before converting back to list
         sorted_sats = sorted(list(sat_set))
         result_lists.append(sorted_sats)
 
@@ -159,15 +159,15 @@ def extract_region_satellites_from_file(xml_file_path, start_ts, end_ts):
                         for region_idx, station_ids_in_region in regions_map.items():
                             if station_id in station_ids_in_region:
                                 # If the station is in this region, collect its satellites
-                                for satellite_element in station_element.findall('satellite'):
+                                for satellite_element in station_element.findall('basicSa'):
                                     satellite_id_str = satellite_element.get('id')
                                     if satellite_id_str is not None:
                                         try:
-                                            # Convert satellite ID to float and add to the region's set
+                                            # Convert basicSa ID to float and add to the region's set
                                             region_satellites[region_idx].add(float(satellite_id_str))
                                         except ValueError:
-                                            print(f"Warning: Skipping satellite with non-float id: {satellite_id_str} in station {station_id}")
-                                            continue # Skip if satellite id is not a valid float
+                                            print(f"Warning: Skipping basicSa with non-float id: {satellite_id_str} in station {station_id}")
+                                            continue # Skip if basicSa id is not a valid float
                                 # Once a station is found in a region, no need to check other regions
                                 break
                 result_lists.append([sorted(list(sat_set)) for sat_set in region_satellites])

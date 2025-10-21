@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+</head>
+<body>
+<div id="cesiumContainer" style="width: 100%; height: 100%;"></div>
+<script>
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        skyBox: false,
+        skyAtmosphere: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        infoBox: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        shouldAnimate: true,
+        contextOptions: {
+            webgl: {
+                alpha: true
+            }
+        }
+    });
+
+    var scene = viewer.scene;
+    scene.backgroundColor = Cesium.Color.WHITE;
+
+    var globe = viewer.scene.globe;
+    globe.imageryLayers.removeAll();
+    globe.baseColor = Cesium.Color.WHITE;
+
+    // 使用 CartoDB Positron 无标注图层
+    var outlineLayer = globe.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', // 无文字标注的简洁图层
+            credit: '© CartoDB'
+        })
+    );
+
+    // 调整亮度和透明度
+    outlineLayer.alpha = 1.0; // 完全不透明
+    outlineLayer.brightness = 1; // 提高亮度，确保清晰显示
+    // 加载 CZML 文件以显示单一卫星的动态轨迹
+    Cesium.CzmlDataSource.load('Cesium/satellite_trajectory.czml').then(function(czmlData) {
+        viewer.dataSources.add(czmlData);
+
+        // 自动调整视角到 CZML 数据范围
+        viewer.clock.shouldAnimate = true;  // 开始播放动画
+        viewer.flyTo(czmlData, {
+            offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-90), 10000000)
+        });
+        // 设置特定连线的 arcType 为 NONE 以确保直线显示
+        const linkEntity = czmlData.entities.getById('link-sat1-sat2');
+        if (linkEntity && linkEntity.polyline) {
+            linkEntity.polyline.arcType = Cesium.ArcType.NONE;
+        }
+
+    }).catch(function(error) {
+        console.error("Failed to load CZML file:", error);
+    });
+
+
+    // 设置初始视角
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(19.57, 10.32, 20000000.0), // 默认视角 - 非洲
+    });
+
+    viewer.resolutionScale = window.devicePixelRatio;
+</script>
+</body>
+</html>

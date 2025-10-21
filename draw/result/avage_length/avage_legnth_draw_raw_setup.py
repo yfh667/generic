@@ -157,9 +157,9 @@ if __name__ == "__main__":
                 for dst in to_remove:
                     raw_edges_by_step[k][src].remove(dst)
                     # 如果是 set()，用 discard(dst) 更安全（不存在不会报错）
-                    # raw_edges_by_step[k][src].discard(dst)
+                    # raw_edges_by_step[k][basicSa].discard(dst)
 
-    pending_links_by_step = {}  # key: step, value: dict: src -> set(dst)
+    pending_links_by_step = {}  # key: step, value: dict: basicSa -> set(dst)
 
 
     def xy_to_id(x, y, N):

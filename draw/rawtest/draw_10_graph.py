@@ -19,7 +19,7 @@ end_ts = 1523
 
 dummy_file_name = "E:\\code\\data\\station_visible_satellites_100_test.xml"
 
-# Extract and print the satellite lists for each region from the file
+# Extract and print the basicSa lists for each region from the file
 
 
 # Assuming snapshotf_romxml.extract_region_satellites_from_file returns the relevant paper_dataresult

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cesium Satellite Example</title>
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <script>
+        Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            shouldAnimate: true,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            baseLayerPicker: false,
+            navigationHelpButton: false,
+            timeline: false,
+            fullscreenButton: false,
+            animation: false,
+            infoBox: false,
+        });
+
+        // 第一颗卫星
+        viewer.entities.add({
+            position: Cesium.Cartesian3.fromElements(253872.251 ,2453298.167 ,-6509408.420),
+            point: {
+                pixelSize: 10,
+                color: Cesium.Color.WHITE,
+            },
+            label: {
+                text: 'Satellite 1',
+                font: '14pt sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                style: Cesium.LabelStyle.FILL,
+                outlineWidth: 2,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10)
+            }
+        });
+
+        // 第二颗卫星
+        viewer.entities.add({
+            position: Cesium.Cartesian3.fromElements(84592.300, 1974343.595 ,-6674603.547),
+            point: {
+                pixelSize: 10,
+                color: Cesium.Color.RED, // 用不同的颜色区分第二颗卫星
+            },
+            label: {
+                text: 'Satellite 2',
+                font: '14pt sans-serif',
+                fillColor: Cesium.Color.RED, // 标签颜色与点颜色相同
+                style: Cesium.LabelStyle.FILL,
+                outlineWidth: 2,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10)
+            }
+        });
+
+        // 设置相机初始视角
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromElements(-1765547.893, -3641932.184, -5663452.269),
+            complete: function() {
+                viewer.camera.zoomOut(7000000); // 调整数值以改变初始缩放级别，确保两颗卫星都在视野内
+            }
+        });
+    </script>
+</body>
+</html>
