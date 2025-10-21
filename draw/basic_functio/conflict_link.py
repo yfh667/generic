@@ -183,7 +183,7 @@ def adjust_link_nodes(i, j, step, nodes, time2setup, start_ts, end_ts, option=0)
 
 
 
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 
 import draw.basic_functio.motif as motif
 

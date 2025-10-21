@@ -8,7 +8,7 @@ from PyQt5 import QtWidgets
 import pyqtgraph as pg
 
 from draw.pyqt_draw.pyqt_main2 import SatelliteViewer
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 
 pg.setConfigOptions(antialias=True)          # 保险：不开 OpenGL
 # pg.setConfigOptions(useOpenGL=False)       # 若你机器上有 OpenGL/驱动问题，可显式关掉

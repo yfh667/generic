@@ -43,7 +43,7 @@ SLICE_DIR = Path(INPUT_DIR) / "cache_slices"
 SLICE_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============== 业务依赖 ===============
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.basic_functio.motif as motif
 import draw.basic_functio.topology_config as topology_config
 import draw.basic_functio.revdata2rawdata as revdata2rawdata

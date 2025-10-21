@@ -144,7 +144,7 @@
     });
 
     // 读取外部数据文件
-    const response = await fetch('./satellite_network.json');
+    const response = await fetch('./snapshot_100.json');
     const data = await response.json();
     const satellites = data.satellites;
     const links = data.links;
@@ -184,6 +184,8 @@
     map.on('load', () => {
       // 添加卫星连接线源及图层
       map.addSource('sat_links', { type: 'geojson', data: linesFC });
+
+
       map.addLayer({
         id: 'sat-links',
         type: 'line',
@@ -196,27 +198,30 @@
       });
       // 添加卫星点源及图层
       map.addSource('sat_points', { type: 'geojson', data: pointsFC });
-      map.addLayer({
-        id: 'sat-circles-outline',
-        type: 'circle',
-        source: 'sat_points',
-        paint: {
-          'circle-radius': 6.0,
-          'circle-color': '#000',
-          'circle-opacity': 0.25
-        }
-      });
-      map.addLayer({
-        id: 'sat-circles',
-        type: 'circle',
-        source: 'sat_points',
-        paint: {
-          'circle-radius': 4.2,
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 0.6,
-          'circle-color': '#ff5722'
-        }
-      });
+// map.addLayer({
+//   id: 'sat-circles-outline',
+//   type: 'circle',
+//   source: 'sat_points',
+//   paint: {
+//     'circle-radius': 6.0,
+//     'circle-color': 'rgba(0,0,0,0)',       // 不填充
+//     'circle-stroke-color': '#000',         // 外圈颜色
+//     'circle-stroke-width': 2.2,            // 外圈粗一点
+//     'circle-stroke-opacity': 0.25          // 柔和些
+//   }
+// });
+map.addLayer({
+  id: 'sat-circles',
+  type: 'circle',
+  source: 'sat_points',
+  paint: {
+    'circle-radius': 4.2,
+    'circle-color': 'rgba(0,0,0,0)',       // 透明 → 空心
+    'circle-stroke-color': '#ff5722',      // 你原来的橙色
+    'circle-stroke-width': 1.6,            // 细一点的描边
+    'circle-stroke-opacity': 1.0
+  }
+});
       // 添加弹窗显示卫星信息
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
       map.on('mousemove', 'sat-circles', (e) => {

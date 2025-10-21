@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.pyqt_draw.adjacent2xml as adjacent2xml
 import draw.pyqt_draw.pyqt_main as pyqt_main
 import draw.pyqt_draw.adjacent2xml as adjacent2xml

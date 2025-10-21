@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.colors as mcolors
 import sys
 import  math
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.basic_show.get_satellite_block_info as get_satellite_block_info
 # --- 参数配置 ---
 N = 36  # 每轨道卫星数

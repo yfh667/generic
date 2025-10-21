@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.colors as mcolors
 import sys
 import  math
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 # --- 参数配置 ---
 N = 36  # 每轨道卫星数
 P = 18  # 轨道平面数

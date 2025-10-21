@@ -28,7 +28,7 @@ import pyqtgraph as pg
 # 你的项目内模块
 from config import DATA_DIR, INPUT_DIR
 import genaric2.tegnode as tegnode
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.basic_functio.write2xml as write2xml
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 from draw.pyqt_draw.pyqt_main2 import SatelliteViewer

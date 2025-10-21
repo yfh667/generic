@@ -13,14 +13,14 @@ import xml.etree.ElementTree as ET
 # 注意：这里的地面站ID需要与XML文件中station元素的id属性一致
 STATION_GROUPS = {
     0: {"name": "Group 0", "stations": list(range(0, 4))},
-
     1: {"name": "Group 1", "stations": list(range(4, 9))},
     2: {"name": "Group 2", "stations": [9]},
     3: {"name": "Group 3", "stations": [10]},
     4: {"name": "Group 4", "stations": list(range(11, 15))},
     5: {"name": "Group 5", "stations": list(range(15, 17))},
-6: {"name": "Group 6", "stations": list(range(17, 20))},
+    6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
 }
+
 
 # 高对比度颜色（每组唯一）
 # 颜色索引与STATION_GROUPS的键对应
@@ -124,7 +124,7 @@ def parse_xml_group_data(
                 sats = groups[gid]
                 # 直接遍历子元素，比多次 findall+临时集合快
                 for sat_elem in station_elem:
-                    if sat_elem.tag != "basicSa":
+                    if sat_elem.tag != "satellite":
                         continue
                     sat_id_attr = sat_elem.get("id")
                     if not sat_id_attr:

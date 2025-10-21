@@ -8,7 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # ===== 项目依赖 =====
 from config import DATA_DIR, INPUT_DIR
 import genaric2.tegnode as tegnode
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.basic_functio.write2xml as write2xml
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 import draw.pymatlab2.chartalgorithm.plot_intergroup_avg_shortest_path as avgsp  # 你之前的模块（含 export_intergroup_avgspath_to_origin）

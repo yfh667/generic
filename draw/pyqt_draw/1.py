@@ -5,7 +5,7 @@ import sys
 import numpy as np
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 
 
 N = 36   # 每轨道卫星数

@@ -1,5 +1,5 @@
 
-import  draw.read_snap_xml as read_snap_xml
+import  draw.read_snap_xml_archi as read_snap_xml
 
 
 # 输入的是修改后的边，输出的是原始边

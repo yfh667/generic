@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Satellite Network • Interactive Center Longitude</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- MapLibre GL CSS/JS -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f3f3f3;
+    }
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+    /* Grayscale filter to match the original style */
+    #map canvas.maplibregl-canvas {
+      filter: saturate(0%) brightness(100%) contrast(95%);
+    }
+    /* Base style for UI panels */
+    .ui-panel {
+        position: absolute;
+        background: rgba(255,255,255,0.9);
+        border-radius: 10px;
+        padding: 10px 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.12);
+        font-size: 12px;
+        line-height: 1.2;
+    }
+    /* Legend styles */
+    .legend {
+      right: 12px;
+      top: 12px;
+    }
+    .legend h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .colorbar {
+      width: 180px;
+      height: 12px;
+      border-radius: 6px;
+      margin: 6px 0 2px;
+      background: linear-gradient(90deg, #fff5e6 0%, #ffd28c 25%, #ff9b50 50%, #ff5a2a 75%, #c02b12 100%);
+      border: 1px solid #ccc;
+    }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      color: #444;
+    }
+    .key {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-example { background: #d22; }
+    .dot-fail { background: #000; }
+    .dot-normal { background: #bbb; border: 1px solid #888; }
+
+    /* Direction arrow */
+    .arrow-box {
+      left: 12px;
+      top: 12px;
+    }
+    .arrow {
+      width: 50px;
+      height: 12px;
+      position: relative;
+      display: inline-block;
+      margin-left: 6px;
+      background: linear-gradient(90deg, transparent 0 70%, #222 70% 100%);
+    }
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid #222;
+      border-top: 2px solid #222;
+      background: transparent;
+    }
+
+    /* New control panel for longitude slider */
+    .control-panel {
+      left: 12px;
+      top: 78px; /* Positioned below the arrow box */
+      width: 200px;
+    }
+    .control-panel label {
+      font-weight: 600;
+      color: #333;
+    }
+    .control-panel input[type="range"] {
+      width: 100%;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Color Legend -->
+  <div class="legend ui-panel">
+    <h4>Vulnerability (ignored here)</h4>
+    <div class="colorbar"></div>
+    <div class="ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div>
+    <div class="key"><span class="dot dot-example"></span><span>示例卫星</span></div>
+    <div class="key"><span class="dot dot-fail"></span><span>示例故障</span></div>
+    <div class="key"><span class="dot dot-normal"></span><span>其它卫星</span></div>
+  </div>
+
+  <!-- Direction Arrow -->
+  <div class="arrow-box ui-panel">Direction of movement <span class="arrow"></span></div>
+
+  <!-- Center Longitude Control -->
+  <div class="control-panel ui-panel">
+      <label for="center-lon">Center Longitude: <span id="lon-value">0</span>° E</label>
+      <input id="center-lon" type="range" min="-180" max="180" value="0" step="1">
+  </div>
+
+  <script>
+  (async function() {
+    // Create MapLibre map
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: 'raster',
+            tiles: ['https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors, © CARTO'
+          }
+        },
+        layers: [
+          { id: 'bg', type: 'background', paint: { 'background-color': '#f3f3f3' } },
+          { id: 'carto', type: 'raster', source: 'carto' }
+        ]
+      },
+      center: [0, 0],
+      zoom: 1.5,
+      // Render world copies is important for this wrapping logic to appear seamless.
+      renderWorldCopies: true
+    });
+
+    // Fetch external data file
+    const response = await fetch('./snapshot_100.json');
+    const data = await response.json();
+    const originalSatellites = data.satellites;
+    const originalLinks = data.links;
+
+    /**
+     * Remaps a longitude to be within the range [center - 180, center + 180].
+     * This is the core logic to "unwrap" the globe at a specific longitude.
+     * @param {number} lng The original longitude.
+     * @param {number} center The desired center longitude.
+     * @returns {number} The remapped longitude.
+     */
+    function remapLongitude(lng, center) {
+        let newLng = lng;
+        while (newLng <= center - 180) {
+            newLng += 360;
+        }
+        while (newLng > center + 180) {
+            newLng -= 360;
+        }
+        return newLng;
+    }
+
+    /**
+     * Updates all map features based on the selected center longitude.
+     * @param {number} centerLng The longitude to center the map on.
+     */
+    function updateVisualization(centerLng) {
+      // 1. Remap satellite coordinates
+      const coordsById = new Map();
+      const pointFeatures = originalSatellites.map((sat) => {
+        const remappedLng = remapLongitude(sat.lng, centerLng);
+        // Ensure keys are strings for consistent lookup, avoiding type mismatch issues.
+        coordsById.set(String(sat.id), [remappedLng, sat.lat]);
+        return {
+          type: 'Feature',
+          properties: {
+            id: sat.id,
+            altitude: sat.alt
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [remappedLng, sat.lat]
+          }
+        };
+      });
+
+      // 2. Rebuild link features using remapped coordinates
+      const lineFeatures = originalLinks
+        .map((link) => {
+          // Ensure lookup keys are also strings to match how they were stored.
+          const sourceCoord = coordsById.get(String(link.source));
+          const targetCoord = coordsById.get(String(link.target));
+          if (!sourceCoord || !targetCoord) return null;
+
+          return {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [sourceCoord, targetCoord]
+            }
+          };
+        })
+        .filter(Boolean); // Remove any nulls if a satellite ID was not found
+
+      const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
+      const linesFC = { type: 'FeatureCollection', features: lineFeatures };
+
+      // 3. Update map data sources
+      map.getSource('sat_points').setData(pointsFC);
+      map.getSource('sat_links').setData(linesFC);
+
+      // 4. Set map's center view
+      // We use easeTo for a smooth transition when the slider is moved.
+      map.easeTo({
+          center: [centerLng, map.getCenter().lat], // Keep current latitude
+          duration: 0 // No animation for immediate feedback
+      });
+    }
+
+    // Wait for the map to load before adding sources and layers
+    map.on('load', () => {
+      // Add sources with empty GeoJSON data initially.
+      // They will be populated by updateVisualization().
+      const emptyFC = { type: 'FeatureCollection', features: [] };
+      map.addSource('sat_links', { type: 'geojson', data: emptyFC });
+      map.addSource('sat_points', { type: 'geojson', data: emptyFC });
+
+      // Add satellite link layer
+      map.addLayer({
+        id: 'sat-links',
+        type: 'line',
+        source: 'sat_links',
+        paint: {
+          'line-color': '#666',
+          'line-width': 1.0,
+          'line-opacity': 0.4
+        }
+      });
+
+      // Add satellite point layer (hollow circles)
+      map.addLayer({
+        id: 'sat-circles',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 4.2,
+          'circle-color': 'rgba(0,0,0,0)', // Transparent fill
+          'circle-stroke-color': '#ff5722',
+          'circle-stroke-width': 1.6,
+          'circle-stroke-opacity': 1.0
+        }
+      });
+
+      // Setup popup for displaying satellite info on hover
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+      map.on('mousemove', 'sat-circles', (e) => {
+        const f = e.features && e.features[0];
+        if (!f) return;
+        map.getCanvas().style.cursor = 'pointer';
+        const { id, altitude } = f.properties;
+        popup.setLngLat(f.geometry.coordinates)
+          .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
+          .addTo(map);
+      });
+      map.on('mouseleave', 'sat-circles', () => {
+        map.getCanvas().style.cursor = '';
+        popup.remove();
+      });
+
+      // Setup slider interaction
+      const slider = document.getElementById('center-lon');
+      const valueDisplay = document.getElementById('lon-value');
+
+      slider.addEventListener('input', (e) => {
+        const centerLng = parseInt(e.target.value, 10);
+        valueDisplay.textContent = `${Math.abs(centerLng)}° ${centerLng < 0 ? 'W' : 'E'}`;
+        updateVisualization(centerLng);
+      });
+
+      // Perform the initial render
+      updateVisualization(0);
+    });
+  })();
+  </script>
+</body>
+</html>
+

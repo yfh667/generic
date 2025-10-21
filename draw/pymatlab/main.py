@@ -35,7 +35,7 @@ if 'draw.pyqt_draw.pyqt_main2' in sys.modules:
 from PyQt5 import QtWidgets
 import pyqtgraph as pg
 from draw.pyqt_draw.pyqt_main2 import SatelliteViewer
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 
 # 配置 pyqtgraph：开启抗锯齿，关闭 OpenGL（更稳定）
 pg.setConfigOptions(antialias=True)

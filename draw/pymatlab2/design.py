@@ -52,7 +52,7 @@ RANGES = [
 ]
 
 # ========= 依赖模块 =========
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 import draw.basic_functio.motif as motif
 import draw.basic_functio.topology_config as topology_config
 import draw.basic_functio.revdata2rawdata as revdata2rawdata

@@ -9,7 +9,7 @@ import ast
 
 # 你现有模块
 from draw.basic_functio import motif as motif_mod
-import draw.read_snap_xml as read_snap_xml
+import draw.read_snap_xml_archi as read_snap_xml
 
 
 # ---------- 1) 安全表达式求值（只允许 + - * // % () 和变量名） ----------
