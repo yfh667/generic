@@ -70,3 +70,39 @@ def export_satellites_snapshot_to_json(SatelliteManager, time_idx, out_path, *,
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
     return str(out_path)
+
+
+def export_highlighted_to_json(group_dict, selected_groups, color_map, out_path):
+    """
+    根据分组字典和选定区域，导出高亮卫星分组信息到 JSON 文件。
+
+    :param group_dict: dict, 包含所有卫星分组及其卫星 ID 的字典，格式如 {'group_id': {satellite_ids}}
+    :param selected_groups: list, 指定的区域（例如 [1, 2]），表示需要导出的分组
+    :param color_map: dict, 为每个分组指定颜色，格式如 {group_id: color}
+    :param out_path: str, 输出的 JSON 文件路径
+    """
+    highlighted_data = []
+
+    # 遍历选择的分组
+    for group_id in selected_groups:
+        # 获取分组对应的卫星 ID
+        satellites = list(group_dict['groups'].get(group_id, []))
+        # 获取该分组的颜色，若没有颜色，则使用默认颜色
+        color = color_map.get(group_id, '#ff5722')  # 默认为橙色
+
+        # 创建分组信息字典
+        group_info = {
+            "group": f"fenzu{group_id}",  # 使用 "fenzu" + group_id 构建分组名称
+            "satellites": satellites,
+            "color": color
+        }
+
+        highlighted_data.append(group_info)
+
+    # 将生成的高亮数据写入 JSON 文件
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(highlighted_data, f, ensure_ascii=False, indent=2)
+
+    return str(out_path)

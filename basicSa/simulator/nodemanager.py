@@ -13,6 +13,10 @@ class Satellite:
     def __getitem__(self, time: float) -> Node:
         """使得可以通过时间直接访问节点"""
         return self.trajectory.get(time, None)
+    def __len__(self):
+        """返回轨迹的长度，即节点数量"""
+        return len(self.trajectory)
+
 
 # 确保SatelliteManager中的 add_trajectory 正常工作
 class SatelliteManager:

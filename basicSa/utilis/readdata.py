@@ -95,78 +95,172 @@ def readsats(path,satangle):
                 print(f"读取文件 {file} 时出错: {e}")
     return nodes
 
+#
+# def readsats_multi(path, satangle):
+#     # 获取并自然排序文件列表
+#     files = sorted([f for f in os.listdir(path) if f.endswith(".txt")],
+#                    key=natural_sort_key)
+#
+#     # 计算最佳线程数（文件数 vs CPU核心数）
+#     max_workers = min(len(files), os.cpu_count() * 2)  # I/O密集型可超线程
+#     chunk_size = max(1, len(files) // max_workers)  # 动态分块
+#
+#     def process_batch(file_batch):
+#         """处理文件批次的线程函数"""
+#
+#         batch_nodes = []
+#         for file in file_batch:
+#             print(f"file path: {file}")
+#             file_path = os.path.join(path, file)
+#
+#             # 提取文件名中的数字
+#             try:
+#                 file_number = int(os.path.splitext(file)[0])
+#             except ValueError:
+#                 print(f"文件名格式错误: {file}，无法提取数字")
+#                 continue  # 跳过无效文件
+#
+#          #   print(f"正在处理文件: {file} → 提取编号: {file_number}")
+#
+#             satnode = []
+#             try:
+#                 with open(file_path, 'r', encoding='utf-8') as f:
+#                     content = f.read().strip()
+#                     lines = content.split('\n')
+#                     for line in lines:
+#                         if line.strip():
+#                             data = list(map(float, line.split()))
+#                             node = Node.Node(
+#                                 time = data[0],
+#                                 x=data[1],
+#                                 y=data[2],
+#                                 z=data[3],
+#                                 angle=math.radians(satangle),
+#                                 # 可选：将文件编号存入节点
+#                                 nodeid=file_number  # 假设Node类有file_id属性
+#                             )
+#                             satnode.append(node)
+#                     batch_nodes.append(satnode)
+#
+#             except Exception as e:
+#                 print(f"Error processing {file}: {str(e)}")
+#                 batch_nodes.append([])
+#         return batch_nodes
+#
+#     # 划分文件批次（保持顺序）
+#     batches = [files[i:i + chunk_size]
+#                for i in range(0, len(files), chunk_size)]
+#
+#     # 并行处理
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+#         futures = [executor.submit(process_batch, batch) for batch in batches]
+#         results = []
+#         for future in concurrent.futures.as_completed(futures):
+#             results.extend(future.result())  # 按批次完成顺序合并
+#
+#     # 按原始文件顺序重组结果
+#     ordered_results = []
+#     for batch in batches:
+#         for file in batch:
+#             idx = files.index(file)
+#             ordered_results.append(results[idx])
+#
+#     return [res for res in ordered_results if res]
 
-def readsats_multi(path, satangle):
-    # 获取并自然排序文件列表
+
+
+def readsats_multi(path, satangle, t_start=None, t_end=None):
+    """
+    读取 path 下所有 .txt 文件，按 natural_sort_key 排序；
+    仅保留时间 t 满足 t_start <= t < t_end 的行（左闭右开）。
+    若 t_start/t_end 为 None，则不作该侧的限制。
+    返回值：按原文件顺序排列的 satnode 列表（每个元素对应一个文件的节点列表），过滤掉空文件结果。
+    """
+    # 依赖：natural_sort_key、Node.Node 类
     files = sorted([f for f in os.listdir(path) if f.endswith(".txt")],
                    key=natural_sort_key)
 
-    # 计算最佳线程数（文件数 vs CPU核心数）
-    max_workers = min(len(files), os.cpu_count() * 2)  # I/O密集型可超线程
-    chunk_size = max(1, len(files) // max_workers)  # 动态分块
+    if not files:
+        return []
+
+    # 线程数（I/O 密集：可适当超线程）
+    max_workers = min(len(files), max(1, (os.cpu_count() or 2) * 2))
+    chunk_size = max(1, len(files) // max_workers)
+
+    # 角度预先转换为弧度
+    ang_rad = math.radians(satangle)
+
+    # 建立文件→序号映射，便于后续按原顺序拼装
+    file2idx = {fname: i for i, fname in enumerate(files)}
 
     def process_batch(file_batch):
-        """处理文件批次的线程函数"""
-
-        batch_nodes = []
+        """处理一批文件，返回 {filename: [Node,...]}"""
+        out = {}
         for file in file_batch:
-            print(f"file path: {file}")
             file_path = os.path.join(path, file)
-
-            # 提取文件名中的数字
-            try:
-                file_number = int(os.path.splitext(file)[0])
-            except ValueError:
-                print(f"文件名格式错误: {file}，无法提取数字")
-                continue  # 跳过无效文件
-
-         #   print(f"正在处理文件: {file} → 提取编号: {file_number}")
-
             satnode = []
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    lines = content.split('\n')
-                    for line in lines:
-                        if line.strip():
-                            data = list(map(float, line.split()))
-                            node = Node.Node(
-                                time = data[0],
-                                x=data[1],
-                                y=data[2],
-                                z=data[3],
-                                angle=math.radians(satangle),
-                                # 可选：将文件编号存入节点
-                                nodeid=file_number  # 假设Node类有file_id属性
-                            )
-                            satnode.append(node)
-                    batch_nodes.append(satnode)
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        parts = line.split()
+                        # 期望格式：time x y z
+                        # 样例：0 -1990266.325 -7173122.619 18097.826
+                        try:
+                            t = float(parts[0])
+                        except Exception:
+                            # 如果第一列不是时间，跳过该行
+                            continue
 
+                        # 左闭右开筛选
+                        if (t_start is not None) and (t < t_start):
+                            # 时间升序：还没到起点，继续读
+                            continue
+                        if (t_end is not None) and (t >= t_end):
+                            # 已超过终点，且文件时间升序：可直接停止该文件读取
+                            break
+
+                        # 满足区间才解析后续坐标（避免无谓解析）
+                        try:
+                            x = float(parts[1]); y = float(parts[2]); z = float(parts[3])
+                        except Exception:
+                            continue
+
+                        node = Node.Node(
+                            time=t,
+                            x=x, y=y, z=z,
+                            angle=ang_rad,
+                            nodeid=int(os.path.splitext(file)[0])  # 你的注释：假设 Node 有该属性
+                        )
+                        satnode.append(node)
             except Exception as e:
-                print(f"Error processing {file}: {str(e)}")
-                batch_nodes.append([])
-        return batch_nodes
+                print(f"Error processing {file}: {e}")
+                satnode = []
 
-    # 划分文件批次（保持顺序）
-    batches = [files[i:i + chunk_size]
-               for i in range(0, len(files), chunk_size)]
+            out[file] = satnode
+        return out
 
-    # 并行处理
+    # 划分批次
+    batches = [files[i:i + chunk_size] for i in range(0, len(files), chunk_size)]
+
+    # 并行执行
+    merged = {}  # filename -> [nodes]
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_batch, batch) for batch in batches]
-        results = []
-        for future in concurrent.futures.as_completed(futures):
-            results.extend(future.result())  # 按批次完成顺序合并
+        for fut in concurrent.futures.as_completed(futures):
+            res = fut.result()
+            merged.update(res)
 
-    # 按原始文件顺序重组结果
+    # 按原文件顺序输出，并去掉空结果
     ordered_results = []
-    for batch in batches:
-        for file in batch:
-            idx = files.index(file)
-            ordered_results.append(results[idx])
+    for fname in files:
+        nodes = merged.get(fname, [])
+        if nodes:
+            ordered_results.append(nodes)
 
-    return [res for res in ordered_results if res]
-
+    return ordered_results
 
 import re
 
