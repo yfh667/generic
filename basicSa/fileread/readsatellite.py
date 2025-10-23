@@ -123,37 +123,97 @@ def readsatellite(manager, dir_path, satangle, track_angle, P, N, BaseRAAN_INCRE
 
     return total_files, success_count, error_files
 
+# def read_xml_data(xml_file_path, satangle, t_start, t_end):
+#     """
+#     读取单个 XML 文件的数据，并返回满足 [t_start, t_end) 时间段的节点列表
+#     """
+#     satnode = []
+#     try:
+#         tree = etree.parse(xml_file_path)
+#
+#         # 解析卫星的所有 p 元素
+#         for p in tree.xpath("//p"):
+#             t = float(p.get("t"))
+#             if t_start is not None and t < t_start:
+#                 continue
+#             if t_end is not None and t >= t_end:
+#                 break
+#
+#             x = float(p.get("x"))
+#             y = float(p.get("y"))
+#             z = float(p.get("z"))
+#
+#             # 创建 Node 并加入 satnode 列表
+#             node = Node.Node(
+#                 time=t,
+#                 x=x,
+#                 y=y,
+#                 z=z,
+#                 angle=math.radians(satangle),  # 使用角度转换为弧度
+#                 nodeid=int(os.path.splitext(os.path.basename(xml_file_path))[0])  # 用文件名作为 nodeid
+#             )
+#             satnode.append(node)
+#     except Exception as e:
+#         print(f"Error reading {xml_file_path}: {str(e)}")
+#
+#     return satnode
+
+
+from lxml import etree
+import math, os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 def read_xml_data(xml_file_path, satangle, t_start, t_end):
     """
-    读取单个 XML 文件的数据，并返回满足 [t_start, t_end) 时间段的节点列表
+    仅流式读取 [t_start, t_end) 区间内的 <p> 节点，避免整树解析。
+    需要 lxml: from lxml import etree
     """
     satnode = []
-    try:
-        tree = etree.parse(xml_file_path)
+    node_id = int(os.path.splitext(os.path.basename(xml_file_path))[0])
 
-        # 解析卫星的所有 p 元素
-        for p in tree.xpath("//p"):
-            t = float(p.get("t"))
-            if t_start is not None and t < t_start:
-                continue
-            if t_end is not None and t >= t_end:
-                break
+    # 直接把解析选项传给 iterparse（注意：不要传 parser=...）
+    context = etree.iterparse(
+        xml_file_path,
+        events=("end",),
+        tag="p",
+        recover=True,           # 容错
+        remove_blank_text=True, # 去空白
+        huge_tree=False         # 防巨大树
+        # encoding=None         # 如需强制编码可加
+    )
 
-            x = float(p.get("x"))
-            y = float(p.get("y"))
-            z = float(p.get("z"))
+    for event, elem in context:
+        # 读取并尽早过滤
+        t = float(elem.get("t"))
+        if t_start is not None and t < t_start:
+            elem.clear()
+            # 释放更早兄弟，防止内存增长
+            parent = elem.getparent()
+            while parent is not None and parent.getprevious() is not None:
+                del parent.getparent()[0]
+            continue
 
-            # 创建 Node 并加入 satnode 列表
-            node = Node.Node(
-                time=t,
-                x=x,
-                y=y,
-                z=z,
-                angle=math.radians(satangle),  # 使用角度转换为弧度
-                nodeid=int(os.path.splitext(os.path.basename(xml_file_path))[0])  # 用文件名作为 nodeid
-            )
-            satnode.append(node)
-    except Exception as e:
-        print(f"Error reading {xml_file_path}: {str(e)}")
+        if t_end is not None and t >= t_end:
+            elem.clear()
+            # 清理尾部再退出
+            parent = elem.getparent()
+            while parent is not None and parent.getprevious() is not None:
+                del parent.getparent()[0]
+            break
 
+        x = float(elem.get("x")); y = float(elem.get("y")); z = float(elem.get("z"))
+        satnode.append(Node.Node(
+            time=t, x=x, y=y, z=z,
+            angle=math.radians(satangle),
+            nodeid=node_id
+        ))
+
+        # 已处理节点及时清理，避免内存堆积
+        elem.clear()
+        parent = elem.getparent()
+        while parent is not None and parent.getprevious() is not None:
+            del parent.getparent()[0]
+
+    # 关闭生成器，释放文件句柄
+    del context
     return satnode

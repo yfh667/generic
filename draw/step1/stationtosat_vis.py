@@ -3,7 +3,7 @@ import basicSa.fileread.readsatellite as readsatellite
 import basicSa.simulator.nodemanager as nodemanager
 
 import basicSa.postsimmulation.snapshot as snapshot
-
+import bisect
 import numpy as np
 from basicSa.los import  Sat2Gnd
 from basicSa.satellite_stk_alpha.core.angularvector2 import SatelliteVector
@@ -38,7 +38,7 @@ def save_to_xml(output_file, station_visible_data):
 
 
 def main():
-    dirpath = r'C:\usrspace\mywork\generic\data\sta20'  # raw string for file path
+    dirpath = r'C:\usrspace\mywork\data\sta20'  # raw string for file path
     stationangle = 20
     StationManager = readstation.readstation_path(dirpath, stationangle)
     stations =  StationManager.stations
@@ -50,7 +50,9 @@ def main():
 
     SatelliteManager = nodemanager.SatelliteManager()
 
-    sat_dir_path = r'C:\usrspace\mywork\generic\data\648qianfan'  # raw string for file path
+   # sat_dir_path = r'C:\usrspace\mywork\generic\data\648qianfan1d'  # raw string for file path
+    sat_dir_path = r'C:\usrspace\mywork\data\648qianfan1d_xml'  # raw string for file path
+
     P = 18
     N = 36
     #sat_dir_path = '/home/yfh/Desktop/Data/onehun_ecef'
@@ -60,7 +62,7 @@ def main():
     BaseRAAN_INCREMENT = 18
     lenthpropority = 20
     stationsnaplength = 20
-    simulatationtime = 100
+    simulatationtime = 22100
     readsatellite.readsatellite(SatelliteManager,sat_dir_path, satangle, track_angle, P, N, BaseRAAN_INCREMENT)
   #  print("finish")
     _position_cache = {}
@@ -72,25 +74,57 @@ def main():
 
 ## here we calculate all the status of the constellation
     for sim_time_step in range(simulatationtime):
+        print(f"time is {sim_time_step}")
         #basicSa
         _position_cache.clear()
+        # for sat in SatelliteManager.satellites.values():
+        #     # 使用traj_idx替代内部变量i，避免名称冲突
+        #     idx = next(
+        #         (traj_idx for traj_idx, p in enumerate(sat.trajectory)
+        #          if p.time >= sim_time_step),  # 正确比较轨迹时间与仿真步长
+        #         0
+        #     )
+        #     # 确保idx+1不超过轨迹长度
+        #     next_idx = min(idx + 1, len(sat.trajectory) - 1)
+        #     _position_cache[sat.id] = (
+        #         sat.trajectory[idx],
+        #         sat.trajectory[next_idx]  # 安全访问下一时刻
+        #     )
+        # sv = SatelliteVector(P, N)
+        # sv.load_from_3dview(_position_cache)
         for sat in SatelliteManager.satellites.values():
-            # 使用traj_idx替代内部变量i，避免名称冲突
-            idx = next(
-                (traj_idx for traj_idx, p in enumerate(sat.trajectory)
-                 if p.time >= sim_time_step),  # 正确比较轨迹时间与仿真步长
-                0
-            )
-            # 确保idx+1不超过轨迹长度
-            next_idx = min(idx + 1, len(sat.trajectory) - 1)
-            _position_cache[sat.id] = (
-                sat.trajectory[idx],
-                sat.trajectory[next_idx]  # 安全访问下一时刻
-            )
+            # 1) 取已排序的时间轴（可做一次缓存，避免每次都排序）
+            if not hasattr(sat, "_sorted_times"):
+                sat._sorted_times = sorted(sat.trajectory.keys())
+            times = sat._sorted_times
+
+            if not times:
+                continue  # 这颗卫星没有轨迹
+
+            # 2) 在时间轴上定位 sim_time_step 的插入位（左闭右开）
+            i = bisect.bisect_left(times, sim_time_step)
+
+            # 3) 夹取当前与下一时刻的索引，注意边界
+            if i >= len(times):
+                # 要的时间在最后一个采样点之后：退回到最后一个点，next 用自己
+                idx = len(times) - 1
+                next_idx = idx
+            else:
+                idx = i
+                # 如果恰好命中某时刻，就用该点作为 idx；下一点尽量取 idx+1，若越界就等于 idx
+                next_idx = min(idx + 1, len(times) - 1)
+
+            t0 = times[idx]
+            t1 = times[next_idx]
+            node0 = sat.trajectory[t0]  # Node
+            node1 = sat.trajectory[t1]  # Node
+
+            # 4) 用 sat.sat_id 作为 key
+            _position_cache[sat.sat_id] = (node0, node1)
+
         sv = SatelliteVector(P, N)
         sv.load_from_3dview(_position_cache)
 
-        linkflags = sv.calculate_angular_velocity_7_all(sim_time_step)
 
 
         # 正确初始化方法：使用np.full直接填充-1
@@ -109,37 +143,7 @@ def main():
             satellitesnap[j][3] = satellite.trajectory[sim_time_step].angle
             satellitesnap[j][4] = satellite.trajectory[sim_time_step].trackangle
             satellitesnap[j][5] = satellite.trajectory[sim_time_step].RAAN
-           #  if planid<=P-2:
-           #      satellitesnap[j][6] =  linkflags[0][j]
-           #      satellitesnap[j][7] =  linkflags[1][j]
-           #      satellitesnap[j][8] =  linkflags[2][j]
-           #      satellitesnap[j][9] =  linkflags[3][j]
-           #  if planid <= P - 3:
-           #      satellitesnap[j][10] =  linkflags[4][j]
-           #      satellitesnap[j][11] =  linkflags[5][j]
-           # # satellitesnap[j][12] = basicSa.trajectory[sim_time_step].linkflags[4][j]
 
-
-            # if planid>=1:
-            #     _,_,ID = neighbor._get_left_neighbor2(j,N,0)
-            #     satellitesnap[j][12] = linkflags[3][ID]
-            #
-            #     _,_,ID = neighbor._get_left_neighbor2(j,N,1)
-            #     satellitesnap[j][13] = linkflags[2][ID]
-            #
-            #     _,_,ID = neighbor._get_left_neighbor2(j,N,2)
-            #     satellitesnap[j][14] = linkflags[1][ID]
-            #
-            #     _,_,ID = neighbor._get_left_neighbor2(j,N,3)
-            #     satellitesnap[j][15] = linkflags[0][ID]
-
-            #
-            # if planid>=2:
-            #     _, _, ID = neighbor._get_left_neighbor2(j, N, 4)
-            #     satellitesnap[j][16] = linkflags[5][ID]
-            #
-            #     _, _, ID = neighbor._get_left_neighbor2(j, N, 5)
-            #     satellitesnap[j][17] = linkflags[4][ID]
 
         #station:
         for j in range(stationsnum):
@@ -163,8 +167,6 @@ def main():
         )
         db.snapshots.append(timesnap)
 
-        # print(f"time is {sim_time_step}")
-  #  print("we finish the raw data")
 
 
 
@@ -191,7 +193,7 @@ def main():
 
     # 输出到XML
 
-    save_to_xml(r"C:\usrspace\mywork\generic\data\test100.xml", station_visible_data)
+    save_to_xml(r"C:\usrspace\mywork\generic\data\station_visible_satellites_648_1d_test.xml", station_visible_data)
 
 
 #  save_to_xml("/home/yfh/Desktop/Data/station_visible_satellites_648.xml", station_visible_data)

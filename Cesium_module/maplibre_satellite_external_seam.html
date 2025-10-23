@@ -14,13 +14,8 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       background-color: #f3f3f3;
     }
-    #map {
-      position: absolute;
-      inset: 0;
-    }
-    /*#map canvas.maplibregl-canvas {*/
-    /*  filter: saturate(0%) brightness(100%) contrast(95%);*/
-    /*}*/
+    #map { position: absolute; inset: 0; }
+
     .ui-panel {
       position: absolute;
       background: rgba(255,255,255,0.9);
@@ -32,29 +27,40 @@
     }
     .control-panel {
       left: 12px;
-      top: 78px;
-      width: 200px;
+      top: 12px;
+      width: 260px;
     }
-    .control-panel label {
-      font-weight: 600;
-      color: #333;
+    .control-panel label { font-weight: 600; color: #333; }
+    .control-panel input[type="range"] { width: 100%; margin-top: 8px; }
+    .control-row {
+      display: flex; gap: 6px; margin-top: 8px; align-items: center;
     }
-    .control-panel input[type="range"] {
-      width: 100%;
-      margin-top: 8px;
+    .control-row input[type="text"]{
+      flex: 1; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px;
+    }
+    .control-row button{
+      padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer;
     }
   </style>
 </head>
 <body>
-
   <div id="map"></div>
+
   <div class="control-panel ui-panel">
-      <label for="center-lon">Center Longitude: <span id="lon-value">0</span>° E</label>
-      <input id="center-lon" type="range" min="-180" max="180" value="0" step="1">
+    <label for="center-lon">Center Longitude: <span id="lon-value">0° E</span></label>
+    <input id="center-lon" type="range" min="-180" max="180" value="0" step="1" />
+    <div class="control-row">
+      <input id="center-lon-input" type="text" placeholder="如 110E / 75W / -120" />
+      <button id="center-lon-apply">应用</button>
+    </div>
   </div>
 
   <script>
   (async function() {
+      // 第1步：请在这里配置你星座的“每轨道卫星数” (P值)
+    // 例如，如果你的星座是 10个轨道，每个轨道20颗星，那么这里就写 20
+      const SATELLITES_PER_ORBIT = 36;
+
     const map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -77,105 +83,220 @@
       renderWorldCopies: true
     });
 
-    // Fetch external data files
-    const snapshotResponse = await fetch('./snapshot_100.json');
-    const snapshotData = await snapshotResponse.json();
+    // 读取数据
+    const snapshotResp = await fetch('./snapshot_100.json');
+    const snapshotData = await snapshotResp.json();
     const originalSatellites = snapshotData.satellites;
     const originalLinks = snapshotData.links;
 
-    const highlightResponse = await fetch('./highlighted.json');
-    const highlightedGroups = await highlightResponse.json();
+    // 可选的高亮分组
+    let highlightedGroups = [];
+    try {
+      const highlightResp = await fetch('./highlighted.json');
+      if (highlightResp.ok) highlightedGroups = await highlightResp.json();
+    } catch (_) { /* 没有高亮文件也没关系 */ }
 
-    // Map group names to their color and satellite IDs
+    // 构建 id -> color
     const highlightedMap = new Map();
     highlightedGroups.forEach(group => {
-      group.satellites.forEach(satId => {
-        highlightedMap.set(satId, group.color);
+      (group.satellites || []).forEach(satId => {
+        // 统一用数字键
+        highlightedMap.set(Number(satId), group.color || '#ff0000');
       });
     });
 
+    // 工具：经度换窗
     function remapLongitude(lng, center) {
-        let newLng = lng;
-        while (newLng <= center - 180) {
-            newLng += 360;
-        }
-        while (newLng > center + 180) {
-            newLng -= 360;
-        }
-        return newLng;
+      let newLng = lng;
+      while (newLng <= center - 180) newLng += 360;
+      while (newLng >  center + 180) newLng -= 360;
+      return newLng;
     }
 
     function updateVisualization(centerLng) {
       const coordsById = new Map();
+
       const pointFeatures = originalSatellites.map((sat) => {
         const remappedLng = remapLongitude(sat.lng, centerLng);
         coordsById.set(String(sat.id), [remappedLng, sat.lat]);
 
-        // Get color from highlightedMap or use default color
-            const satIdAsNumber = Number(sat.id);
-
-              const color = highlightedMap.has(satIdAsNumber) ? highlightedMap.get(satIdAsNumber) : '#808080'; // 默认橙色
-
-
+        const satIdAsNumber = Number(sat.id);
+        const color = highlightedMap.has(satIdAsNumber) ? highlightedMap.get(satIdAsNumber) : '#808080';
 
         return {
           type: 'Feature',
-          properties: {
-            id: sat.id,
-            altitude: sat.alt,
-            color: color  // Set color based on highlighted data
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [remappedLng, sat.lat]
-          }
+          properties: { id: satIdAsNumber, altitude: sat.alt, color },
+          geometry: { type: 'Point', coordinates: [remappedLng, sat.lat] }
         };
       });
 
-      const lineFeatures = originalLinks
-        .map((link) => {
-          const sourceCoord = coordsById.get(String(link.source));
-          const targetCoord = coordsById.get(String(link.target));
-          if (!sourceCoord || !targetCoord) return null;
+      // const lineFeatures = (originalLinks || [])
+      //   .map((link) => {
+      //     const s = coordsById.get(String(link.source));
+      //     const t = coordsById.get(String(link.target));
+      //     if (!s || !t) return null;
+      //     return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [s, t] } };
+      //   })
+      //   .filter(Boolean);
 
-          return {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: [sourceCoord, targetCoord]
-            }
-          };
-        })
-        .filter(Boolean); // Remove any nulls if a satellite ID was not found
+  //       const lineFeatures = (originalLinks || [])
+  // .map((link) => {
+  //   const s = coordsById.get(String(link.source));
+  //   const t = coordsById.get(String(link.target));
+  //   if (!s || !t) return null;
+  //
+  //
+  //
+  //
+  //
+  //   // --- 新增的核心逻辑开始 ---
+  //
+  //   // 复制一份目标坐标，避免修改原始Map中的值
+  //   const targetCoords = [...t];
+  //   const lonDiff = s[0] - t[0];
+  //
+  //   // 如果经度差大于180度，说明最短路径是跨越地图边界的
+  //   if (lonDiff > 180) {
+  //     // 目标点在源点的“左边”很远，把它移动到右边一个世界
+  //     targetCoords[0] += 360;
+  //   } else if (lonDiff < -180) {
+  //     // 目标点在源点的“右边”很远，把它移动到左边一个世界
+  //     targetCoords[0] -= 360;
+  //   }
+  //
+  //   // --- 新增的核心逻辑结束 ---
+  //
+  //   return {
+  //     type: 'Feature',
+  //     properties: {},
+  //     geometry: {
+  //       type: 'LineString',
+  //       // 使用可能被调整过的目标坐标
+  //       coordinates: [s, targetCoords]
+  //     }
+  //   };
+  // })
+  // .filter(Boolean);
+
+        // 在 updateVisualization 函数内部...
+
+const lineFeatures = (originalLinks || [])
+  .map((link) => {
+    const s = coordsById.get(String(link.source));
+    const t = coordsById.get(String(link.target));
+    if (!s || !t) return null;
+
+    // --- 解决跨地图边界问题 (之前的修改) ---
+    const targetCoords = [...t];
+    const lonDiff = s[0] - t[0];
+    if (lonDiff > 180)      targetCoords[0] += 360;
+    else if (lonDiff < -180) targetCoords[0] -= 360;
+
+    // --- 新增的核心逻辑：链路分类 ---
+    const sourceId = Number(link.source);
+    const targetId = Number(link.target);
+
+    // 计算卫星所在的轨道编号 (使用你配置的P值)
+    const sourceOrbit = Math.floor(sourceId / SATELLITES_PER_ORBIT);
+    const targetOrbit = Math.floor(targetId / SATELLITES_PER_ORBIT);
+
+    // 判断是否为“邻轨道链路”或“同轨道链路”
+    // 我们认为轨道号之差 <= 1 的都算常规链路
+    const isNormalLink = Math.abs(sourceOrbit - targetOrbit) <= 1;
+
+    return {
+      type: 'Feature',
+      properties: {
+        // 添加一个布尔属性用于后续的样式判断
+        isNormal: isNormalLink
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: [s, targetCoords]
+      }
+    };
+  })
+  .filter(Boolean);
+
 
       const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
-      const linesFC = { type: 'FeatureCollection', features: lineFeatures };
+      const linesFC  = { type: 'FeatureCollection', features: lineFeatures  };
 
       map.getSource('sat_points').setData(pointsFC);
       map.getSource('sat_links').setData(linesFC);
 
-      map.easeTo({
-        center: [centerLng, map.getCenter().lat],
-        duration: 0
-      });
+      map.easeTo({ center: [centerLng, map.getCenter().lat], duration: 0 });
+    }
+
+    // 规范化与解析输入
+    function normalizeLongitude(lng) {
+      let v = Number(lng);
+      if (!Number.isFinite(v)) return null;
+      v = ((((v + 180) % 360) + 360) % 360) - 180; // 折算到 [-180,180)
+      if (v === -180) v = 180;
+      return v;
+    }
+    function parseLongitudeInput(str) {
+      if (!str) return null;
+      const s = String(str).trim().toUpperCase();
+      const m = s.match(/^([+-]?\d+(?:\.\d+)?)(?:\s*([EW]))?$/);
+      if (!m) return null;
+      let val = parseFloat(m[1]);
+      const hemi = m[2];
+      if (hemi === 'W') val = -Math.abs(val);
+      if (hemi === 'E') val =  Math.abs(val);
+      return normalizeLongitude(val);
+    }
+    function fmtLonText(lng) {
+      const dir = lng < 0 ? 'W' : 'E';
+      const abs = Math.abs(lng);
+      return `${abs.toFixed(0)}° ${dir}`;
     }
 
     map.on('load', () => {
       const emptyFC = { type: 'FeatureCollection', features: [] };
-      map.addSource('sat_links', { type: 'geojson', data: emptyFC });
+      map.addSource('sat_links',  { type: 'geojson', data: emptyFC });
       map.addSource('sat_points', { type: 'geojson', data: emptyFC });
 
+      // map.addLayer({
+      //   id: 'sat-links',
+      //   type: 'line',
+      //   source: 'sat_links',
+      //   paint: { 'line-color': '#666', 'line-width': 1.0, 'line-opacity': 0.4 }
+      // });
+
+        // here if it is the cross the orbit ,it is write to blue
       map.addLayer({
         id: 'sat-links',
         type: 'line',
         source: 'sat_links',
         paint: {
-          'line-color': '#666',
+          // 使用 'case' 表达式来动态设置颜色
+          'line-color': [
+            'case',
+            ['get', 'isNormal'], // 条件：获取 isNormal 属性值
+            '#666',              // 如果 isNormal 为 true, 使用此颜色 (常规链路-灰色)
+            '#0077ff'           // 否则 (isNormal 为 false), 使用此颜色 (跨轨道链路-蓝色)
+          ],
           'line-width': 1.0,
-          'line-opacity': 0.4
+          'line-opacity': 0.6 // 可以稍微提高一点不透明度让蓝色更明显
         }
       });
+
+// // 视觉绕行线：初始空，默认隐藏
+// map.addSource('sat_links_rerouted', { type: 'geojson', data: { type:'FeatureCollection', features: [] } });
+// map.addLayer({
+//   id: 'sat-links-rerouted',
+//   type: 'line',
+//   source: 'sat_links_rerouted',
+//   layout: { visibility: 'none' },
+//   paint: {
+//     'line-color': '#1976d2',
+//     'line-width': 1.2,
+//     'line-opacity': 0.9,
+//     'line-dasharray': [2, 2]   // 虚线，表示视觉改道
+//   }
+// });
 
       map.addLayer({
         id: 'sat-circles',
@@ -183,35 +304,58 @@
         source: 'sat_points',
         paint: {
           'circle-radius': 4.2,
-          'circle-color': 'rgba(0,0,0,0)',       // Transparent fill
-          'circle-stroke-color': ['get', 'color'], // Use the color from the properties
-          'circle-stroke-width': 1.6,            // Fine border
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': ['get', 'color'],
+          'circle-stroke-width': 1.6,
           'circle-stroke-opacity': 1.0
         }
       });
 
-      // Setup popup for displaying satellite info on hover
+
+      // Hover 弹窗
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
       map.on('mousemove', 'sat-circles', (e) => {
         const f = e.features && e.features[0];
         if (!f) return;
+        map.getCanvas().style.cursor = 'pointer';
         const { id, altitude } = f.properties;
-        const [x, y] = e.lngLat.toArray();
-        popup.setLngLat([x, y])
-          .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
-          .addTo(map);
+        popup.setLngLat(e.lngLat)
+             .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
+             .addTo(map);
       });
-      map.on('mouseleave', 'sat-circles', () => popup.remove());
+      map.on('mouseleave', 'sat-circles', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
 
-      const slider = document.getElementById('center-lon');
+      // 控件联动
+      const slider       = document.getElementById('center-lon');
       const valueDisplay = document.getElementById('lon-value');
+      const inputBox     = document.getElementById('center-lon-input');
+      const applyBtn     = document.getElementById('center-lon-apply');
+
+      function applyCenterFromInput() {
+        const parsed = parseLongitudeInput(inputBox.value);
+        if (parsed === null) {
+          inputBox.style.borderColor = '#f00';
+          setTimeout(() => (inputBox.style.borderColor = '#ccc'), 800);
+          return;
+        }
+        const v = Math.round(parsed); // 与滑杆步长保持一致
+        slider.value = String(v);
+        valueDisplay.textContent = fmtLonText(v);
+        updateVisualization(v);
+      }
 
       slider.addEventListener('input', (e) => {
-        const centerLng = parseInt(e.target.value, 10);
-        valueDisplay.textContent = `${Math.abs(centerLng)}° ${centerLng < 0 ? 'W' : 'E'}`;
-        updateVisualization(centerLng);
+        const v = parseInt(e.target.value, 10);
+        valueDisplay.textContent = fmtLonText(v);
+        inputBox.value = v >= 0 ? `${v}E` : `${Math.abs(v)}W`;
+        updateVisualization(v);
       });
+      applyBtn.addEventListener('click', applyCenterFromInput);
+      inputBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCenterFromInput(); });
 
+      // 初始化
+      inputBox.value = '0E';
+      valueDisplay.textContent = fmtLonText(0);
       updateVisualization(0);
     });
   })();

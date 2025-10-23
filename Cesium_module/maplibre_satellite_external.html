@@ -2,9 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>Satellite Network • 外部数据演示</title>
+  <title>Satellite Network • Interactive Center Longitude</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- MapLibre GL CSS/JS -->
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <style>
@@ -12,21 +11,13 @@
       margin: 0;
       height: 100%;
       overflow: hidden;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f3f3f3;
     }
-    #map {
+    #map { position: absolute; inset: 0; }
+
+    .ui-panel {
       position: absolute;
-      inset: 0;
-    }
-    /* 灰白滤镜，与 map3 样式保持一致 */
-    #map canvas.maplibregl-canvas {
-      filter: saturate(0%) brightness(100%) contrast(95%);
-    }
-    /* 图例样式与演示一致 */
-    .legend {
-      position: absolute;
-      right: 12px;
-      top: 12px;
       background: rgba(255,255,255,0.9);
       border-radius: 10px;
       padding: 10px 12px;
@@ -34,93 +25,38 @@
       font-size: 12px;
       line-height: 1.2;
     }
-    .legend h4 {
-      margin: 0 0 6px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .colorbar {
-      width: 180px;
-      height: 12px;
-      border-radius: 6px;
-      margin: 6px 0 2px;
-      background: linear-gradient(90deg, #fff5e6 0%, #ffd28c 25%, #ff9b50 50%, #ff5a2a 75%, #c02b12 100%);
-      border: 1px solid #ccc;
-    }
-    .ticks {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 2px;
-      color: #444;
-    }
-    .key {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #d22;
-    }
-    .dot-fail {
-      background: #000;
-    }
-    .dot-normal {
-      background: #bbb;
-      border: 1px solid #888;
-    }
-    /* 方向指示箭头 */
-    .arrow-box {
-      position: absolute;
+    .control-panel {
       left: 12px;
       top: 12px;
-      background: rgba(255,255,255,0.9);
-      padding: 8px 10px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.12);
-      font-size: 12px;
+      width: 260px;
     }
-    .arrow {
-      width: 50px;
-      height: 12px;
-      position: relative;
-      display: inline-block;
-      margin-left: 6px;
-      background: linear-gradient(90deg, transparent 0 70%, #222 70% 100%);
+    .control-panel label { font-weight: 600; color: #333; }
+    .control-panel input[type="range"] { width: 100%; margin-top: 8px; }
+    .control-row {
+      display: flex; gap: 6px; margin-top: 8px; align-items: center;
     }
-    .arrow::after {
-      content: "";
-      position: absolute;
-      right: -6px;
-      top: 50%;
-      transform: translateY(-50%) rotate(45deg);
-      width: 8px;
-      height: 8px;
-      border-right: 2px solid #222;
-      border-top: 2px solid #222;
-      background: transparent;
+    .control-row input[type="text"]{
+      flex: 1; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px;
+    }
+    .control-row button{
+      padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <!-- 颜色图例 -->
-  <div class="legend">
-    <h4>Vulnerability (ignored here)</h4>
-    <div class="colorbar"></div>
-    <div class="ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div>
-    <div class="key"><span class="dot"></span><span>示例卫星</span></div>
-    <div class="key"><span class="dot-fail"></span><span>示例故障</span></div>
-    <div class="key"><span class="dot dot-normal"></span><span>其它卫星</span></div>
+
+  <div class="control-panel ui-panel">
+    <label for="center-lon">Center Longitude: <span id="lon-value">0° E</span></label>
+    <input id="center-lon" type="range" min="-180" max="180" value="0" step="1" />
+    <div class="control-row">
+      <input id="center-lon-input" type="text" placeholder="如 110E / 75W / -120" />
+      <button id="center-lon-apply">应用</button>
+    </div>
   </div>
-  <!-- 方向指示 -->
-  <div class="arrow-box">Direction of movement <span class="arrow"></span></div>
+
   <script>
   (async function() {
-    // 创建 MapLibre 地图
     const map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -140,101 +76,184 @@
       },
       center: [0, 0],
       zoom: 1.5,
-      renderWorldCopies: false
+      renderWorldCopies: true
     });
 
-    // 读取外部数据文件
-    const response = await fetch('./snapshot_100.json');
-    const data = await response.json();
-    const satellites = data.satellites;
-    const links = data.links;
+    // 读取数据
+    const snapshotResp = await fetch('./snapshot_100.json');
+    const snapshotData = await snapshotResp.json();
+    const originalSatellites = snapshotData.satellites;
+    const originalLinks = snapshotData.links;
 
-    // 将卫星点转换为 GeoJSON FeatureCollection
-    const pointFeatures = satellites.map((sat) => ({
-      type: 'Feature',
-      properties: {
-        id: sat.id,
-        altitude: sat.alt
-      },
-      geometry: {
-        type: 'Point',
-        coordinates: [sat.lng, sat.lat]
-      }
-    }));
-    // 构建连接线 FeatureCollection
-    const coordsById = Object.fromEntries(satellites.map((sat) => [sat.id, [sat.lng, sat.lat]]));
-    const lineFeatures = links
-      .map((link) => {
-        const sourceCoord = coordsById[link.source];
-        const targetCoord = coordsById[link.target];
-        if (!sourceCoord || !targetCoord) return null;
+    // 可选的高亮分组
+    let highlightedGroups = [];
+    try {
+      const highlightResp = await fetch('./highlighted.json');
+      if (highlightResp.ok) highlightedGroups = await highlightResp.json();
+    } catch (_) { /* 没有高亮文件也没关系 */ }
+
+    // 构建 id -> color
+    const highlightedMap = new Map();
+    highlightedGroups.forEach(group => {
+      (group.satellites || []).forEach(satId => {
+        // 统一用数字键
+        highlightedMap.set(Number(satId), group.color || '#ff0000');
+      });
+    });
+
+    // 工具：经度换窗
+    function remapLongitude(lng, center) {
+      let newLng = lng;
+      while (newLng <= center - 180) newLng += 360;
+      while (newLng >  center + 180) newLng -= 360;
+      return newLng;
+    }
+
+    function updateVisualization(centerLng) {
+      const coordsById = new Map();
+
+      const pointFeatures = originalSatellites.map((sat) => {
+        const remappedLng = remapLongitude(sat.lng, centerLng);
+        coordsById.set(String(sat.id), [remappedLng, sat.lat]);
+
+        const satIdAsNumber = Number(sat.id);
+        const color = highlightedMap.has(satIdAsNumber) ? highlightedMap.get(satIdAsNumber) : '#808080';
+
         return {
           type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: [sourceCoord, targetCoord]
-          }
+          properties: { id: satIdAsNumber, altitude: sat.alt, color },
+          geometry: { type: 'Point', coordinates: [remappedLng, sat.lat] }
         };
-      })
-      .filter(Boolean);
-    const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
-    const linesFC = { type: 'FeatureCollection', features: lineFeatures };
-    // 等待地图载入后添加图层
-    map.on('load', () => {
-      // 添加卫星连接线源及图层
-      map.addSource('sat_links', { type: 'geojson', data: linesFC });
+      });
 
+      const lineFeatures = (originalLinks || [])
+        .map((link) => {
+          const s = coordsById.get(String(link.source));
+          const t = coordsById.get(String(link.target));
+          if (!s || !t) return null;
+          return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [s, t] } };
+        })
+        .filter(Boolean);
+
+      const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
+      const linesFC  = { type: 'FeatureCollection', features: lineFeatures  };
+
+      map.getSource('sat_points').setData(pointsFC);
+      map.getSource('sat_links').setData(linesFC);
+
+      map.easeTo({ center: [centerLng, map.getCenter().lat], duration: 0 });
+    }
+
+    // 规范化与解析输入
+    function normalizeLongitude(lng) {
+      let v = Number(lng);
+      if (!Number.isFinite(v)) return null;
+      v = ((((v + 180) % 360) + 360) % 360) - 180; // 折算到 [-180,180)
+      if (v === -180) v = 180;
+      return v;
+    }
+    function parseLongitudeInput(str) {
+      if (!str) return null;
+      const s = String(str).trim().toUpperCase();
+      const m = s.match(/^([+-]?\d+(?:\.\d+)?)(?:\s*([EW]))?$/);
+      if (!m) return null;
+      let val = parseFloat(m[1]);
+      const hemi = m[2];
+      if (hemi === 'W') val = -Math.abs(val);
+      if (hemi === 'E') val =  Math.abs(val);
+      return normalizeLongitude(val);
+    }
+    function fmtLonText(lng) {
+      const dir = lng < 0 ? 'W' : 'E';
+      const abs = Math.abs(lng);
+      return `${abs.toFixed(0)}° ${dir}`;
+    }
+
+    map.on('load', () => {
+      const emptyFC = { type: 'FeatureCollection', features: [] };
+      map.addSource('sat_links',  { type: 'geojson', data: emptyFC });
+      map.addSource('sat_points', { type: 'geojson', data: emptyFC });
 
       map.addLayer({
         id: 'sat-links',
         type: 'line',
         source: 'sat_links',
-        paint: {
-          'line-color': '#666',
-          'line-width': 1.0,
-          'line-opacity': 0.4
-        }
+        paint: { 'line-color': '#666', 'line-width': 1.0, 'line-opacity': 0.4 }
       });
-      // 添加卫星点源及图层
-      map.addSource('sat_points', { type: 'geojson', data: pointsFC });
+// // 视觉绕行线：初始空，默认隐藏
+// map.addSource('sat_links_rerouted', { type: 'geojson', data: { type:'FeatureCollection', features: [] } });
 // map.addLayer({
-//   id: 'sat-circles-outline',
-//   type: 'circle',
-//   source: 'sat_points',
+//   id: 'sat-links-rerouted',
+//   type: 'line',
+//   source: 'sat_links_rerouted',
+//   layout: { visibility: 'none' },
 //   paint: {
-//     'circle-radius': 6.0,
-//     'circle-color': 'rgba(0,0,0,0)',       // 不填充
-//     'circle-stroke-color': '#000',         // 外圈颜色
-//     'circle-stroke-width': 2.2,            // 外圈粗一点
-//     'circle-stroke-opacity': 0.25          // 柔和些
+//     'line-color': '#1976d2',
+//     'line-width': 1.2,
+//     'line-opacity': 0.9,
+//     'line-dasharray': [2, 2]   // 虚线，表示视觉改道
 //   }
 // });
-map.addLayer({
-  id: 'sat-circles',
-  type: 'circle',
-  source: 'sat_points',
-  paint: {
-    'circle-radius': 4.2,
-    'circle-color': 'rgba(0,0,0,0)',       // 透明 → 空心
-    'circle-stroke-color': '#ff5722',      // 你原来的橙色
-    'circle-stroke-width': 1.6,            // 细一点的描边
-    'circle-stroke-opacity': 1.0
-  }
-});
-      // 添加弹窗显示卫星信息
+
+      map.addLayer({
+        id: 'sat-circles',
+        type: 'circle',
+        source: 'sat_points',
+        paint: {
+          'circle-radius': 4.2,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': ['get', 'color'],
+          'circle-stroke-width': 1.6,
+          'circle-stroke-opacity': 1.0
+        }
+      });
+
+
+      // Hover 弹窗
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
       map.on('mousemove', 'sat-circles', (e) => {
         const f = e.features && e.features[0];
         if (!f) return;
-        const id = f.properties.id;
-        const altitude = f.properties.altitude;
-        const [x, y] = e.lngLat.toArray();
-        popup.setLngLat([x, y])
-          .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
-          .addTo(map);
+        map.getCanvas().style.cursor = 'pointer';
+        const { id, altitude } = f.properties;
+        popup.setLngLat(e.lngLat)
+             .setHTML(`<div style="font-size:12px"><b>${id}</b><br/>Alt: ${altitude} km</div>`)
+             .addTo(map);
       });
-      map.on('mouseleave', 'sat-circles', () => popup.remove());
+      map.on('mouseleave', 'sat-circles', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+
+      // 控件联动
+      const slider       = document.getElementById('center-lon');
+      const valueDisplay = document.getElementById('lon-value');
+      const inputBox     = document.getElementById('center-lon-input');
+      const applyBtn     = document.getElementById('center-lon-apply');
+
+      function applyCenterFromInput() {
+        const parsed = parseLongitudeInput(inputBox.value);
+        if (parsed === null) {
+          inputBox.style.borderColor = '#f00';
+          setTimeout(() => (inputBox.style.borderColor = '#ccc'), 800);
+          return;
+        }
+        const v = Math.round(parsed); // 与滑杆步长保持一致
+        slider.value = String(v);
+        valueDisplay.textContent = fmtLonText(v);
+        updateVisualization(v);
+      }
+
+      slider.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10);
+        valueDisplay.textContent = fmtLonText(v);
+        inputBox.value = v >= 0 ? `${v}E` : `${Math.abs(v)}W`;
+        updateVisualization(v);
+      });
+      applyBtn.addEventListener('click', applyCenterFromInput);
+      inputBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCenterFromInput(); });
+
+      // 初始化
+      inputBox.value = '0E';
+      valueDisplay.textContent = fmtLonText(0);
+      updateVisualization(0);
     });
   })();
   </script>

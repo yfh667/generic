@@ -54,8 +54,8 @@ def convert_file(input_file, output_file):
             # 写入输出文件
             fout.write(f"{int(seconds_since_start)} {coords_str}\n")
 
-folder_path = "C:\\usrspace\\mywork\\generic\\data\\position"
-folder_path_out = "C:\\usrspace\\mywork\\generic\\data\\position\\modify"
+folder_path = "C:\\usrspace\\mywork\\data\\rawposition\\position"
+folder_path_out = "C:\\usrspace\\mywork\\data\\rawposition\\position\\modify"
 
 # 调用函数，输入和输出文件路径按需要修改
 #convert_file("chidao_fixed.txt", "chidao_fixed_modify.txt")

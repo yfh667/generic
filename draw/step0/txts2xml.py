@@ -74,7 +74,8 @@ def convert_all_txt_to_xml(input_dir, output_dir):
 
 
 # 示例用法：将 C:/usrspace/mywork/generic/data/648qianfan 中的所有 .txt 文件转换为 .xml 文件
+#C:\usrspace\mywork\data\rawposition\648qianfan1d_2
 convert_all_txt_to_xml(
-    input_dir="C:/usrspace/mywork/generic/data/648qianfan1d",
-    output_dir="C:/usrspace/mywork/data/648qianfan1d_xml"
+    input_dir="C:/usrspace/mywork/data/rawposition/648qianfan1d_2",
+    output_dir="C:/usrspace/mywork/data/rawposition/648qianfan1d_2_xml"
 )
