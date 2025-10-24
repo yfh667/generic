@@ -27,7 +27,7 @@ def save_to_xml(output_file, station_visible_data):
             station_elem.set("id", str(station_id))  # 地面站ID
 
             for sat_id in sat_list:
-                sat_elem = ET.SubElement(station_elem, "basicSa")
+                sat_elem = ET.SubElement(station_elem, "satellite")
                 sat_elem.set("id", str(sat_id))  # 卫星ID
 
     # 让XML缩进（Python 3.9+必备）

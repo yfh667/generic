@@ -93,12 +93,12 @@
     });
 
     // 读取数据
-    const snapshotResp = await fetch('./snapshot_100.json');
+    const snapshotResp = await fetch('./grid_snapshot_100.json');
 
     // 读取 Path.json：可支持 "15-36-53" 字符串或 [15,36,53] 数组
 let pathNodes = [];
 try {
-  const pr = await fetch('./Path.json');
+  const pr = await fetch('./grid_Path.json');
   if (pr.ok) {
     const pj = await pr.json();
     if (Array.isArray(pj)) {
@@ -118,7 +118,7 @@ try {
     // 可选高亮
     let highlightedGroups = [];
     try {
-      const highlightResp = await fetch('./highlighted.json');
+      const highlightResp = await fetch('./grid_highlighted.json');
       if (highlightResp.ok) highlightedGroups = await highlightResp.json();
     } catch (_) {}
     const highlightedMap = new Map();
