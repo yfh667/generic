@@ -1,3 +1,70 @@
+# -*- coding: utf-8 -*-
+"""
+模块用途
+-------
+在离散时间序列 step 上，计算并可视化「两组节点之间」的平均最短路径长度（以跳数计）。
+- 计算函数：compute_intergroup_avg_shortest_path
+- 绘图函数：plot_intergroup_avg_shortest_path
+- 导出到 CSV（便于 OriginPro/Excel 等）：export_intergroup_avgspath_to_origin
+
+核心定义
+-------
+对给定时刻 step，令 G_A、G_B 为两组节点集合。我们对所有 (u ∈ G_A, v ∈ G_B) 的「可达对」计算最短路跳数，
+并取其算术平均。若该 step 无任何可达对，则该 step 的均值记为 NaN，pairs_counted=0。
+注意：NetworkX 的最短路径长度为「边数」，即 hop-count。
+
+输入数据形状
+-----------
+all_edges: { step: { src: iterable(dsts) } }
+    - 每个 step 给出邻接表（有向或无向由参数 undirected 决定）。
+    - 若 undirected=True，则同一条边 (u,v) 视为无向（通过 nx.Graph() 载入）。
+group_data: { step: {'groups': { group_id: set(nodes), ... }} }
+    - 每个 step 的分组信息；至少需包含 `group_a` 和 `group_b` 的集合。
+    - 若缺失，视为该 step 无法计算，返回 NaN/0。
+
+step 选择规则
+------------
+默认仅遍历出现在 all_edges.keys() 里的 step。你也可以传入：
+- steps=None：使用 all_edges 的全部 step（排序）。
+- steps=(start, end)：闭区间 [start, end] 且 step 必须存在于 all_edges 中才会参与。
+- steps=Iterable[int]：显式列出要参与的 step（仍以 all_edges 中存在为准）。
+
+复杂度（粗略）
+--------------
+对每个 step：从 G_A 的每个节点做一次单源 BFS/最短路，时间复杂度 ~ O(|G_A|·(|V|+|E|))。
+若组很大或图很稠密，计算会较耗时（可考虑并行、采样或用多源最短路/联通分量预处理优化）。
+
+使用示例
+--------
+df = compute_intergroup_avg_shortest_path(
+    all_edges, group_data,
+    group_a=0, group_b=4,
+    steps=(0, 1200),   # 闭区间
+    undirected=True
+)
+
+fig, ax, df2 = plot_intergroup_avg_shortest_path(
+    all_edges, group_data,
+    group_a=0, group_b=4,
+    steps=(0, 1200),
+    undirected=True,
+    save=True,                # 同时保存图像
+    save_dir="figs",
+    basename="avgspath_g0_4", # 输出 figs/avgspath_g0_4.png/.pdf
+    formats=("png","pdf")
+)
+
+csv_path = export_intergroup_avgspath_to_origin(
+    all_edges, group_data,
+    out_dir="Book1",
+    basename="avgspath_g0_4",
+    group_a=0, group_b=4,
+    steps=(0, 1200),
+    undirected=True
+)
+print(csv_path)  # Book1/avgspath_g0_4.csv
+"""
+
 from pathlib import Path
 import networkx as nx
 
