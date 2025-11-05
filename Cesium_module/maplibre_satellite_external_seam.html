@@ -92,22 +92,58 @@
       preserveDrawingBuffer: true
     });
 
+    // >>> NEW: 与圆圈样式一致的几何收缩参数（像素）
+    const CIRCLE_RADIUS_PX = 4.2;
+    const CIRCLE_STROKE_PX = 1.6;
+    const CLEAR_MARGIN_PX  = 1.0;
+    const TRIM_PX = CIRCLE_RADIUS_PX + 0.5 * CIRCLE_STROKE_PX + CLEAR_MARGIN_PX;
+
+    // >>> NEW: 端点像素内缩函数（用 map.project / unproject）
+    function trimLinesInPixels(features, trimPx, mapInstance){
+      const out = [];
+      for (const f of features){
+        const coords = f.geometry.coordinates;
+        if (!coords || coords.length < 2) continue;
+        const a = coords[0], b = coords[1];
+
+        const p0 = mapInstance.project(a);
+        const p1 = mapInstance.project(b);
+        const dx = p1.x - p0.x, dy = p1.y - p0.y;
+        const L  = Math.hypot(dx, dy);
+        if (!Number.isFinite(L) || L <= 2*trimPx) continue; // 太短就跳过
+
+        const ux = dx / L, uy = dy / L;
+        const np0 = { x: p0.x + ux*trimPx, y: p0.y + uy*trimPx };
+        const np1 = { x: p1.x - ux*trimPx, y: p1.y - uy*trimPx };
+
+        const c0 = mapInstance.unproject([np0.x, np0.y]);
+        const c1 = mapInstance.unproject([np1.x, np1.y]);
+
+        out.push({
+          type: 'Feature',
+          properties: f.properties,
+          geometry: { type: 'LineString', coordinates: [[c0.lng, c0.lat],[c1.lng, c1.lat]] }
+        });
+      }
+      return out;
+    }
+
     // 读取数据
     const snapshotResp = await fetch('./snapshot_100.json');
 
     // 读取 Path.json：可支持 "15-36-53" 字符串或 [15,36,53] 数组
-let pathNodes = [];
-try {
-  const pr = await fetch('./Path.json');
-  if (pr.ok) {
-    const pj = await pr.json();
-    if (Array.isArray(pj)) {
-      pathNodes = pj.map(n => Number(n)).filter(Number.isFinite);
-    } else if (typeof pj === 'string') {
-      pathNodes = pj.split(/[-,\s,]+/).map(n => Number(n)).filter(Number.isFinite);
-    }
-  }
-} catch (e) { /* 没有 Path.json 也没关系 */ }
+    let pathNodes = [];
+    try {
+      const pr = await fetch('./Path.json');
+      if (pr.ok) {
+        const pj = await pr.json();
+        if (Array.isArray(pj)) {
+          pathNodes = pj.map(n => Number(n)).filter(Number.isFinite);
+        } else if (typeof pj === 'string') {
+          pathNodes = pj.split(/[-,\s,]+/).map(n => Number(n)).filter(Number.isFinite);
+        }
+      }
+    } catch (e) { /* 没有 Path.json 也没关系 */ }
 
     const snapshotData = await snapshotResp.json();
     const originalSatellites = snapshotData.satellites || [];
@@ -128,10 +164,14 @@ try {
       });
     });
 
-    // —— 导出缓存 ——
-    let lastPointsFC = { type: 'FeatureCollection', features: [] };
-    let lastLinesActiveFC  = { type: 'FeatureCollection', features: [] };
-    let lastLinesPendingFC = { type: 'FeatureCollection', features: [] };
+    // —— 导出/裁剪缓存 ——（替换你原来的 last* 变量）
+    let lastPointsFC           = { type: 'FeatureCollection', features: [] };
+    let lastLinesActiveRaw     = { type: 'FeatureCollection', features: [] }; // 未裁剪
+    let lastLinesPendingRaw    = { type: 'FeatureCollection', features: [] }; // 未裁剪
+    let lastPathRaw            = { type: 'FeatureCollection', features: [] }; // 未裁剪
+    let lastLinesActiveTrimmed = { type: 'FeatureCollection', features: [] };
+    let lastLinesPendingTrimmed= { type: 'FeatureCollection', features: [] };
+    let lastPathTrimmed        = { type: 'FeatureCollection', features: [] };
 
     // 经度换窗
     function remapLongitude(lng, center) {
@@ -142,37 +182,36 @@ try {
     }
 
     // 纠正跨 180° 经线的断裂
-function connectAcrossDateline(s, t) {
-  const target = [...t];
-  const d = s[0] - t[0];
-  if (d > 180) target[0] += 360;
-  else if (d < -180) target[0] -= 360;
-  return target;
-}
+    function connectAcrossDateline(s, t) {
+      const target = [...t];
+      const d = s[0] - t[0];
+      if (d > 180) target[0] += 360;
+      else if (d < -180) target[0] -= 360;
+      return target;
+    }
 
-// 从节点序列生成折线段集合，并交替设置 +/− 偏移（像素）
-function buildPathFeaturesFromNodes(pathNodes, coordsById) {
-  if (!Array.isArray(pathNodes) || pathNodes.length < 2) return [];
-  const feats = [];
-  for (let i = 0; i < pathNodes.length - 1; i++) {
-    const a = String(pathNodes[i]);
-    const b = String(pathNodes[i+1]);
-    const s = coordsById.get(a);
-    const t = coordsById.get(b);
-    if (!s || !t) continue;
+    // 从节点序列生成折线段集合，并交替设置 +/− 偏移（像素）
+    function buildPathFeaturesFromNodes(pathNodes, coordsById) {
+      if (!Array.isArray(pathNodes) || pathNodes.length < 2) return [];
+      const feats = [];
+      for (let i = 0; i < pathNodes.length - 1; i++) {
+        const a = String(pathNodes[i]);
+        const b = String(pathNodes[i+1]);
+        const s = coordsById.get(a);
+        const t = coordsById.get(b);
+        if (!s || !t) continue;
 
-    const target = connectAcrossDateline(s, t);
-    const offsetPx = (i % 2 === 0) ? 4 : -4;    // 交替向两侧偏移 3px
+        const target = connectAcrossDateline(s, t);
+        const offsetPx = (i % 2 === 0) ? 4 : -4; // 交替侧移
 
-    feats.push({
-      type: 'Feature',
-      properties: { offset: offsetPx },
-      geometry: { type: 'LineString', coordinates: [s, target] }
-    });
-  }
-  return feats;
-}
-
+        feats.push({
+          type: 'Feature',
+          properties: { offset: offsetPx },
+          geometry: { type: 'LineString', coordinates: [s, target] }
+        });
+      }
+      return feats;
+    }
 
     // 生成线要素：给每条线打上 isNormal（邻/同轨道）属性
     function buildLineFeatures(rawLinks, coordsById) {
@@ -182,13 +221,11 @@ function buildPathFeaturesFromNodes(pathNodes, coordsById) {
           const tCoord = coordsById.get(String(link.target));
           if (!sCoord || !tCoord) return null;
 
-          // 视觉跨经度边界修正
           const targetCoords = [...tCoord];
           const lonDiff = sCoord[0] - tCoord[0];
           if (lonDiff > 180) targetCoords[0] += 360;
           else if (lonDiff < -180) targetCoords[0] -= 360;
 
-          // 邻/跨轨道判断
           const sId = Number(link.source);
           const tId = Number(link.target);
           const sOrbit = Math.floor(sId / SATELLITES_PER_ORBIT);
@@ -197,11 +234,25 @@ function buildPathFeaturesFromNodes(pathNodes, coordsById) {
 
           return {
             type: 'Feature',
-            properties: { isNormal }, // 颜色用它
+            properties: { isNormal },
             geometry: { type: 'LineString', coordinates: [sCoord, targetCoords] }
           };
         })
         .filter(Boolean);
+    }
+
+    // >>> NEW: 把裁剪后的数据推入三条线的 source
+    function pushTrimmedToSources() {
+      lastLinesActiveTrimmed  = { type:'FeatureCollection',
+        features: trimLinesInPixels(lastLinesActiveRaw.features,  TRIM_PX, map) };
+      lastLinesPendingTrimmed = { type:'FeatureCollection',
+        features: trimLinesInPixels(lastLinesPendingRaw.features, TRIM_PX, map) };
+      lastPathTrimmed = { type:'FeatureCollection',
+        features: trimLinesInPixels(lastPathRaw.features,        TRIM_PX, map) };
+
+      map.getSource('sat_links_active')?.setData(lastLinesActiveTrimmed);
+      map.getSource('sat_links_pending')?.setData(lastLinesPendingTrimmed);
+      map.getSource('path_overlay')?.setData(lastPathTrimmed);
     }
 
     function updateVisualization(centerLng) {
@@ -223,30 +274,16 @@ function buildPathFeaturesFromNodes(pathNodes, coordsById) {
 
       const lineFeaturesActive  = buildLineFeatures(originalLinksActive,  coordsById);
       const lineFeaturesPending = buildLineFeatures(originalLinksPending, coordsById);
+      const pathFeats           = buildPathFeaturesFromNodes(pathNodes,   coordsById);
 
-      const pointsFC = { type: 'FeatureCollection', features: pointFeatures };
-      const linesActiveFC  = { type: 'FeatureCollection', features: lineFeaturesActive  };
-      const linesPendingFC = { type: 'FeatureCollection', features: lineFeaturesPending };
+      // —— 先存 Raw，再统一裁剪并推送 ——  (与之前不同)
+      lastPointsFC        = { type: 'FeatureCollection', features: pointFeatures };
+      lastLinesActiveRaw  = { type: 'FeatureCollection', features: lineFeaturesActive  };
+      lastLinesPendingRaw = { type: 'FeatureCollection', features: lineFeaturesPending };
+      lastPathRaw         = { type: 'FeatureCollection', features: pathFeats };
 
-      // 缓存给导出
-      lastPointsFC = pointsFC;
-      lastLinesActiveFC  = linesActiveFC;
-      lastLinesPendingFC = linesPendingFC;
-
-      map.getSource('sat_points').setData(pointsFC);
-
-
-      // —— 路径也要随 centerLng 重算 ——
-// 这里的 coordsById 是你 updateVisualization 中构建的那个 Map
-const pathFeats = buildPathFeaturesFromNodes(pathNodes, coordsById);
-map.getSource('path_overlay').setData({
-  type: 'FeatureCollection',
-  features: pathFeats
-});
-
-
-      map.getSource('sat_links_active').setData(linesActiveFC);
-      map.getSource('sat_links_pending').setData(linesPendingFC);
+      map.getSource('sat_points').setData(lastPointsFC);
+      pushTrimmedToSources(); // <<< 现在才推送线（已裁剪）
 
       map.easeTo({ center: [centerLng, map.getCenter().lat], duration: 0 });
     }
@@ -282,14 +319,14 @@ map.getSource('path_overlay').setData({
       map.addSource('sat_links_active',  { type: 'geojson', data: emptyFC });
       map.addSource('sat_links_pending', { type: 'geojson', data: emptyFC });
 
-      // 颜色规则（两层共用）：isNormal=true -> 黑色；false -> 蓝色
+      // 颜色规则：isNormal=true -> 黑色；false -> 蓝色
       const colorExpr = [
         'case',
-        ['get', 'isNormal'], '#000000', // 邻/同轨道：黑
-        '#0077ff'                        // 跨轨道：蓝
+        ['get', 'isNormal'], '#000000',
+        '#0077ff'
       ];
 
-      // 工作链路：实线
+      // 工作链路：实线（加圆头更顺眼）
       map.addLayer({
         id: 'sat-links-active',
         type: 'line',
@@ -298,7 +335,8 @@ map.getSource('path_overlay').setData({
           'line-color': colorExpr,
           'line-width': 1.1,
           'line-opacity': 0.85
-        }
+        },
+        layout: { 'line-cap': 'round' } // >>> NEW
       });
 
       // 正在建链：虚线
@@ -311,38 +349,38 @@ map.getSource('path_overlay').setData({
           'line-width': 1.1,
           'line-opacity': 0.95,
           'line-dasharray': [2, 2]
-        }
+        },
+        layout: { 'line-cap': 'round' } // >>> NEW
       });
 
-      // 卫星点
+      // 卫星点（空心圆）
       map.addLayer({
         id: 'sat-circles',
         type: 'circle',
         source: 'sat_points',
         paint: {
-          'circle-radius': 4.2,
-          'circle-color': 'rgba(0,0,0,0)',
+          'circle-radius': CIRCLE_RADIUS_PX,               // 与常量一致
+          'circle-color': 'rgba(0,0,0,0)',                 // 空心
           'circle-stroke-color': ['get', 'color'],
-          'circle-stroke-width': 1.6,
+          'circle-stroke-width': CIRCLE_STROKE_PX,
           'circle-stroke-opacity': 1.0
         }
       });
 
- // 路径源
-map.addSource('path_overlay', { type: 'geojson', data: { type:'FeatureCollection', features: [] } });
-
-// 路径层：红色，使用 line-offset 侧移避免重叠
-map.addLayer({
-  id: 'path-overlay',
-  type: 'line',
-  source: 'path_overlay',
-  paint: {
-    'line-color': '#e53935',   // 红色
-    'line-width': 2.0,
-    'line-opacity': 0.95,
-    'line-offset': ['get', 'offset'] // 从要素属性读取偏移像素
-  }
-});
+      // 路径源与层
+      map.addSource('path_overlay', { type: 'geojson', data: { type:'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'path-overlay',
+        type: 'line',
+        source: 'path_overlay',
+        paint: {
+          'line-color': '#e53935',
+          'line-width': 2.0,
+          'line-opacity': 0.95,
+          'line-offset': ['get', 'offset'] // 从要素属性读取偏移像素
+        },
+        layout: { 'line-cap': 'round' } // >>> NEW
+      });
 
       // Hover
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
@@ -384,6 +422,12 @@ map.addLayer({
       });
       applyBtn.addEventListener('click', applyCenterFromInput);
       inputBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCenterFromInput(); });
+
+      // >>> NEW: 缩放/移动/窗口变化后，按像素重新裁剪（避免缩放时圆圈尺寸变化导致穿圈）
+      const retrim = () => pushTrimmedToSources();
+      map.on('zoomend', retrim);
+      map.on('moveend', retrim);
+      map.on('resize', retrim);
 
       // 初始化
       inputBox.value = '0E';
@@ -446,10 +490,21 @@ map.addLayer({
 
       await new Promise(res => map2.once('idle', res));
 
+      // >>> NEW: 在 map2 上按像素重新裁剪（高倍画布像素尺寸不同）
       try {
         map2.getSource('sat_points')?.setData(lastPointsFC);
-        map2.getSource('sat_links_active')?.setData(lastLinesActiveFC);
-        map2.getSource('sat_links_pending')?.setData(lastLinesPendingFC);
+
+        const active2  = { type:'FeatureCollection',
+          features: trimLinesInPixels(lastLinesActiveRaw.features,  TRIM_PX, map2) };
+        const pending2 = { type:'FeatureCollection',
+          features: trimLinesInPixels(lastLinesPendingRaw.features, TRIM_PX, map2) };
+        const path2    = { type:'FeatureCollection',
+          features: trimLinesInPixels(lastPathRaw.features,        TRIM_PX, map2) };
+
+        map2.getSource('sat_links_active')?.setData(active2);
+        map2.getSource('sat_links_pending')?.setData(pending2);
+        map2.getSource('path_overlay')?.setData(path2);
+
         await new Promise(res => map2.once('idle', res));
       } catch(e) {}
 

@@ -1,345 +1,301 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Cesium White Earth Demo</title>
-    <script src="Cesium/Cesium.js"></script>
-    <script src="Cesium/cesium-sensor-volumes.js"></script>
-    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星座仿真结果演示</title>
     <style>
-        html, body, #cesiumContainer {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+        /* --- 全局样式与字体 --- */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #121212;
+            --panel-bg-color: #1e1e1e;
+            --border-color: #333;
+            --text-color: #e0e0e0;
+            --text-secondary-color: #a0a0a0;
+            --accent-color: #007bff;
+            --placeholder-border-color: #4a4a4a;
         }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Noto Sans SC', sans-serif;
+            margin: 0;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        /* --- 仪表盘主容器 --- */
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1600px;
+            margin: auto;
+        }
+
+        /* --- 顶部信息栏 --- */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--panel-bg-color);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .dashboard-header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .header-metrics {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .metric-item {
+            text-align: center;
+        }
+
+        .metric-item .label {
+            font-size: 12px;
+            color: var(--text-secondary-color);
+        }
+
+        .metric-item .value {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        #simulation-time .value {
+            color: var(--accent-color);
+            min-width: 60px; /* 防止数字跳动 */
+            display: inline-block;
+            text-align: right;
+        }
+
+        .header-controls button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+
+        .header-controls button:hover {
+            background-color: #0056b3;
+        }
+
+        /* --- 内容网格布局 --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr); /* 12列网格系统 */
+            grid-auto-rows: minmax(150px, auto);
+            gap: 20px;
+        }
+
+        /* --- 面板/卡片样式 --- */
+        .panel {
+            background-color: var(--panel-bg-color);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-secondary-color);
+        }
+
+        .panel-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* --- 占位符样式 --- */
+        .placeholder {
+            flex-grow: 1;
+            border: 2px dashed var(--placeholder-border-color);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-secondary-color);
+            font-size: 16px;
+            min-height: 150px;
+        }
+
+        /* --- 特定面板的网格布局 --- */
+        .panel-stk { grid-column: 1 / 7; grid-row: 1 / 3; }
+        .panel-topology { grid-column: 7 / 13; grid-row: 1 / 2; }
+        .panel-hops { grid-column: 7 / 13; grid-row: 2 / 3; }
+        .panel-table { grid-column: 1 / 7; grid-row: 3 / 4; }
+        .panel-capacity { grid-column: 7 / 13; grid-row: 3 / 4; }
+
+        /* --- 表格样式 --- */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .data-table th {
+            color: var(--text-secondary-color);
+            font-weight: 500;
+        }
+
+        /* --- 响应式设计 --- */
+        @media (max-width: 1200px) {
+            .panel-stk { grid-column: 1 / 13; grid-row: 1 / 2; }
+            .panel-topology { grid-column: 1 / 13; grid-row: 2 / 3; }
+            .panel-hops { grid-column: 1 / 13; grid-row: 3 / 4; }
+            .panel-table { grid-column: 1 / 13; grid-row: 4 / 5; }
+            .panel-capacity { grid-column: 1 / 13; grid-row: 5 / 6; }
+        }
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            .header-metrics {
+                flex-wrap: wrap;
+            }
+        }
+
     </style>
 </head>
 <body>
-<div id="cesiumContainer"></div>
-<script>
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
 
-    // 初始化Viewer并配置白色地球
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-        skyBox: false,              // 关闭天空盒
-        skyAtmosphere: false,       // 关闭大气效果
-        baseLayerPicker: false,     // 隐藏底图选择器
-        geocoder: false,            // 隐藏地理编码搜索框
-        homeButton: false,          // 隐藏主页按钮
-        sceneModePicker: false,     // 隐藏场景模式选择器
-        navigationHelpButton: false,// 隐藏导航帮助
-        timeline: false,            // 隐藏时间线
-        fullscreenButton: false,    // 隐藏全屏按钮
-        animation: false,           // 隐藏动画控件
-        infoBox: false,             // 隐藏信息框
-        shouldAnimate: true         // 启用场景动画
-    });
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>星座仿真结果演示</h1>
+            <div class="header-metrics">
+                <div class="metric-item">
+                    <div class="label">收敛时间</div>
+                    <div class="value">9.5 min</div>
+                </div>
+                <div class="metric-item">
+                    <div class="label">平均最短路径</div>
+                    <div class="value">16 hops</div>
+                </div>
+                <div id="simulation-time" class="metric-item">
+                    <div class="label">仿真运行时间</div>
+                    <div class="value"><span>0.0</span> s</div>
+                </div>
+            </div>
+            <div class="header-controls">
+                <button>切换布局</button>
+            </div>
+        </header>
 
-    // 设置白色背景
-    viewer.scene.backgroundColor = Cesium.Color.WHITE;
+        <main class="dashboard-grid">
 
-    // 配置地球底图
-    const globe = viewer.scene.globe;
-    globe.imageryLayers.removeAll();  // 移除默认影像
-    globe.baseColor = Cesium.Color.WHITE;  // 设置地球底色
+<div class="panel panel-stk">
+    <h2 class="panel-title">STK 覆盖/观测示意</h2>
+    <div class="panel-content">
+        <div class="placeholder">
+            <img src="/1/stk.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
+        </div>
+    </div>
+</div>
 
-    // 添加浅色轮廓底图（CartoDB Light）
-    globe.imageryLayers.addImageryProvider(
-        new Cesium.UrlTemplateImageryProvider({
-            url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-            credit: '© CartoDB'
-        })
-    );
+            <div class="panel panel-topology">
+                <h2 class="panel-title">星间拓扑/路径示意</h2>
+                 <div class="panel-content">
+                    <div class="placeholder">
 
-    // 实体管理
-    const groundStationEntities = {};
-    const satelliteEntities = {};
-    const lineEntities = {};
-    const satelliteConicSensors = {};
-    const satangle = 45;  // 卫星传感器角度
-    let sensorVisibility = true; // Default visibility
-    let visibleSatellites = [];
-    // WebSocket连接
-    const socket = new WebSocket("ws://localhost:8766");
-    socket.onopen = () => console.log("WebSocket连接已建立");
-    socket.onclose = () => console.log("WebSocket连接已关闭");
+                                  <img src="/1/2d.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
 
-    // 处理数据更新
-    socket.onmessage = (event) => {
-         console.log("收到原始数据:", event.data); // 打印原始数据
-        try {
-            const data = JSON.parse(event.data);
-            //
-            // // 检查是否有 sensorVisibility 属性
-            // if (data.hasOwnProperty("sensorVisibility")) {
-            //
-            //     sensorVisibility = data.sensorVisibility; // 直接获取
-            //     updateSensorVisibility();  // 更新覆盖角显示
-            // }
-            //
-            // if (data.hasOwnProperty("visibleSatellites")) {
-            //
-            //     visibleSatellites = data.visibleSatellites;
-            //
-            //     updateSensorVisibility();
-            // }
+                    </div>
+                </div>
+            </div>
 
-            // 处理传感器可见性控制
-            if (data.hasOwnProperty("sensorVisibility")) {
-                sensorVisibility = data.sensorVisibility;
-                updateAllSensorsVisibility();
-            }
+            <div class="panel panel-hops">
+                <h2 class="panel-title">用户平均跳数分布</h2>
+                <div class="panel-content">
+                    <div class="placeholder">
+                                                      <img src="/1/earth_hops.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
 
-            // 处理指定可见卫星
-            if (data.hasOwnProperty("visibleSatellites")) {
-                visibleSatellites = data.visibleSatellites.map(Number);
-                updateAllSensorsVisibility();
-            }
+                    </div>
+                </div>
+            </div>
 
+            <div class="panel panel-table">
+                 <h2 class="panel-title">示例路径信息</h2>
+                 <div class="panel-content">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>hops</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>柏林</td>
+                                <td>乌鲁木齐</td>
+                                <td>18</td>
+                            </tr>
+                            <tr>
+                                <td>马德里</td>
+                                <td>重庆</td>
+                                <td>23</td>
+                            </tr>
+                             <tr>
+                                <td>巴黎</td>
+                                <td>北京</td>
+                                <td>18</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                 </div>
+            </div>
 
-
-            // 创建 data 的副本
-            const dataWithoutSensorVisibility = { ...data };
-
-            // 从副本中删除 sensorVisibility 属性
-            delete dataWithoutSensorVisibility.sensorVisibility;
-            delete dataWithoutSensorVisibility.visibleSatellites;
-
-            // 始终更新 stations 和 sats（使用删除了 sensorVisibility 的副本）
-            updateStationsAndSatellites(dataWithoutSensorVisibility);
-            updateLineEntities(dataWithoutSensorVisibility);
+            <div class="panel panel-capacity">
+                <h2 class="panel-title">容量与流量纬度分布</h2>
+                 <div class="panel-content">
+                    <div class="placeholder">
+                                                      <img src="/1/liuliang.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
 
 
-        } catch (error) {
-            console.error("Error parsing or handling WebSocket message:", error);
-        }
-    };
-    // 新增传感器可见性更新函数
-    function updateAllSensorsVisibility() {
-        Object.entries(satelliteConicSensors).forEach(([id, entity]) => {
-            const satId = parseInt(id.replace("SAT", "")); // 提取纯数字ID
-            const shouldShow = sensorVisibility &&
-                (visibleSatellites.length === 0 ||
-                    visibleSatellites.includes(satId));
-            entity.show = shouldShow;
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const timeValueElement = document.querySelector('#simulation-time .value span');
+            let startTime = Date.now();
+
+            setInterval(() => {
+                const elapsedTime = (Date.now() - startTime) / 1000; // 单位：秒
+                timeValueElement.textContent = elapsedTime.toFixed(1); // 保留一位小数
+            }, 100); // 每100毫秒更新一次
         });
-    }
+    </script>
 
-
-    // 更新地面站和卫星位置
-    function updateStationsAndSatellites(data) {
-       // const data = JSON.parse(event.data);
-
-        // 处理地面站
-        data.stations.forEach(station => {
-            const id = station.id.toUpperCase();
-            const position = Cesium.Cartesian3.fromElements(...station.position);
-
-            if (!groundStationEntities[id]) {
-                groundStationEntities[id] = viewer.entities.add({
-                    position: position,
-                    point: {
-                        pixelSize: 8,
-                        color: Cesium.Color.RED
-                    },
-                    label: {
-                        text: id,
-                        font: '12pt sans-serif',
-                        fillColor: Cesium.Color.BLACK,
-                        style: Cesium.LabelStyle.FILL,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -10)
-                    }
-                });
-            } else {
-               // satelliteConicSensors[id].show = sensorVisibility; // Set initial visibility
-
-                groundStationEntities[id].position = position;
-            }
-        });
-
-        // 处理卫星（关键修改点）
-        data.sats.forEach(satellite => {
-
-
-
-            const id = satellite.id.toUpperCase();
-            const position = Cesium.Cartesian3.fromElements(...satellite.position);
-
-            // 更新卫星本体
-            if (!satelliteEntities[id]) {
-                satelliteEntities[id] = viewer.entities.add({
-                    position: position,
-                    point: {
-                        pixelSize: 8,
-                        color: Cesium.Color.BLACK,
-                        outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 2
-                    },
-                    label: {
-                        text: id,
-                        font: '10pt sans-serif',
-                        fillColor: Cesium.Color.BLACK,
-                        style: Cesium.LabelStyle.FILL,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -10)
-                    }
-                });
-            } else {
-                // 更新卫星位置时同步更新传感器
-                satelliteEntities[id].position = position;
-            }
-
-            // ====================== 关键修改开始 ======================
-            // 更新/创建传感器
-            if (satelliteConicSensors[id]) {
-                // 更新现有传感器位置和方向
-                satelliteConicSensors[id].position = position;
-
-                // 动态计算传感器朝向（始终指向地心）
-                const orientation = Cesium.Transforms.headingPitchRollQuaternion(
-                    position,
-                    new Cesium.HeadingPitchRoll(
-                        0,
-                        Cesium.Math.toRadians(180), // 俯仰角180度指向地心
-                        0
-                    )
-                );
-                satelliteConicSensors[id].orientation = orientation;
-                satelliteConicSensors[id].show = sensorVisibility; // Correct placement for existing sensors
-
-            } else {
-                // 创建新传感器
-                const orientation = Cesium.Transforms.headingPitchRollQuaternion(
-                    position,
-                    new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(180), 0)
-                );
-
-                satelliteConicSensors[id] = viewer.entities.add({
-                    position: position,
-                    orientation: new Cesium.CallbackProperty(function() {
-                        return Cesium.Transforms.headingPitchRollQuaternion(
-                            position,
-                            new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(180), 0)
-                        );
-                    }, false),
-                    conicSensor: new CesiumSensorVolumes.ConicSensorGraphics({
-                        radius: 10030000,
-                        innerHalfAngle: 0,
-                        outerHalfAngle: Cesium.Math.toRadians(satangle),
-                        lateralSurfaceMaterial: Cesium.Color.GOLD.withAlpha(0.15)
-                    }),
-                    show: sensorVisibility // Correct placement for new sensors
-                });
-            }
-            // ====================== 关键修改结束 ======================
-        });
-    }
-
-
-    // 更新连接线
-    function updateLineEntities(data) {
-       // const data = JSON.parse(event.data);
-        const currentLines = new Set();
-        const stationCount = data.stations.length;
-
-        // 处理卫星间的激光链路（从下标1开始）
-        data.sats.forEach(satellite => {
-            const sourceId = satellite.id.toUpperCase();
-
-            // 从索引1开始遍历，跳过星地微波链路
-            for (let i = 1; i < satellite.link_array.length; i++) {
-                const targetIndex = satellite.link_array[i];
-                if (targetIndex === -1) continue;
-
-                // 确认目标是卫星（索引超出地面站总数）
-                if (targetIndex < stationCount) {
-                    console.warn(`卫星间链路指向地面站，索引: ${targetIndex}`);
-                    continue;
-                }
-
-                const satIndex = targetIndex - stationCount;
-                if (satIndex >= data.sats.length) {
-                    console.warn(`无效卫星索引: ${satIndex}`);
-                    continue;
-                }
-
-                const targetId = data.sats[satIndex].id.toUpperCase();
-                const lineId = [sourceId, targetId].sort().join('_');
-                currentLines.add(lineId);
-
-                if (!lineEntities[lineId]) {
-                    lineEntities[lineId] = viewer.entities.add({
-                        polyline: {
-                            positions: new Cesium.CallbackProperty(() => [
-                                satelliteEntities[sourceId].position.getValue(Cesium.JulianDate.now()),
-                                satelliteEntities[targetId].position.getValue(Cesium.JulianDate.now())
-                            ], false),
-                            width: 2,
-                            material: Cesium.Color.RED,  // 用颜色区分激光链路
-                            arcType: Cesium.ArcType.NONE
-                        }
-                    });
-                }
-            }
-        });
-
-        // 处理地面站的星地微波链路（仅link_array[0]）
-        data.stations.forEach(station => {
-            const sourceId = station.id.toUpperCase();
-            const targetIndex = station.link_array[0];  // 只处理第一个元素
-
-            if (targetIndex === -1 || targetIndex < stationCount) {
-                console.log(`地面站未连接卫星或索引无效: ${targetIndex}`);
-                return;
-            }
-
-            const satIndex = targetIndex - stationCount;
-            if (satIndex >= data.sats.length) {
-                console.warn(`无效卫星索引: ${satIndex}`);
-                return;
-            }
-
-            const targetId = data.sats[satIndex].id.toUpperCase();
-            const lineId = [sourceId, targetId].sort().join('_');
-            currentLines.add(lineId);
-
-            if (!lineEntities[lineId]) {
-                lineEntities[lineId] = viewer.entities.add({
-                    polyline: {
-                        positions: new Cesium.CallbackProperty(() => [
-                            groundStationEntities[sourceId].position.getValue(Cesium.JulianDate.now()),
-                            satelliteEntities[targetId].position.getValue(Cesium.JulianDate.now())
-                        ], false),
-                        width: 2,
-                        material: Cesium.Color.YELLOW,  // 微波链路保持黄色
-                        arcType: Cesium.ArcType.NONE
-                    }
-                });
-            }
-        });
-
-        // 清理旧连线
-        Object.keys(lineEntities).forEach(lineId => {
-            if (!currentLines.has(lineId)) {
-                viewer.entities.remove(lineEntities[lineId]);
-                delete lineEntities[lineId];
-            }
-        });
-    }
-
-
-    // 初始视角设置（中国上空）
-    viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000),
-        orientation: {
-            heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-90),
-            roll: 0.0
-        }
-    });
-</script>
 </body>
 </html>

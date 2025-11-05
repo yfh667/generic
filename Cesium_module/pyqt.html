@@ -1,70 +1,146 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
-    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
-    <script src="Cesium/Cesium.js"></script>
-    <style>
-        #cesiumContainer {
-            width: 100vw;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-        body { 
-            margin: 0;
-            background: #000;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>星座仿真结果演示 | Constellation Results Viewer</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#10192b; --panel-2:#0e1627; --text:#e7eefc; --muted:#9fb1d1; --accent:#69b3ff;
+      --ok:#6ee7a8; --warn:#ffd166; --danger:#ff6b6b; --chip:#17223a; --border:#1f2b45;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:linear-gradient(180deg, #0a1120 0%, #0e1729 100%);
+      color:var(--text);
+    }
+    header{
+      position:sticky; top:0; z-index:20; backdrop-filter:saturate(120%) blur(8px);
+      background:rgba(10,17,32,.7); border-bottom:1px solid var(--border);
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:14px 18px;}
+    .title{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .title h1{font-size:18px; margin:0; letter-spacing:.3px}
+    .controls{margin-top:10px; display:flex; gap:12px; flex-wrap:wrap}
+    .chip{background:var(--chip); border:1px solid var(--border); color:var(--muted); padding:8px 10px; border-radius:12px; display:flex; align-items:center; gap:8px}
+    .chip input[type="number"], .chip input[type="text"]{background:transparent; border:none; color:var(--text); width:90px; outline:none}
+    .btn{background:var(--accent); color:#031128; border:none; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer}
+    .btn:active{transform:translateY(1px)}
+    main{max-width:1200px; margin:18px auto; padding:0 18px}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+    @media (max-width:980px){ .grid{grid-template-columns:1fr} }
+    .card{background:linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%); border:1px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card header{position:relative; background:transparent; border:0}
+    .card-head{display:flex; align-items:center; justify-content:space-between; padding:12px 14px}
+    .card h2{font-size:14px; margin:0; color:var(--muted); font-weight:600}
+    .upload{display:flex; align-items:center; gap:8px}
+    .upload input{display:none}
+    .upload label{cursor:pointer; padding:6px 10px; border-radius:10px; background:#14223a; border:1px dashed #32507c; color:#a9c6ef; font-size:12px}
+    figure{margin:0; position:relative;}
+    figure .stage{width:100%; aspect-ratio:16/10; background:
+      radial-gradient(100% 100% at 50% 40%, #14223a 0%, #0e1627 100%);
+      display:flex; align-items:center; justify-content:center; overflow:hidden}
+    img.preview{max-width:100%; max-height:100%; object-fit:contain; filter:drop-shadow(0 8px 24px rgba(0,0,0,.35))}
+    figcaption{padding:10px 14px; border-top:1px solid var(--border); color:var(--muted); font-size:13px}
+    .badge{display:inline-block; padding:3px 8px; border-radius:999px; background:#13223a; border:1px solid var(--border); color:#a8c3eb; font-size:12px; margin-right:6px}
+    footer{max-width:1200px; margin:8px auto 24px; padding:0 18px}
+    .legend{display:flex; flex-wrap:wrap; gap:8px}
+    .dot{width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px}
+    .dot.red{background:#ff6b6b} .dot.blue{background:#67b3ff} .dot.gray{background:#8aa0c0} .dot.green{background:#67e8a5}
+    .tip{color:#8ea7ca; font-size:12px; margin-top:8px}
+  </style>
 </head>
 <body>
-    <div id="cesiumContainer"></div>
-    <script>
-    try {
-        // 高性能配置
-        const viewer = new Cesium.Viewer('cesiumContainer', {
-            contextOptions: {
-                webgl: {
-                    alpha: false,
-                    antialias: false,
-                    powerPreference: "high-performance",
-                    failIfMajorPerformanceCaveat: false
-                }
-            },
-            animation: false,
-            baseLayerPicker: false,
-            fullscreenButton: false,
-            geocoder: false,
-            homeButton: false,
-            infoBox: false,
-            sceneModePicker: false,
-            selectionIndicator: false,
-            timeline: false,
-            navigationHelpButton: false,
-            shadows: false,
-            scene3DOnly: true,
-            requestRenderMode: true,
-            msaaSamples: 2
-        });
+  <header>
+    <div class="wrap">
+      <div class="title">
+        <h1>星座仿真结果演示</h1>
+        <span class="badge">G60 / Walker 648/18/8.1</span>
+        <span class="badge">演示视图</span>
+      </div>
+      <div class="controls">
+        <div class="chip">收敛时间 <input id="tConv" type="text" value="9.5 min" aria-label="收敛时间"/></div>
+        <div class="chip">平均最短路径 <input id="avgHop" type="text" value="16 hops" aria-label="平均最短路径"/></div>
+        <div class="chip">总固定代价 <input id="cost" type="text" value="16.0" aria-label="总固定代价"/></div>
+        <button class="btn" id="toggleLayout" title="切换单双列视图">切换布局</button>
+      </div>
+    </div>
+  </header>
 
-        // 地形和影像优化
-        viewer.terrainProvider = Cesium.createWorldTerrain({
-            requestWaterMask: false,
-            requestVertexNormals: false
-        });
-        
-        viewer.scene.globe.depthTestAgainstTerrain = true;
-        viewer.scene.globe.maxScreenSpaceError = 2;
+  <main>
+    <div class="grid" id="grid">
+      <!-- 左侧：STK/地球视图 -->
+      <section class="card">
+        <header class="card-head">
+          <h2>左图：STK 覆盖/观测示意</h2>
+          <div class="upload">
+            <input id="fileLeft" type="file" accept="image/*" />
+            <label for="fileLeft">上传图片</label>
+          </div>
+        </header>
+        <figure>
+          <div class="stage">
+            <img id="imgLeft" class="preview" alt="点击上方“上传图片”导入 STK 截图" />
+          </div>
+          <figcaption>
+            示例说明：黄色圆盘代表地面目标覆盖或可视区域；蓝色格点为星座轨道平面/星位。可用来展示“可见-跟踪-传输”的时空窗口。
+          </figcaption>
+        </figure>
+      </section>
 
-        // 相机参数优化
-        viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
-        viewer.scene.screenSpaceCameraController.maximumZoomDistance = 10000000;
+      <!-- 右侧：拓扑/链路视图 -->
+      <section class="card">
+        <header class="card-head">
+          <h2>右图：星间拓扑/路径示意</h2>
+          <div class="upload">
+            <input id="fileRight" type="file" accept="image/*" />
+            <label for="fileRight">上传图片</label>
+          </div>
+        </header>
+        <figure>
+          <div class="stage">
+            <img id="imgRight" class="preview" alt="点击上方“上传图片”导入 拓扑/路径 截图" />
+          </div>
+          <figcaption>
+            红色为工作链路，蓝色为候选/备用链路，灰色为网格骨干；可配合下方指标展示路由效率、拥塞与鲁棒性。
+          </figcaption>
+        </figure>
+      </section>
+    </div>
+  </main>
 
-    } catch (error) {
-        console.error('Cesium初始化失败:', error);
-        document.body.innerHTML = `<h1 style="color:red">错误: ${error.message}</h1>`;
+  <footer>
+    <div class="legend">
+      <span><span class="dot red"></span>工作链路</span>
+      <span><span class="dot blue"></span>候选链路</span>
+      <span><span class="dot gray"></span>骨干网格</span>
+      <span><span class="dot green"></span>观测/目标区域</span>
+    </div>
+    <div class="tip">提示：点击“上传图片”替换两侧示意图；顶部输入框可直接编辑关键指标文本。</div>
+  </footer>
+
+  <script>
+    // 读取图片并预览
+    function bindPreview(fileInput, imgEl){
+      fileInput.addEventListener('change', () => {
+        const f = fileInput.files?.[0];
+        if(!f) return;
+        const url = URL.createObjectURL(f);
+        imgEl.src = url;
+        imgEl.onload = () => URL.revokeObjectURL(url);
+      });
     }
-    </script>
+    bindPreview(document.getElementById('fileLeft'),  document.getElementById('imgLeft'));
+    bindPreview(document.getElementById('fileRight'), document.getElementById('imgRight'));
+
+    // 布局切换：单双列
+    const grid = document.getElementById('grid');
+    document.getElementById('toggleLayout').addEventListener('click', () => {
+      const single = getComputedStyle(grid).gridTemplateColumns === '1fr';
+      grid.style.gridTemplateColumns = single ? '1fr 1fr' : '1fr';
+    });
+  </script>
 </body>
 </html>
