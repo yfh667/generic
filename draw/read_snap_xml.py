@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
 import xml.etree.ElementTree as ET
+from pathlib import Path
+import xml.etree.ElementTree as ET
+from typing import Optional, Dict, Set, List, Tuple
 
 
 
@@ -148,6 +151,8 @@ def parse_xml_group_data(
 
     return group_data
 
+
+
 #
 #
 # def parse_xml_group_data(xml_file, start_step=None, end_step=None):
@@ -218,6 +223,104 @@ def parse_xml_group_data(
 #
 #     return group_data
 #
+
+from pathlib import Path
+import xml.etree.ElementTree as ET
+from typing import Optional, List, Dict, Set
+
+def parse_station_timeseries(
+    xml_file: str | Path,
+    station_ids: List[int],
+    start_step: Optional[int] = None,
+    end_step: Optional[int] = None,   # 含 end_step
+) -> List[Dict[int, Set[int]]]:
+    """
+    返回：list[ len(station_ids) ]，其中每个元素是 { step:int -> set(satellite_ids:int) }
+         索引 i 对应 station_ids[i]。
+    例如：
+        series = parse_station_timeseries(xml, [0,4], 0, 100)
+        series[0][1]  # station 0 在 step=1 的接入卫星集合
+        series[1][1]  # station 4 在 step=1 的接入卫星集合
+    若某一步该站未出现，仍会记录为空集合 set()，便于直接索引。
+    """
+    xml_file = str(xml_file)
+
+    # 位置索引映射，保证按传入顺序组织结果
+    id_to_idx: Dict[int, int] = {sid: i for i, sid in enumerate(station_ids)}
+    want_set: Set[int] = set(station_ids)
+
+    # 输出容器：每个站一个字典（step -> set(sats)）
+    series: List[Dict[int, Set[int]]] = [dict() for _ in station_ids]
+
+    context = ET.iterparse(xml_file, events=("end",))
+    for event, elem in context:
+        if elem.tag != "time":
+            continue
+
+        step_attr = elem.get("step")
+        if step_attr is None:
+            elem.clear(); continue
+        try:
+            step = int(step_attr)
+        except ValueError:
+            elem.clear(); continue
+
+        # 时间窗口：含 end_step
+        if start_step is not None and step < start_step:
+            elem.clear(); continue
+        if end_step is not None and step > end_step:
+            elem.clear(); continue
+
+        # 本 step 已填充的站（避免重复写入）
+        filled_idx: Set[int] = set()
+
+        stations_elem = elem.find("stations")
+        if stations_elem is not None:
+            for st in stations_elem.findall("station"):
+                sid_attr = st.get("id")
+                if sid_attr is None:
+                    continue
+                try:
+                    sid = int(sid_attr)
+                except ValueError:
+                    continue
+
+                if sid not in want_set:
+                    continue
+
+                idx = id_to_idx[sid]
+                sats: Set[int] = set()
+
+                for sat_elem in st:
+                    if sat_elem.tag != "satellite":
+                        continue
+                    sat_id_attr = sat_elem.get("id")
+                    if not sat_id_attr:
+                        continue
+                    # 兼容 "123" / "123.0"
+                    try:
+                        sat_id = int(sat_id_attr)
+                    except ValueError:
+                        try:
+                            sat_id = int(float(sat_id_attr))
+                        except ValueError:
+                            continue
+                    sats.add(sat_id)
+
+                series[idx][step] = sats
+                filled_idx.add(idx)
+
+        # 对于本 step 未出现的站，补空集合，便于直接索引 series[i][step]
+        if len(filled_idx) < len(series):
+            for i in range(len(series)):
+                if i not in filled_idx:
+                    if step not in series[i]:
+                        series[i][step] = set()
+
+        elem.clear()
+
+    return series
+
 
 
 
