@@ -22,7 +22,8 @@ RANGES = [
 ]
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]   # [0, 22005)
 
-DEFAULT_TTB_VALUES = [10,20,30,40,50,60,70,80,90,100,110,120,130,140]
+# DEFAULT_TTB_VALUES = [10,20,30,40,50,60,70,80,90,100,110,120,130,140]
+DEFAULT_TTB_VALUES = [ 60 ]
 
 # ===== 路径 & 公共数据缓存 =====
 def version_name(ttb: int) -> str:

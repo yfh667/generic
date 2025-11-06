@@ -51,6 +51,14 @@ class SatelliteViewer(QtWidgets.QWidget):
         self._init_ui_core()
         self.register_envelope(4, color="deeppink")
         self.register_envelope(0, color="orange")
+        #route path
+        self.path_by_step = {}  # { step: [node_ids...] }
+        self._init_src_dst_markers()
+        self._route_items = []  # 当前路由的 QGraphicsPathItem 列表
+        self.route_color = '#1E88E5'  # 蓝色
+        self.route_width = 2.0
+        self.route_offset = 0.08  # 路由整体向法线方向侧移（坐标单位），避免和原链路重叠
+        self.route_curve_k = 0.50  # 跨多轨时的弧度系数（和你 draw_curved_edge 一致）
 
         # 有数据则画首帧
         if self.steps:
@@ -73,6 +81,164 @@ class SatelliteViewer(QtWidgets.QWidget):
         if self.steps and self.slider.value() == step:
             self.draw_edges(step, edges)
 
+
+##-----------------route path
+    # ===== 路由绘制（按链路规则 + 轻微偏移） =====
+    ##-----------------route path
+    # ===== 路由绘制（按链路规则 + 轻微偏移） =====
+    def _geom_offset(self, x0, y0, x1, y1, offset):
+        """按 chord 法向整体侧移直线段的两个端点"""
+        dx, dy = (x1 - x0), (y1 - y0)
+        L = (dx * dx + dy * dy) ** 0.5
+        if L == 0:
+            return x0, y0, x1, y1, 0.0, 0.0
+        nx, ny = (-dy / L, dx / L)  # 单位法向
+        ox, oy = (nx * offset, ny * offset)
+        return x0 + ox, y0 + oy, x1 + ox, y1 + oy, ox, oy
+
+    def draw_straight_edge_route(self, x0, y0, x1, y1):
+        """
+        路由直线：与 draw_straight_edge 规则一致，但整体法向偏移一点、颜色蓝、置顶。
+        """
+        x0o, y0o, x1o, y1o, _, _ = self._geom_offset(x0, y0, x1, y1, self.route_offset)
+        path = QPainterPath()
+        path.moveTo(x0o, y0o)
+        path.lineTo(x1o, y1o)
+        item = QGraphicsPathItem(path)
+        pen = pg.mkPen(self.route_color, width=self.route_width, style=QtCore.Qt.SolidLine)
+        item.setPen(pen)
+        item.setZValue(140)  # 高于普通链路(3)
+        self.plot_widget.addItem(item)
+        self._route_items.append(item)
+
+    def draw_curved_edge_route(self, x0, y0, x1, y1, curve=None):
+        """
+        路由曲线：与 draw_curved_edge 完全同款控制点规则，但整体法向偏移一点、颜色蓝、置顶。
+        """
+        # *** 修改点 ***
+        # 优先使用传入的 curve，否则使用 __init__ 中定义的 route_curve_k
+        k = curve if curve is not None else self.route_curve_k
+
+        # 1. 先按你的规则计算控制点
+        ctrl_x = (x0 + x1) / 2.0
+        ctrl_y = (y0 + y1) / 2.0 + k * abs(x1 - x0)  # 使用 k
+
+        # 2. 然后对整个几何（两端点+控制点）做相同的整体法向偏移
+        x0o, y0o, x1o, y1o, ox, oy = self._geom_offset(x0, y0, x1, y1, self.route_offset)
+        path = QPainterPath()
+        path.moveTo(x0o, y0o)
+        path.quadTo(ctrl_x + ox, ctrl_y + oy, x1o, y1o)
+
+        item = QGraphicsPathItem(path)
+        pen = pg.mkPen(self.route_color, width=self.route_width, style=QtCore.Qt.SolidLine)
+        item.setPen(pen)
+        item.setZValue(140)
+        self.plot_widget.addItem(item)
+        self._route_items.append(item)
+
+    def _clear_route(self):
+        for it in self._route_items:
+            self.plot_widget.removeItem(it)
+        self._route_items = []
+
+    def draw_route_path(self, step: int):
+        """
+        用“画链路”的判定逻辑来画整条 path（同/邻轨=直线；跨多轨=曲线），
+        但把每一段统一整体法向偏移一点（route_offset），并使用蓝色画笔。
+        """
+        self._clear_route()
+        path_nodes = self.path_by_step.get(int(step))
+        if not path_nodes or len(path_nodes) < 2:
+            return
+
+        # 可选：若你想只在当步存在的边上画（严格依赖 edges_by_step），取消注释下面两行：
+        # edges = getattr(self, "edges_by_step", {}).get(step, {})
+        # def has_edge(a,b): return b in edges.get(a, set())
+
+        for u, v in zip(path_nodes[:-1], path_nodes[1:]):
+            a = int(u);
+            b = int(v)
+            x0, y0 = self._all_cols[a], self._all_rows[a]
+            x1, y1 = self._all_cols[b], self._all_rows[b]
+
+            # 与 draw_edges 的判定保持一致
+            is_curved = abs(self._all_cols[a] - self._all_cols[b]) > 1
+
+            if is_curved:
+                # *** 修改点 ***
+                # 不再硬编码 curve=0.5，让它自动使用 self.route_curve_k (在 __init__ 中定义为 0.5)
+                self.draw_curved_edge_route(x0, y0, x1, y1)
+            else:
+                self.draw_straight_edge_route(x0, y0, x1, y1)
+
+    def _init_src_dst_markers(self):
+        # 画两个空心圆，z 值高于散点/连线
+        pen_src = pg.mkPen(color='#1E88E5', width=2)  # 蓝色
+        pen_dst = pg.mkPen(color='#1E88E5', width=2, style=QtCore.Qt.DotLine)
+
+        self.src_marker = QtWidgets.QGraphicsEllipseItem()
+        self.src_marker.setPen(pen_src);
+        self.src_marker.setVisible(False);
+        self.src_marker.setZValue(200)
+        self.plot_widget.addItem(self.src_marker)
+
+        self.dst_marker = QtWidgets.QGraphicsEllipseItem()
+        self.dst_marker.setPen(pen_dst);
+        self.dst_marker.setVisible(False);
+        self.dst_marker.setZValue(200)
+        self.plot_widget.addItem(self.dst_marker)
+
+    def _node_xy(self, node_id: int):
+        """把节点 id 转成当前画布坐标（列=plane=x，行=in-plane=y）"""
+        x = int(node_id) // self.N if hasattr(self, 'N') else (int(node_id) // N)
+        y = int(node_id) % (self.N if hasattr(self, 'N') else N)
+        return float(x), float(y)
+
+    def update_src_dst_marker(self, step: int, *, radius=0.48):
+        """
+        半径单位用“坐标单位”（与你的网格一致）。
+        - source: 实线蓝圈
+        - destination: 点线蓝圈
+        """
+        path = self.path_by_step.get(int(step))
+        if not path or len(path) < 1:
+            self.src_marker.setVisible(False)
+            self.dst_marker.setVisible(False)
+            return
+
+        src = int(path[0])
+        dst = int(path[-1])
+
+        # 放置 src
+        sx, sy = self._node_xy(src)
+        self.src_marker.setRect(sx - radius, sy - radius, 2 * radius, 2 * radius)
+        self.src_marker.setVisible(True)
+
+        # 放置 dst
+        dx, dy = self._node_xy(dst)
+        self.dst_marker.setRect(dx - radius, dy - radius, 2 * radius, 2 * radius)
+        self.dst_marker.setVisible(True)
+
+    def set_paths(self, path_by_step: dict):
+        """
+        传入 {step: [node_ids...] }。例如：
+          { 1: [355,356,...,44], 2: [...], ... }
+        """
+        self.path_by_step = {int(k): list(map(int, v)) for k, v in (path_by_step or {}).items()}
+        # 如果当前 slider 停在某个 step，立即刷新一次蓝圈
+        if self.steps:
+            self.update_src_dst_marker(self.slider.value())
+
+
+
+
+
+
+
+
+
+
+    ##---------------
     def register_envelope(self, group_id, color="deeppink", need_count=1):
         """确保某个分组有 need_count 个 RectangleEnvelope（支持多个矩形）。"""
         lst = self.envelopes.get(group_id, [])
@@ -135,6 +301,7 @@ class SatelliteViewer(QtWidgets.QWidget):
                 w = (xmax - xmin) + 2 * expand
                 h = (ymax - ymin) + 2 * expand
                 env_list[idx].set_rect(x, y, w, h)
+
 
     # ---------- UI 初始化 ----------
     def _init_ui_core(self):
@@ -358,6 +525,10 @@ class SatelliteViewer(QtWidgets.QWidget):
             pass
         elif self.envelopesflag:
             self.update_envelopes(step)
+
+        # route show
+        self.update_src_dst_marker(step)
+        self.draw_route_path(step)
 
     def on_slider(self, value):
         self.plot_satellites(value)
