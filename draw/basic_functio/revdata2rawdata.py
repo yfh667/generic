@@ -1,5 +1,5 @@
 
-import  draw.read_snap_xml_archi as read_snap_xml
+import  draw.read_snap_xml as read_snap_xml
 
 
 def revedge2rawedge(edge_by_step,off_sets):
