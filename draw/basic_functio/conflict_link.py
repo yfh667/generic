@@ -1,7 +1,9 @@
 from copy import deepcopy
+import copy
+
 import genaric2.tegnode as tegnode
 
-
+import math
 # def get_no_conflict_link(raw_edges_by_step,start_ts,end_ts,time_2_build,N,P):
 # ### then ,we need arange the link reconfiguration,that means,we need arrrange the restablish limitation for the
 #
@@ -880,6 +882,7 @@ def get_no_conflict_link_nodes4(
 
     # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
     nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
+
    # nownodes = deepcopy(nodes)
     nget = nownodes.get
     # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
@@ -951,6 +954,64 @@ def get_no_conflict_link_nodes4(
     # we begin do our algorithm2 steps
 
     length = len(change_link_terminal)
+    by_y = sorted(change_link_terminal, key=lambda t: t[1])
+    test_nodes = copy.deepcopy(nownodes)
+    test_nodes = nownodes.deepcopy()
+    endtiime = step
+
+ #   chunk_size = max(int(length * ratio), 1)  # 每次取固定数量，最后一批拿剩下的
+
+    #ratio = 0.2
+
+    n = len(by_y)
+    if n == 0:
+        pass
+    else:
+        chunk_size = max(int(n * ratio), 1)
+
+        for batch_idx, start in enumerate(range(0, n, chunk_size), start=1):
+            batch = by_y[start: start + chunk_size]
+            print(f"# batch {batch_idx} (items {start}..{start + len(batch) - 1})")
+            # firstly ,we the setup   start
+
+
+            setup_start = endtiime-batch_idx*time_2_build
+
+            for item in batch:
+                x = item[0]
+                y = item[1]
+
+                future_neighbor = test_nodes[x, y, endtiime + 1].rightneighbor
+                future_x = future_neighbor[0]
+                future_y = future_neighbor[1]
+                for k in range(time_2_build):
+                    setup_time_index =setup_start+k
+                    test_nodes[(x, y, setup_time_index)].rightneighbor = (future_x, future_y, setup_time_index)
+                    test_nodes[(x, y, setup_time_index)].right_state = 0
+                    test_nodes[(x, y, setup_time_index)].timelast = time_2_build-k
+                    test_nodes[(x, y, setup_time_index)].type = 0
+    #
+
+            # then we setup the work time
+            work_start = setup_start+time_2_build
+            for item in batch:
+                x = item[0]
+                y = item[1]
+
+                future_neighbor = test_nodes[x, y, endtiime + 1].rightneighbor
+                future_x = future_neighbor[0]
+                future_y = future_neighbor[1]
+                time_offset = 0
+
+                for k in range(work_start, endtiime+1):
+
+                    timeidex = k
+                    test_nodes[(x, y, timeidex)].rightneighbor =  (future_x, future_y, timeidex)
+                    test_nodes[(x, y, timeidex)].right_state = 1
+                    test_nodes[(x, y, timeidex)].timelast = 0
+
+
+
 
 
 
