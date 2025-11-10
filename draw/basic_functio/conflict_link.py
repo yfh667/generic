@@ -863,8 +863,8 @@ def get_no_conflict_link_nodes3(
 
 
 def get_no_conflict_link_nodes4(
-    nodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete],
-    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int
+    nodes: Dict[Tuple[int, int, int], tegnode.tegnode_new],
+    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio
 ):
     """
     优化版：
@@ -873,12 +873,13 @@ def get_no_conflict_link_nodes4(
     - 语义与原逻辑一致
     """
     # ---- 局部绑定，减少查找开销 ----
-    TC = tegnode.tegnode_complete
-    TN = tegnode.tegnode_new
-    get = nodes.get
+    TC = tegnode.tegnode_new
+
+
+
 
     # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
-    nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_complete] = dict(nodes)
+    nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
    # nownodes = deepcopy(nodes)
     nget = nownodes.get
     # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
@@ -910,13 +911,15 @@ def get_no_conflict_link_nodes4(
     # 仅遍历必要范围（end_ts-1，因为我们总是看 t 与 t+1）
     # e1 = end_ts - 1
 
-    step = 3608
+    step = 3668
 
     # for step in range(start_ts, e1):
         # 只处理 i ∈ [0, P-2]（与你原代码一致）
         # actually，我们应该考虑的是以时间片为层级的
         # if step==1233:
         #     print(1)
+    change_link_terminal = []
+
     for i in range(P - 1):
         for j in range(N):
             # if (i,j)==(15,26):
@@ -927,289 +930,33 @@ def get_no_conflict_link_nodes4(
             rn1 = n1.rightneighbor
             rn2 = n2.rightneighbor
 
+            ln1 = n1.leftneighbor
+            ln2 = n2.leftneighbor
+
+
             # 情况 A：两步都有 rightneighbor，但目标不同 -> 触发调整
             if rn1 and rn2:
                 if (rn1[0], rn1[1]) != (rn2[0], rn2[1]):
-                    print((i, j, step))
+                    change_link_terminal.append((i, j, step))
+               #     print((i, j, step))
+
+
+
+            if ln1 and ln2:
+                if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
+                    change_link_terminal.append((ln2[0], ln2[1], step))
+               #     print((ln2[0], ln2[1], step))
                   #  adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
+    # here we get the change link terminal groups,next stage ,we
+    # we begin do our algorithm2 steps
 
-            # 情况 B：前一步没有、后一步有 -> 需要回溯检查与修正
-            # elif (not rn1) and rn2:
-            #     # 先保证“对方节点在 step 的快照”存在
-            #     _ = ensure(rn2[0], rn2[1], step)
-            #
-            #     # 回溯 time_2_build 帧
-            #     for k in range(1, time_2_build + 1):
-            #         bias = step - k
-            #         if bias < start_ts:
-            #             break
-            #
-            #         node_rev = ensure(i, j, bias)
-            #         node_neighbor_rev = ensure(rn2[0], rn2[1], bias)
-            #
-            #         # 如果历史上自己在某帧已经有 rightneighbor 且不是 rn2，则认为冲突，触发调整
-            #         if node_rev.rightneighbor:
-            #             if node_rev.rightneighbor == rn2:
-            #                 continue
-            #             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
-            #             break
-            #
-            #         # 如果对方在某帧有 leftneighbor，则把那条旧左邻断开
-            #         ln = node_neighbor_rev.leftneighbor
-            #         # 只在“对端左邻 == 我这条 (i,j,bias)”时，才允许拆
-            #         if ln and ln[0] == i and ln[1] == j and ln[2] == bias:
-            #             ln_node = ensure(i, j, bias)
-            #
-            #             # 可选：再加一道保险——仅当我这边的 rightneighbor 的确不是目标 rn2 时才清
-            #             if ln_node.rightneighbor and (ln_node.rightneighbor[0], ln_node.rightneighbor[1]) != (
-            #                     rn2[0], rn2[1]):
-            #                 ln_node.rightneighbor = None
-            #
-            #             node_neighbor_rev.leftneighbor = None
-            #
-            #         # ln = node_neighbor_rev.leftneighbor
-            #         # if ln:
-            #         #     ln_node = ensure(ln[0], ln[1], bias)
-            #         #     ln_node.rightneighbor = None
-            #         #     node_neighbor_rev.leftneighbor = None
-            #
-            # # 情况 C：前一步有、后一步没有 -> 看对方左邻在 t/t+1 是否切换，若切则调整
-            # elif rn1 and (not rn2):
-            #     rx, ry = rn1[0], rn1[1]
-            #     nb1 = ensure(rx, ry, step)
-            #     nb2 = ensure(rx, ry, step + 1)
-            #
-            #     ln1 = nb1.leftneighbor
-            #     ln2 = nb2.leftneighbor
-            #     if ln1 and ln2:
-            #         if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
-            #             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
-
-    # print(nownodes[15,26,1203])
-    #
-    # # ============== 第二轮：“断代”覆盖处理（把空白期回填为同一 rightneighbor） ==============
-    # for step in range(start_ts, e1):
-    #     for i in range(P - 1):
-    #         for j in range(N):
-    #             n1 = ensure(i, j, step)
-    #             n2 = ensure(i, j, step + 1)
-    #
-    #             rn1 = n1.rightneighbor
-    #             if rn1 and (not n2.rightneighbor) and (not n2.leftneighbor):
-    #                 rx, ry = rn1[0], rn1[1]
-    #                 # 向后找“下一个非空时刻”或结束
-    #                 offset = 1
-    #                 while True:
-    #                     t = step + offset
-    #                     if t >= end_ts:
-    #                         break
-    #                     node_next = ensure(i, j, t)
-    #                     if node_next.leftneighbor or node_next.rightneighbor:
-    #                         break
-    #
-    #                     neigh_next = ensure(rx, ry, t)
-    #                     if neigh_next.leftneighbor or neigh_next.rightneighbor:
-    #                         break
-    #
-    #                     offset += 1
-    #
-    #                 # 回填区间：(step, step+baias) 使其都连向 (rx,ry,t)
-    #                 baias = offset - time_2_build
-    #                 for k in range(1, baias):
-    #                     t = step + k
-    #                     node_next = ensure(i, j, t)
-    #                     node_next.rightneighbor = (rx, ry, t)
-    #
-    #                     neigh_next = ensure(rx, ry, t)
-    #                     neigh_next.leftneighbor = (i, j, t)
-    #
-    # # ============== 导出边（已建链） ==============
-    # edges_by_step = motif.transform_nodes_2_rawedge(nownodes, P, N, start_ts, end_ts)
-    #
-    # # ============== 生成 pendingnodes 并导出待建边 ==============
-    # pendingnodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = {}
-    # pset = pendingnodes  # 局部别名，少写字典名
-    # for step in range(start_ts, e1):
-    #     for i in range(P - 1):
-    #         for j in range(N):
-    #             n1 = ensure(i, j, step)
-    #             n2 = ensure(i, j, step + 1)
-    #             # 只有在“前无后有”时，把过去 time_2_build 帧回填为 pending
-    #             if (not n1.rightneighbor) and n2.rightneighbor:
-    #                 rn = n2.rightneighbor
-    #                 rx, ry = rn[0], rn[1]
-    #                 for k in range(time_2_build):
-    #                     bias = step - k
-    #                     if bias < start_ts:
-    #                         break
-    #                     pset[(i, j, bias)] = TN(
-    #                         asc_nodes_region_id=-1,
-    #                         rightneighbor=(rx, ry, bias),
-    #                         leftneighbor=None,
-    #                         state=-1,
-    #                         importance=0,
-    #                     )
-    #
-    # pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
+    length = len(change_link_terminal)
 
 
 
 
-# 我们下面的合并是有问题的，但是呢，我们暂时不去解决，因为影响并不大，以后再回头解决
-# 我们先做做简单的一步，为每一个建链，留出建连时间，
-# # 也就是，对于任何一个刚开始出现的链接，我们就为他预留建连时间，先不考虑热点区域的问题
-# def get_no_conflict_link_nodes3(nodes: dict[tuple[int, int, int], tegnode.tegnode_complete], start_ts1, end_ts1,start_ts2, end_ts2, start_ts3, end_ts3, time_2_build, N, P):
-#     start_ts = start_ts1
-#     end_ts =end_ts3
-#     nownodes = deepcopy(nodes)
-#
-#
-#     for step in range(start_ts, end_ts):
-#         for x in range(P):
-#             for y in range(N):
-#                 key = (x, y, step)
-#                 if key not in nownodes:
-#                     nownodes[key] = tegnode.tegnode_complete(
-#                         asc_nodes_region_id=-1,
-#                         rightneighbor=None,
-#                         leftneighbor=None,
-#                         left_state=-1,
-#                         right_state=-1,
-#                     )
-#
-# # 我们首先要思考的是时间片概念的层级
-#     # 这个意思是，在涉及到交接处，当然，主要就是交界处，我们要思考，
-#     #这个要注意的是，我们这段程序，主要处理交接处的切换问题。
-#     for step in range(start_ts, end_ts-1):
-#         for i in range(P - 1):
-#             for j in range(N):
-#                 # if i==10 and j==32 and step==891:
-#                 #     print(1)
-#                 n1 = nownodes.get((i, j, step))
-#                 n2 = nownodes.get((i, j, step + 1))
-#                 # 防御式判断
-#                 if n1.rightneighbor and n2.rightneighbor:
-#                     n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
-#                     n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
-#                     if n1_neighbor != n2_neighbor:
-#
-#                         adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
-#
-#                 elif not n1.rightneighbor and n2.rightneighbor:
-#                     # 我们要进行回溯，要查询前面的链路，是否存在区域内部链路
-#                     # attention，我们同时也要对n2.rightneighbor的前一时刻，秦楚其邻居
-#                     n2_neighbor_node = nownodes.get((n2.rightneighbor[0], n2.rightneighbor[1], step))
-#                   #  n2_region_group_id = region_in_communication(n2, n2_neighbor_node)
-#                     n1_region_group_id = -1
-#                     for k in range(1,time_2_build+1):
-#                         bias = step-k
-#                         if bias<start_ts:
-#                             break
-#                         node_rev = nownodes.get((i, j, bias))
-#                         node_neighbor_rev = nownodes.get(( n2.rightneighbor[0],n2.rightneighbor[1], bias))
-#
-#                         if node_rev is None:
-#                             print(f"节点缺失: {(i, j, bias)}")
-#                         if node_neighbor_rev is None:
-#                             print(f"节点缺失: {(n2.rightneighbor[0][0],n2.rightneighbor[0][1], bias)}")
-#
-#
-#                         if node_rev.rightneighbor:
-#                             if node_rev.rightneighbor == n2.rightneighbor:
-#                                 continue
-#
-#                             # n1_region_group_id = region_in_communication(node_rev, node_rev_neighbor_node)
-#                             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
-#                             break
-#
-#                         if node_neighbor_rev.leftneighbor:
-#                             node_neighbor_rev_leftneighbor = node_neighbor_rev.leftneighbor
-#                             node_neighbor_rev_leftneighbor_node = nownodes.get((node_neighbor_rev_leftneighbor[0],node_neighbor_rev_leftneighbor[1], bias))
-#                             node_neighbor_rev_leftneighbor_node.rightneighbor =None
-#                             node_neighbor_rev.leftneighbor = None
-#
-#
-#     # 前面有neighbor 后面没neighbor，所以，就要考虑左邻居的问题
-#                 elif  n1.rightneighbor and not n2.rightneighbor:
-#                     right_neighbor = n1.rightneighbor
-#                     # 接下来，我们要注意了，对于n1.rightneighbor,我们要知道，right neighbor如果切换链路
-#                     # 是会影响到当前的n1 以及之前的链路的，所以这个要注意
-#                     # 如果是，我们就需要进行调整
-#
-#                     n1 = nownodes.get((right_neighbor[0], right_neighbor[1], step))
-#                     n2 = nownodes.get((right_neighbor[0], right_neighbor[1], step+1))
-#
-#                     if n1.leftneighbor and n2.leftneighbor:
-#                         n1_neighbor = (n1.leftneighbor[0], n1.leftneighbor[1])
-#                         n2_neighbor = (n2.leftneighbor[0], n2.leftneighbor[1])
-#                         if n1_neighbor != n2_neighbor:
-#
-#                             adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
-#
-#
-#     # 接下来就要考虑断代的事情，这个其实很简单的，就是我们查看谁覆盖谁的问题
-#
-#     for step in range(start_ts, end_ts-1):
-#         for i in range(P - 1):
-#             for j in range(N):
-#                 n1 = nownodes.get((i, j, step))
-#
-#                 n2 = nownodes.get((i, j, step + 1))
-#                 if n1.rightneighbor and not n2.rightneighbor and not n2.leftneighbor:
-#                     right_neighbor = n1.rightneighbor
-#                     offset = 1
-#                     while(1):
-#                         time = step+offset
-#                         if time >= end_ts:
-#                             break
-#                         nodes_next = nownodes.get((i, j, time))
-#
-#
-#
-#                         if  nodes_next.leftneighbor or  nodes_next.rightneighbor:
-#                             break
-#
-#                         n1_neighbor_next_node = nownodes.get((right_neighbor[0], right_neighbor[1], time))
-#
-#                         if  n1_neighbor_next_node.leftneighbor or  n1_neighbor_next_node.rightneighbor:
-#                             break
-#
-#
-#                         offset = offset + 1
-#
-#                     baias = offset-time_2_build
-#                     for k in range(1,baias):
-#                         time = step+k
-#                         nodes_next = nownodes.get((i, j, time))
-#                         nodes_next.rightneighbor =(right_neighbor[0],right_neighbor[1],time)
-#                         n1_neighbor_next_node=nownodes.get((right_neighbor[0],right_neighbor[1],time))
-#                         n1_neighbor_next_node.leftneighbor = (i,j,time)
-#
-#     edges_by_step = motif.transform_nodes_2_rawedge(nownodes, P, N, start_ts, end_ts)
-#
-#     pendingnodes = {}
-#     for step in range(start_ts, end_ts-1):
-#         for i in range(P - 1):
-#             for j in range(N):
-#                 n1 = nownodes.get((i, j, step))
-#                 n2 = nownodes.get((i, j, step + 1))
-#                 # 防御式判断
-#                 # 这个表明，某个点在step+1时，其链接改变了，此刻，我们需要直接修改
-#                 if not n1.rightneighbor and n2.rightneighbor:
-#                     #  说明是建链完成了，因此，我们要反向将建链的链路给加进来
-#                     right_neighbor = n2.rightneighbor
-#                     for k in range(time_2_build):
-#                         bias = step-k
-#                         if bias<start_ts:
-#                             break
-#                         pendingnodes[i, j,bias] = tegnode.tegnode_new(
-#                             asc_nodes_region_id=-1,
-#                             rightneighbor=right_neighbor,
-#                             leftneighbor=None,
-#                             state=-1,
-#                             importance=0,
-#                         )
-#
-#     pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
-#
-#     return edges_by_step,pending_edges,nownodes
+
+
+
+
+    return change_link_terminal

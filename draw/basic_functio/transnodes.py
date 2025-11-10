@@ -63,6 +63,69 @@ def transnodes(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
     return nc
 
 
+
+def transnodes_new(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
+    """
+    nodes_new: {(x, y, step): tegnode_new}
+    返回: {(x, y, step): tegnode_complete}
+    """
+    nc = {}  # nodes_complete
+    TC = tegnode.tegnode_new  # local binding (fewer global lookups)
+    get_new = nodes_new.get
+    nc_get = nc.get
+
+    for (x, y, step), n in nodes_new.items():
+        key = (x, y, step)
+        rn = n.rightneighbor   # tuple(x1, y1, ...) or None
+        rs = n.state           # right_state
+
+        # 1) 自己：创建或更新（始终以当前 n 覆盖右侧信息）
+        cur = nc_get(key)
+        if cur is None:
+            nc[key] = TC(
+                asc_nodes_region_id=-1,
+                rightneighbor=rn,
+                leftneighbor=None,
+                right_state=rs,
+
+                left_state=-1
+            )
+        else:
+            cur.rightneighbor = rn
+            cur.right_state = rs
+
+        # 2) 右邻：补 leftneighbor/left_state；必要时创建邻居节点
+        if rn is None:
+            continue
+
+        nx, ny = rn[0], rn[1]
+        nkey = (nx, ny, step)
+
+        nb = nc_get(nkey)
+        if nb is None:
+            # 尽量从原始 nodes_new 中拿到邻居自身的“右侧信息”
+            raw = get_new(nkey)
+            if raw is not None:
+                nb_rn = raw.rightneighbor
+                nb_rs = raw.state
+            else:
+                nb_rn = None
+                nb_rs = None
+
+            nc[nkey] = TC(
+                asc_nodes_region_id=-1,
+                rightneighbor=nb_rn,
+                leftneighbor=key,
+                right_state=nb_rs,
+                left_state=rs
+            )
+        else:
+            nb.leftneighbor = key
+            nb.left_state = rs
+
+    return nc
+
+
 #
 # def transnodes(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
 #     """
