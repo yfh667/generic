@@ -48,6 +48,38 @@ def nodes_to_xml(nodes: Dict[Tuple[int,int,int], object], filename: str):
             write("/>\n")
         write("</Nodes>\n")
 
+def nodes_to_xml_test(nodes: Dict[Tuple[int,int,int], object], filename: str):
+    """
+    Streaming writer: very fast & low memory.
+    nodes: dict[(x, y, step)] -> node_obj (has attributes used below)
+    """
+    with open(filename, 'w', encoding='utf-8', newline='') as f:
+        write = f.write
+        qa = quoteattr  # local binding for speed
+
+        write('<?xml version="1.0" encoding="utf-8"?>\n<Nodes>\n')
+        for (x, y, step), node in nodes.items():
+            # read attributes once (avoid repeated attribute lookups)
+            asc_flag = getattr(node, "asc_nodes_flag", "")
+            rn = getattr(node, "rightneighbor", None)
+            ln = getattr(node, "leftneighbor", None)
+            leftstate = getattr(node, "left_state", -1)
+            right_state = getattr(node, "right_state", -1)
+
+            node_type   = getattr(node, "node_type", "")
+            timelast = getattr(node, "timelast", "")
+
+            write("  <Node ")
+            write('coordination=' + qa(f"{x},{y},{step}"))
+            write(' asc_nodes_flag=' + qa(str(asc_flag)))
+            write(' rightneighbor=' + qa("None" if rn is None else str(rn)))
+            write(' leftneighbor=' + qa("None"  if ln is None else str(ln)))
+            write(' left_state=' + qa(str(leftstate)))
+            write(' right_state=' + qa(str(right_state)))
+            write(' node_type=' + qa(str(node_type)))
+            write(' timelast=' + qa(str(timelast)))
+            write("/>\n")
+        write("</Nodes>\n")
 
 # def nodes_to_xml(nodes, filename):
 #     """
@@ -175,6 +207,102 @@ def xml_to_nodes(filename, tegnode_cls):
 
     return nodes
 
+
+def xml_to_nodes_test(filename, tegnode_cls):
+    """
+    Fast XML -> nodes(dict) for old schema:
+      attrs: coordination, asc_nodes_flag, rightneighbor, leftneighbor, state, importance
+    - Prefer lxml iterparse(tag='Node', huge_tree=True) + deep-clear
+    - Fallback to stdlib xml.etree.ElementTree
+    - No ast.literal_eval; use lightweight tuple parser
+    """
+    nodes = {}
+    cls = tegnode_cls
+    ptuple = _parse_tuple_int
+    ATTR_TRUE = {'True', 'true', '1'}
+
+    # 1) build iterparse context (tag filter when supported)
+    try:
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node', huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+        use_tag_filter = True
+    except TypeError:
+        # some backends don't support tag=/huge_tree=
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',))
+        use_tag_filter = False
+
+    try:
+        for _, elem in context:
+            if not use_tag_filter and elem.tag != 'Node':
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            at = elem.attrib
+            coord = at.get('coordination')
+            if not coord:
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            # coords (faster than map+tuple)
+            try:
+                x_str, y_str, s_str = coord.split(',')
+                coords = (int(x_str), int(y_str), int(s_str))
+            except Exception:
+                if _HAS_LXML:
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+                elem.clear()
+                continue
+
+            # neighbors (lightweight parser, handles None / "(..)" / "a,b,c")
+            rn = ptuple(at.get('rightneighbor'))
+            ln = ptuple(at.get('leftneighbor'))
+
+            # flags / ints
+            asc_flag = (at.get('asc_nodes_flag') in ATTR_TRUE)
+            s1 = at.get('left_state');       left_state = int(s1) if s1 and s1.strip() else -1
+            s2 = at.get('right_state');
+            right_state = int(s2) if s2 and s2.strip() else -1
+            node_type1 = at.get('node_type'); node_type = int(node_type1) if node_type1 and node_type1.strip() else 0
+            timelast1 = at.get('timelast'); timelast = int(timelast1) if timelast1 and timelast1.strip() else 0
+
+
+            node = cls(
+                asc_nodes_region_id=asc_flag,
+                rightneighbor=rn,
+                leftneighbor=ln,
+                left_state=left_state,
+                right_state=right_state,
+                node_type=node_type,
+
+                timelast=timelast
+            )
+            nodes[coords] = node
+
+            # free element memory
+            if _HAS_LXML:
+                elem.clear()
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            else:
+                elem.clear()
+
+    except Exception as e:
+        print(f"解析XML时出错: {e}")
+        return {}  # 返回空 dict 更稳
+
+    return nodes
 import gzip
 
 def nodes_to_xml2(

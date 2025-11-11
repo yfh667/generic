@@ -78,6 +78,9 @@ def transnodes_new(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
         key = (x, y, step)
         rn = n.rightneighbor   # tuple(x1, y1, ...) or None
         rs = n.state           # right_state
+        if rn!=-1 and rn!=None:
+            rs=1
+
 
         # 1) 自己：创建或更新（始终以当前 n 覆盖右侧信息）
         cur = nc_get(key)
@@ -107,6 +110,8 @@ def transnodes_new(nodes_new: dict[tuple[int, int, int], tegnode.tegnode_new]):
             raw = get_new(nkey)
             if raw is not None:
                 nb_rn = raw.rightneighbor
+                if nb_rn != -1 and nb_rn != None:
+                    nb_rs = 1
                 nb_rs = raw.state
             else:
                 nb_rn = None

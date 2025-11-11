@@ -16,7 +16,7 @@ class tegnode:
         return f"tegnode(asc_nodes_flag={self.asc_nodes_flag}, rightneighbor={self.rightneighbor}, leftneighbor={self.leftneighbor}, state={self.state}),importance={self.importance})"
 
 
-class tegnode_new:
+class tegnode_new1:
     def __init__(self,asc_nodes_region_id,rightneighbor,leftneighbor,state,importance):
         self.asc_nodes_region_id = asc_nodes_region_id
         # if asc_nodes_region_id==-1,it means ,it is not in any region
@@ -101,7 +101,7 @@ class tegnode_new:
             f"leftneighbor={self.leftneighbor}, "
             f"left_state={self.left_state}, "
             f"right_state={self.right_state}, "
-            f"type={self.node_type}, "
+            f"node_type={self.node_type}, "
             f"timelast={self.timelast}"
             ")"
         )

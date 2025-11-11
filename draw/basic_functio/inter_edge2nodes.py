@@ -39,6 +39,54 @@ def trans_edge2node(raw_inter_edges_by_step,P,N):
     return nodes
 
 
+def trans_edge2node_test(raw_inter_edges_by_step,P,N):
+    nodes = {}
+    for step, edges in raw_inter_edges_by_step.items():
+        for src, dsts in edges.items():
+            x1 = src // N
+            y1 = src % N
+            # if x1==1 and y1==0 and step==3:
+            #     print(1)
+            if not dsts:
+                continue  # 跳过空集合，防止 StopIteration
+            dst = next(iter(dsts))
+            d_x=dst//N
+            d_y=dst%N
+            if (x1, y1,  step) not in nodes:
+                nodes[(x1, y1,  step)] = tegnode.tegnode_new(
+                    asc_nodes_region_id=False,
+                    rightneighbor=(d_x, d_y, step),
+                    leftneighbor=None,
+                    right_state = 1,
+                    left_state=-1,
+                    node_type=1,
+                    timelast = 0,
+                )
+            else:
+                nodes[ (x1, y1,  step)].rightneighbor = (d_x, d_y, step)
+                nodes[(x1, y1, step)].right_state =1
+                nodes[(x1, y1, step)].node_type = 1
+                nodes[(x1, y1, step)].timelast = 0
+
+            # 处理左邻居
+            if (d_x, d_y, step) not in nodes:
+                nodes[ (d_x, d_y, step)] = tegnode.tegnode_new(
+                    asc_nodes_region_id=False,
+                    rightneighbor=None,
+                    leftneighbor=(x1, y1,  step),
+                    right_state=-1,
+                    left_state=1,
+                    node_type=-1,
+                    timelast=-1,
+                )
+            else:
+                nodes[ (d_x, d_y, step)].leftneighbor = (x1, y1,  step)
+                nodes[(d_x, d_y, step)].left_state =1
+
+    return nodes
+
+
+
 # 这个版本更加快
 def trans_nodes2edges(nodes, P, N, check_same_step=False):
     """

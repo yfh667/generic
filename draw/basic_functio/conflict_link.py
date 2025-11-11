@@ -213,7 +213,7 @@ def get_no_conflict_link(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_
                         real_x = modify_number // N
                         real_y = modify_number % N
                         key = (real_x, real_y, step)
-                        nodes[key] = tegnode.tegnode_new(
+                        nodes[key] = tegnode.tegnode_new1(
                             asc_nodes_region_id=groupid,
                             rightneighbor=None,
                             leftneighbor=None,
@@ -226,7 +226,7 @@ def get_no_conflict_link(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_
             for y in range(N):
                 key = (x, y, step)
                 if key not in hotspot_keys:
-                    nodes[key] = tegnode.tegnode_new(
+                    nodes[key] = tegnode.tegnode_new1(
                         asc_nodes_region_id=-1,
                         rightneighbor=None,
                         leftneighbor=None,
@@ -375,7 +375,7 @@ def get_no_conflict_link(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_
                         bias = step-k
                         if bias<start_ts:
                             break
-                        pendingnodes[i, j,bias] = tegnode.tegnode_new(
+                        pendingnodes[i, j,bias] = tegnode.tegnode_new1(
                             asc_nodes_region_id=-1,
                             rightneighbor=right_neighbor,
                             leftneighbor=None,
@@ -862,6 +862,98 @@ def get_no_conflict_link_nodes3(
     pending_edges = motif.transform_nodes_2_rawedge(pendingnodes, P, N, start_ts, end_ts)
     return edges_by_step, pending_edges, nownodes
 
+# def assign_Link(start,end,nodes,state,type,timelast):
+#     if nodes[start].rightneighbor:
+#         rightneighbor = nodes[start].rightneighbor
+#         xr = rightneighbor[0]
+#         yr = rightneighbor[1]
+#         zr = rightneighbor[2]
+#         nodes[(xr,yr,zr)].leftneighbor = -1
+#         nodes[(xr, yr, zr)].left_state = -1
+#     if nodes[end].leftneighbor:
+#         leftneighbor = nodes[end].leftneighbor
+#         xl = leftneighbor[0]
+#         yl = leftneighbor[1]
+#         zl = leftneighbor[2]
+#         nodes[(xl,yl,zl)].rightneighbor = -1
+#         nodes[(xl,yl,zl)].right_state = -1
+#         nodes[(xl,yl,zl)].type = -1
+#         nodes[(xl, yl, zl)].timelast = -1
+#     nodes[start].rightneighbor = end
+#     nodes[start].right_state = state
+#     nodes[start].type = type
+#     nodes[start].timelast = timelast
+#     nodes[end].leftneighbor = start
+#     nodes[end].left_state = state
+
+UNSET = -1
+def _is_triplet(val) -> bool:
+    return isinstance(val, tuple) and len(val) == 3
+
+def _ensure(nodes, key):
+    node = nodes.get(key)
+    if node is None:
+        node = tegnode.tegnode_new(
+                            asc_nodes_region_id=-1,
+                            rightneighbor=-1,
+                            leftneighbor=-1,
+                            right_state=-1,
+            left_state=-1,node_type=-1,
+
+                            timelast=-1,
+                        )    # 你的类默认字段均为 -1
+        nodes[key] = node
+    return node
+
+
+def assign_Link(start, end, nodes, state, type, timelast):
+    """
+    把 start 的 rightneighbor 连接到 end，并保持双向一致。
+    缺节点时自动创建默认节点；未设置邻居(-1/None)时不做清理。
+    """
+
+    # 0) 确保两端节点存在
+    s = _ensure(nodes, start)
+    e = _ensure(nodes, end)
+
+    # 如果本来就连的是同一端，只更新状态即可
+    if _is_triplet(s.rightneighbor) and s.rightneighbor == end:
+        s.right_state = state
+        s.type = type
+        s.timelast = timelast
+        e.leftneighbor = start
+        e.left_state = state
+        return
+
+    # 1) 断开 start 原来的右邻（若存在且确实指回 start）
+    rn = s.rightneighbor
+    if _is_triplet(rn):
+        rn_node = nodes.get(rn)
+        if rn_node and rn_node.leftneighbor == start:
+            rn_node.leftneighbor = -1
+            rn_node.left_state   = -1
+            # 如需一并清理，可按需解除注释：
+            # rn_node.type     = UNSET
+            # rn_node.timelast = UNSET
+
+    # 2) 断开 end 原来的左邻（若存在且确实指向 end）
+    ln = e.leftneighbor
+    if _is_triplet(ln):
+        ln_node = nodes.get(ln)
+        if ln_node and ln_node.rightneighbor == end:
+            ln_node.rightneighbor = UNSET
+            ln_node.right_state   = UNSET
+            ln_node.node_type          = UNSET
+            ln_node.timelast      = UNSET
+
+    # 3) 建立 start→end 与 end←start
+    s.rightneighbor = end
+    s.right_state   = state
+    s.node_type          = type
+    s.timelast      = timelast
+
+    e.leftneighbor  = start
+    e.left_state    = state
 
 
 def get_no_conflict_link_nodes4(
@@ -955,13 +1047,11 @@ def get_no_conflict_link_nodes4(
 
     length = len(change_link_terminal)
     by_y = sorted(change_link_terminal, key=lambda t: t[1])
-    test_nodes = copy.deepcopy(nownodes)
-    test_nodes = nownodes.deepcopy()
+    #test_nodes = copy.deepcopy(nownodes)
+    test_nodes = copy.copy(nownodes)
     endtiime = step
 
- #   chunk_size = max(int(length * ratio), 1)  # 每次取固定数量，最后一批拿剩下的
 
-    #ratio = 0.2
 
     n = len(by_y)
     if n == 0:
@@ -975,7 +1065,8 @@ def get_no_conflict_link_nodes4(
             # firstly ,we the setup   start
 
 
-            setup_start = endtiime-batch_idx*time_2_build
+            setup_start = endtiime-(batch_idx)*time_2_build+1
+            work_start = setup_start+time_2_build
 
             for item in batch:
                 x = item[0]
@@ -984,35 +1075,16 @@ def get_no_conflict_link_nodes4(
                 future_neighbor = test_nodes[x, y, endtiime + 1].rightneighbor
                 future_x = future_neighbor[0]
                 future_y = future_neighbor[1]
+
+                # firstly ,we setup the setup period
                 for k in range(time_2_build):
                     setup_time_index =setup_start+k
-                    test_nodes[(x, y, setup_time_index)].rightneighbor = (future_x, future_y, setup_time_index)
-                    test_nodes[(x, y, setup_time_index)].right_state = 0
-                    test_nodes[(x, y, setup_time_index)].timelast = time_2_build-k
-                    test_nodes[(x, y, setup_time_index)].type = 0
-    #
+                    assign_Link((x,y,setup_time_index), (future_x,future_y,setup_time_index), test_nodes, 0, 0, time_2_build-k)
 
-            # then we setup the work time
-            work_start = setup_start+time_2_build
-            for item in batch:
-                x = item[0]
-                y = item[1]
+                # then ,we arrage the working period
 
-                future_neighbor = test_nodes[x, y, endtiime + 1].rightneighbor
-                future_x = future_neighbor[0]
-                future_y = future_neighbor[1]
-                time_offset = 0
-
-                for k in range(work_start, endtiime+1):
-
-                    timeidex = k
-                    test_nodes[(x, y, timeidex)].rightneighbor =  (future_x, future_y, timeidex)
-                    test_nodes[(x, y, timeidex)].right_state = 1
-                    test_nodes[(x, y, timeidex)].timelast = 0
-
-
-
-
+                for k in range(work_start,endtiime+1):
+                    assign_Link((x,y,k), (future_x,future_y,k), test_nodes, 1, 0, 0)
 
 
 
@@ -1021,3 +1093,4 @@ def get_no_conflict_link_nodes4(
 
 
     return change_link_terminal
+
