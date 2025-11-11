@@ -179,3 +179,37 @@ def transform_nodes_2_rawedge(nodes, P, N, start_ts, end_ts):
 
     return edge_by_step
 
+
+def transform_nodes_2_rawedge_test(nodes, P, N, start_ts, end_ts):
+    """
+    nodes: dict[(p, s, step) -> tegnode]  或  dict[(p, s) -> tegnode]
+    返回:  {step: { nowid: set([neighbor_id, ...]), ... }, ... }
+    只用 rightneighbor/leftneighbor 两个字段；为 None 的会跳过。
+    """
+    edge_by_step = {}
+    pending_edge = {}
+
+    for step in range(start_ts, end_ts):
+        for i in range(P):
+            for j in range(N):
+                nowdes = nodes.get((i, j, step))  # 或改成 (i, j, step) 按需
+                if nowdes is None:
+                    continue
+
+                nowid = i * N + j
+
+                # 处理右邻
+                if nowdes.rightneighbor is not None and nowdes.rightneighbor!=-1 and nowdes.right_state :
+                    rightneighbor = nowdes.rightneighbor
+                    rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
+                    edge_by_step.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
+                    # 无向：对方也加自己
+                    # edge_by_step.setdefault(step, {}).setdefault(rightneighbor_id, set()).add(nowid)
+                elif nowdes.rightneighbor is not None and nowdes.rightneighbor!=-1 and nowdes.right_state==0:
+                    rightneighbor = nowdes.rightneighbor
+                    rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
+                    pending_edge.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
+
+
+
+    return edge_by_step,pending_edge

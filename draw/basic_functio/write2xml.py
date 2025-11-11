@@ -285,7 +285,6 @@ def xml_to_nodes_test(filename, tegnode_cls):
                 left_state=left_state,
                 right_state=right_state,
                 node_type=node_type,
-
                 timelast=timelast
             )
             nodes[coords] = node
@@ -303,6 +302,8 @@ def xml_to_nodes_test(filename, tegnode_cls):
         return {}  # 返回空 dict 更稳
 
     return nodes
+
+
 import gzip
 
 def nodes_to_xml2(

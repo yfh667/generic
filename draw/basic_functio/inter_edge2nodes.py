@@ -122,6 +122,41 @@ def trans_nodes2edges(nodes, P, N, check_same_step=False):
 
     return edges_by_step
 
+def trans_nodes2edges_test(nodes, P, N, check_same_step=False):
+    """
+    nodes: dict[(x, y, step)] -> tegnode
+    return: dict[step][src_id] = set([dst_id, ...])
+    仅用 rightneighbor；尽量减少 setdefault/属性与方法查找。
+    """
+    edges_by_step = {}
+    get_step = edges_by_step.get           # 本地绑定，加速查找
+    for (x, y, step), node in nodes.items():
+        rn = node.rightneighbor
+        if rn is None:
+            continue
+        rx, ry, rstep = rn
+        if check_same_step and rstep != step:
+            # 如需严格保证同一时间步才连边，打开上面开关
+            continue
+
+        step_map = get_step(step)
+        if step_map is None:
+            step_map = {}
+            edges_by_step[step] = step_map
+
+        src = x * N + y
+        dst = rx * N + ry
+
+        dsts = step_map.get(src)
+        if dsts is None:
+            # 直接构造包含首个元素的 set，比 setdefault 再 add 更省一次查找
+            step_map[src] = {dst}
+        else:
+            dsts.add(dst)
+
+    return edges_by_step
+
+
 # def trans_nodes2edges(nodes, P, N):
 #     """
 #     nodes: dict[(x, y, step)] -> tegnode

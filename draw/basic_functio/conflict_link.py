@@ -2,6 +2,7 @@ from copy import deepcopy
 import copy
 
 import genaric2.tegnode as tegnode
+import  draw.pymatlab2.basic.assignlink as assignlink
 
 import math
 # def get_no_conflict_link(raw_edges_by_step,start_ts,end_ts,time_2_build,N,P):
@@ -183,13 +184,469 @@ def adjust_link_nodes(i, j, step, nodes, time2setup, start_ts, end_ts, option=0)
                         neighbor_node.leftneighbor = None
 
 
+def adjust_link_nodes_test(i, j, step, nodes, time2setup, start_ts, end_ts, option=0):
+    if option == 0 or option == 2:
+        future_node = nodes[i, j, step+1]
+        r = future_node.rightneighbor
+        if r is  None:# 有可能存在后面已经不链节点了，因此，就不需要提前准备了
+            return
+        rx =r[0]
+        ry = r[1]
+
+        for k in range(time2setup):
+            bias = step - k
+            if bias >= start_ts:
+                # nownode = nodes[i, j, bias]
+                # neighbor_key = nownode.rightneighbor
+                assignlink.assign_Link((i, j, bias), (rx,ry,bias), nodes, 0,
+                                       1, k+1)
+
+
+                # nownode.rightneighbor = (rx,ry,bias)
+                #
+                # nownode.right_state = 0
+                # nownode.node_type = 1
+                # nownode.timelast = k+1
+
+                # if neighbor_key is not None:
+                #     neighbor_node = nodes.get(neighbor_key)
+                #     if neighbor_node is not None:
+                #         neighbor_node.leftneighbor = None
+                #         neighbor_node.left_state = 0
+
+    elif option == 1:
+        future_node = nodes[i, j, step]
+        r = future_node.rightneighbor
+        if r is  None:# 有可能存在后面已经不链节点了，因此，就不需要提前准备了
+            return
+        rx =r[0]
+        ry = r[1]
+        for k in range(time2setup):
+            bias = step + k
+            if bias < end_ts:
+                assignlink.assign_Link((i, j, bias), (rx, ry, bias), nodes, 0,
+                                       1, time2setup-k)
+                # nownode = nodes[i, j, bias]
+                # neighbor_key = nownode.rightneighbor
+                # # nownode.rightneighbor = None
+                # nownode.right_state = 0
+                # nownode.node_type = 1
+                # nownode.timelast = time2setup-k
+                # if neighbor_key is not None:
+                #     neighbor_node = nodes.get(neighbor_key)
+                #     if neighbor_node is not None:
+                #         # neighbor_node.leftneighbor = None
+                #         neighbor_node.left_state = 0
+
+
 
 
 import draw.read_snap_xml as read_snap_xml
 
 import draw.basic_functio.motif as motif
+def _is_triplet(v):
+    return isinstance(v, tuple) and len(v) == 3
 
-# xiamian daima shi gangqu indneibu das
+def _xy(nei):
+    """从 (x,y,z) 取 (x,y)；若 nei 非三元组返回 None"""
+    if _is_triplet(nei):
+        return nei[0], nei[1]
+    return None
+
+def get_no_conflict_link_test(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_build,N,P):
+    nodes = {}
+    hotspot_keys = set()
+    for step in range(start_ts, end_ts):
+        hotspot_keys = set()  # <--- 每个 step 单独新建！！
+        # 1. 初始化热点区域
+        for groupid, rect_tuple in rects.items():
+            if not isinstance(rect_tuple, (list, tuple)):
+                rect_tuple = (rect_tuple,)
+            for rect in rect_tuple:
+                if rect is None:
+                    continue
+                xmin, xmax, ymin, ymax = rect
+                for x in range(xmin, xmax + 1):
+                    for y in range(ymin, ymax + 1):
+                        number = x * N + y
+                        modify_number = read_snap_xml.rev_modify_data(step, number, offsets)
+                        real_x = modify_number // N
+                        real_y = modify_number % N
+                        key = (real_x, real_y, step)
+                        nodes[key] = tegnode.tegnode_new(
+                            asc_nodes_region_id=groupid,
+                            rightneighbor=None,
+                            right_state=-1,
+                            leftneighbor=None,
+                            left_state=-1,
+                            node_type=-1,
+                            timelast=-1,
+                        )
+                        hotspot_keys.add(key)
+        # 2. 补齐全图节点
+        for x in range(P):
+            for y in range(N):
+                key = (x, y, step)
+                if key not in hotspot_keys:
+                    nodes[key] = tegnode.tegnode_new(
+                        asc_nodes_region_id=-1,
+                        rightneighbor=None,
+                        right_state=-1,
+                        leftneighbor=None,
+                        left_state=-1,
+                        node_type=-1,
+                        timelast=-1,
+                    )
+    for step, edges in raw_edges_by_step.items():
+        for src, dsts in edges.items():
+            x1 = src // N
+            y1 = src % N
+            for dst in dsts:
+                x2 = dst // N
+                y2 = dst % N
+                # if step ==1231 and x1 ==1 and y1==26:
+                #     print(1)
+                if x2 == x1:
+                    continue
+
+                assignlink.assign_Link((x1, y1, step), (x2, y2, step), nodes, 1,
+                                       1, 0)
+
+    # cankao_nodes= copy.deepcopy(nodes)
+    #
+    for step in range(start_ts, end_ts-1):
+        change_terminal = []
+
+        for i in range(P - 1):
+            for j in range(N):
+                # if i==9 and j==19 and step==3399:
+                #     print(1)
+
+
+                n1 = nodes.get((i, j, step))
+                n2 = nodes.get((i, j, step + 1))
+                # if (i, j, step) ==(5,32,2519):
+                #     print(1)
+                # if n1.right_state==0:
+                #     continue
+                # 防御式判断
+                # 这个表明，某个点在step+1时，其链接改变了，此刻，我们需要直接修改
+                if n1.rightneighbor and n2.rightneighbor:
+              #   if _is_triplet(n1.rightneighbor) and _is_triplet(n2.rightneighbor):
+
+                    n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
+                    n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
+                    if n1_neighbor != n2_neighbor:
+                        # 这里，我们就要判断，此刻step+1的链接和step的链接是否有一方是处于区域内部的链接
+                        # 如果不一致，我们就需要修改
+
+
+                        #
+                        n1_neighbor_node = nodes.get((n1.rightneighbor[0], n1.rightneighbor[1],step))
+                        n2_neighbor_node = nodes.get((n2.rightneighbor[0], n2.rightneighbor[1],step))
+                        n1_region_group_id = region_in_communication(n1,n1_neighbor_node)
+                        n2_region_group_id = region_in_communication(n2,n2_neighbor_node)
+                        if n1_region_group_id!=-1:
+                            change_terminal.append((i, j, step,1))
+                        else:
+                            change_terminal.append((i, j, step,0))
+                        # ##
+                        # if n1_region_group_id==-1 and n2_region_group_id==-1:
+                        #     # 最简单的，就是后面覆盖前面，前面的要断链路
+                        #     adjust_link_nodes_test(i, j, step, nodes, time_2_build,start_ts, end_ts, option=0)
+                        # elif n1_region_group_id!=-1 and n2_region_group_id==-1:
+                        #     # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协
+                        #     adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=1)
+                        # elif n1_region_group_id==-1 and n2_region_group_id !=-1:
+                        #     # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
+                        #     adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
+                # the
+
+        for terminal in change_terminal:
+    #        adjust_link_nodes_test(terminal[0], terminal[1], step, nodes, time_2_build, start_ts, end_ts, option=0)
+
+            if terminal[3]==1:
+                #     # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协
+                adjust_link_nodes_test(terminal[0], terminal[1], step, nodes, time_2_build, start_ts, end_ts, option=1)
+            else:
+                #     # 最简单的，就是后面覆盖前面，前面的要断链路
+                adjust_link_nodes_test(terminal[0], terminal[1], step, nodes, time_2_build, start_ts, end_ts, option=0)
+
+                # changed.append((i, j, n1_neighbor, n2_neighbor))
+    #             elif not n1.rightneighbor and n2.rightneighbor:
+    #                 # 说明前面无邻居，后面又邻居，注意，一开始设计的时候，已经优先为区域内考虑了
+    #                 # 我们事实上，是要查看后面节点的
+    #           #   elif (not _is_triplet(n1.rightneighbor)) and _is_triplet(n2.rightneighbor):
+    #           #       if (i, j, step)==(5,32,2519):
+    #           #           print(2)
+    #
+    #                 # 我们要进行回溯，要查询前面的链路，是否存在区域内部链路
+    #                 n2_neighbor_node = nodes.get((n2.rightneighbor[0], n2.rightneighbor[1], step))
+    #                 n2_region_group_id = region_in_communication(n2, n2_neighbor_node)
+    #                # n1_region_group_id = -1
+    #
+    #                 if n2_region_group_id:
+    #                     # 最简单的，就是后面覆盖前面，前面的要断链路
+    #                     adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=0)
+    #
+    #
+    #
+    #
+    # # 前面有neighbor 后面没neighbor，所以，就要考虑左邻居的问题
+    #             elif  n1.rightneighbor and not n2.rightneighbor:
+    #             # elif _is_triplet(n1.rightneighbor) and (not _is_triplet(n2.rightneighbor)):
+    #
+    #                 right_neighbor = n1.rightneighbor
+    #                 # 接下来，我们要注意了，对于n1.rightneighbor,我们要知道，right neighbor如果切换链路
+    #                 # 是会影响到当前的n1 以及之前的链路的，所以这个要注意
+    #                 # 如果是，我们就需要进行调整
+    #
+    #                 n1 = nodes.get((right_neighbor[0], right_neighbor[1], step))
+    #                 n2 = nodes.get((right_neighbor[0], right_neighbor[1], step+1))
+    #
+    #
+    #
+    #                 if n1.leftneighbor and n2.leftneighbor:
+    #                     n1_neighbor = (n1.leftneighbor[0], n1.leftneighbor[1])
+    #                     n2_neighbor = (n2.leftneighbor[0], n2.leftneighbor[1])
+    #                     if n1_neighbor != n2_neighbor:
+    #                         # 这里，我们就要判断，此刻step+1的链接和step的链接是否有一方是处于区域内部的链接
+    #                         # 如果不一致，我们就需要修改
+    #
+    #
+    #                         n1_neighbor_node = nodes.get((n1.leftneighbor[0], n1.leftneighbor[1],step))
+    #                         n2_neighbor_node = nodes.get((n2.leftneighbor[0], n2.leftneighbor[1],step+1))
+    #
+    #                         n1_region_group_id = region_in_communication(n1_neighbor_node,n1)
+    #                         n2_region_group_id = region_in_communication(n2_neighbor_node,n2)
+    #                         ##
+    #                         if n1_region_group_id==-1 and n2_region_group_id==-1:
+    #                             # 最简单的，就是后面覆盖前面，前面的要断链路
+    #                             adjust_link_nodes_test(i, j, step, nodes, time_2_build,start_ts, end_ts, option=0)
+    #                         elif n1_region_group_id!=-1 and n2_region_group_id==-1:
+    #                             # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协
+    #                             adjust_link_nodes_test(n2.leftneighbor[0], n2.leftneighbor[1], step+1, nodes, time_2_build, start_ts, end_ts, option=1)
+    #
+    #
+    #                         elif n1_region_group_id==-1 and n2_region_group_id !=-1:
+    #                             # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
+    #                             adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
+
+
+    return nodes
+
+
+
+#
+#
+# def get_no_conflict_link_test(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_build,N,P):
+#
+#     nodes = {}
+#     hotspot_keys = set()
+#
+#
+#     for step in range(start_ts, end_ts):
+#         hotspot_keys = set()  # <--- 每个 step 单独新建！！
+#         # 1. 初始化热点区域
+#         for groupid, rect_tuple in rects.items():
+#             if not isinstance(rect_tuple, (list, tuple)):
+#                 rect_tuple = (rect_tuple,)
+#             for rect in rect_tuple:
+#                 if rect is None:
+#                     continue
+#                 xmin, xmax, ymin, ymax = rect
+#                 for x in range(xmin, xmax + 1):
+#                     for y in range(ymin, ymax + 1):
+#                         number = x * N + y
+#                         modify_number = read_snap_xml.rev_modify_data(step, number, offsets)
+#                         real_x = modify_number // N
+#                         real_y = modify_number % N
+#                         key = (real_x, real_y, step)
+#                         nodes[key] = tegnode.tegnode_new(
+#                             asc_nodes_region_id=groupid,
+#                             rightneighbor=None,
+#                             right_state=-1,
+#                             leftneighbor=None,
+#                             left_state=-1,
+#                             node_type=-1,
+#                             timelast=-1,
+#                         )
+#                         hotspot_keys.add(key)
+#         # 2. 补齐全图节点
+#         for x in range(P):
+#             for y in range(N):
+#                 key = (x, y, step)
+#                 if key not in hotspot_keys:
+#                     nodes[key] = tegnode.tegnode_new(
+#                         asc_nodes_region_id=-1,
+#                         rightneighbor=None,
+#                         right_state=-1,
+#                         leftneighbor=None,
+#                         left_state=-1,
+#                         node_type=-1,
+#                         timelast=-1,
+#                     )
+#
+#
+#     for step, edges in raw_edges_by_step.items():
+#         for src, dsts in edges.items():
+#             x1 = src // N
+#             y1 = src % N
+#             for dst in dsts:
+#                 x2 = dst // N
+#                 y2 = dst % N
+#                 # if step ==1231 and x1 ==1 and y1==26:
+#                 #     print(1)
+#                 if x2 == x1:
+#                     continue
+#
+#                 assignlink.assign_Link((x1, y1, step), (x2, y2, step), nodes, 1,
+#                                        1, 0)
+#
+#                 # nodes[(x1, y1, step)].rightneighbor = (x2, y2, step)
+#                 # nodes[(x1, y1, step)].right_state = 1
+#                 # nodes[(x1, y1, step)].node_type = 1
+#                 # nodes[(x2, y2, step)].timelast = 0
+#                 #
+#                 #
+#                 # nodes[(x2, y2, step)].leftneighbor = (x1, y1, step)
+#                 # nodes[(x2, y2, step)].left_state =1
+#
+#
+#
+#
+#     for step in range(start_ts, end_ts-1):
+#
+#         for i in range(P - 1):
+#             for j in range(N):
+#                 if i==9 and j==19 and step==3399:
+#                     print(1)
+#                 n1 = nodes.get((i, j, step))
+#                 n2 = nodes.get((i, j, step + 1))
+#                 # if (i, j, step) ==(5,32,2519):
+#                 #     print(1)
+#                 # if n1.right_state==0:
+#                 #     continue
+#                 # 防御式判断
+#                 # 这个表明，某个点在step+1时，其链接改变了，此刻，我们需要直接修改
+#                 if n1.rightneighbor and n2.rightneighbor:
+#               #   if _is_triplet(n1.rightneighbor) and _is_triplet(n2.rightneighbor):
+#
+#                     n1_neighbor = (n1.rightneighbor[0], n1.rightneighbor[1])
+#                     n2_neighbor = (n2.rightneighbor[0], n2.rightneighbor[1])
+#                     if n1_neighbor != n2_neighbor:
+#                         # 这里，我们就要判断，此刻step+1的链接和step的链接是否有一方是处于区域内部的链接
+#                         # 如果不一致，我们就需要修改
+#
+#
+#                         n1_neighbor_node = nodes.get((n1.rightneighbor[0], n1.rightneighbor[1],step))
+#                         n2_neighbor_node = nodes.get((n2.rightneighbor[0], n2.rightneighbor[1],step))
+#                         n1_region_group_id = region_in_communication(n1,n1_neighbor_node)
+#                         n2_region_group_id = region_in_communication(n2,n2_neighbor_node)
+#                         ##
+#                         if n1_region_group_id==-1 and n2_region_group_id==-1:
+#                             # 最简单的，就是后面覆盖前面，前面的要断链路
+#                             adjust_link_nodes_test(i, j, step, nodes, time_2_build,start_ts, end_ts, option=0)
+#                         elif n1_region_group_id!=-1 and n2_region_group_id==-1:
+#                             # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协
+#                             adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=1)
+#                         elif n1_region_group_id==-1 and n2_region_group_id !=-1:
+#                             # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
+#                             adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
+#
+#                         # changed.append((i, j, n1_neighbor, n2_neighbor))
+#                 elif not n1.rightneighbor and n2.rightneighbor:
+#                     # 说明前面无邻居，后面又邻居，注意，一开始设计的时候，已经优先为区域内考虑了
+#                     # 我们事实上，是要查看后面节点的
+#               #   elif (not _is_triplet(n1.rightneighbor)) and _is_triplet(n2.rightneighbor):
+#               #       if (i, j, step)==(5,32,2519):
+#               #           print(2)
+#
+#                     # 我们要进行回溯，要查询前面的链路，是否存在区域内部链路
+#                     n2_neighbor_node = nodes.get((n2.rightneighbor[0], n2.rightneighbor[1], step))
+#                     n2_region_group_id = region_in_communication(n2, n2_neighbor_node)
+#                    # n1_region_group_id = -1
+#
+#                     if n2_region_group_id:
+#                         # 最简单的，就是后面覆盖前面，前面的要断链路
+#                         adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=0)
+#
+#                         # for k in range(1,time_2_build+1):
+#                         #     bias = step-k
+#                         #     if bias<start_ts:
+#                         #         break
+#                         #     node_rev = nodes.get((i, j, bias))
+#                         #     assignlink.assign_Link((i, j, bias), (rx, ry, bias), nodes, 0,
+#                         #                            1, k + 1)
+#                         #
+#                         #     if node_rev is None:
+#                         #         print(f"节点缺失: {(i, j, bias)}")
+#                         #
+#                         #     if node_rev.rightneighbor:
+#                         #         if node_rev.rightneighbor == n2.rightneighbor:
+#                         #             continue
+#                         #         node_rev_neighbor_id =  node_rev.rightneighbor
+#                         #         node_rev_neighbor_node = nodes.get((node_rev_neighbor_id[0],node_rev_neighbor_id[1],bias))
+#                         #         n1_region_group_id = region_in_communication(node_rev, node_rev_neighbor_node)
+#                         #
+#                         #
+#                         #         # if  n1_region_group_id:
+#                         #             # 说明前面有区域内部链路,因此，我们需要开始为这部分进行准备
+#                         #
+#                         #         if n1_region_group_id == -1 and n2_region_group_id == -1:
+#                         #             # 最简单的，就是后面覆盖前面，前面的要断链路
+#                         #             adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=0)
+#                         #         elif n1_region_group_id != -1 and n2_region_group_id == -1:
+#                         #             # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协,注意，我们只要妥协bias的即可
+#                         #             adjust_link_nodes_test(i, j, bias, nodes, time_2_build, start_ts, end_ts, option=1)
+#                         #         elif n1_region_group_id == -1 and n2_region_group_id != -1:
+#                         #             # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
+#                         #             adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
+#
+#
+#     # 前面有neighbor 后面没neighbor，所以，就要考虑左邻居的问题
+#                 elif  n1.rightneighbor and not n2.rightneighbor:
+#                 # elif _is_triplet(n1.rightneighbor) and (not _is_triplet(n2.rightneighbor)):
+#
+#                     right_neighbor = n1.rightneighbor
+#                     # 接下来，我们要注意了，对于n1.rightneighbor,我们要知道，right neighbor如果切换链路
+#                     # 是会影响到当前的n1 以及之前的链路的，所以这个要注意
+#                     # 如果是，我们就需要进行调整
+#
+#                     n1 = nodes.get((right_neighbor[0], right_neighbor[1], step))
+#                     n2 = nodes.get((right_neighbor[0], right_neighbor[1], step+1))
+#
+#
+#
+#                     if n1.leftneighbor and n2.leftneighbor:
+#                         n1_neighbor = (n1.leftneighbor[0], n1.leftneighbor[1])
+#                         n2_neighbor = (n2.leftneighbor[0], n2.leftneighbor[1])
+#                         if n1_neighbor != n2_neighbor:
+#                             # 这里，我们就要判断，此刻step+1的链接和step的链接是否有一方是处于区域内部的链接
+#                             # 如果不一致，我们就需要修改
+#
+#
+#                             n1_neighbor_node = nodes.get((n1.leftneighbor[0], n1.leftneighbor[1],step))
+#                             n2_neighbor_node = nodes.get((n2.leftneighbor[0], n2.leftneighbor[1],step+1))
+#
+#                             n1_region_group_id = region_in_communication(n1_neighbor_node,n1)
+#                             n2_region_group_id = region_in_communication(n2_neighbor_node,n2)
+#                             ##
+#                             if n1_region_group_id==-1 and n2_region_group_id==-1:
+#                                 # 最简单的，就是后面覆盖前面，前面的要断链路
+#                                 adjust_link_nodes_test(i, j, step, nodes, time_2_build,start_ts, end_ts, option=0)
+#                             elif n1_region_group_id!=-1 and n2_region_group_id==-1:
+#                                 # 说明前面是区域内部链路，后面是区域外部链路，后面的链路需要妥协
+#                                 adjust_link_nodes_test(n2.leftneighbor[0], n2.leftneighbor[1], step+1, nodes, time_2_build, start_ts, end_ts, option=1)
+#
+#
+#                             elif n1_region_group_id==-1 and n2_region_group_id !=-1:
+#                                 # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
+#                                 adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
+#
+#
+#     return nodes
+
 def get_no_conflict_link(raw_edges_by_step,offsets,rects,start_ts,end_ts,time_2_build,N,P):
 
     nodes = {}
@@ -885,80 +1342,83 @@ def get_no_conflict_link_nodes3(
 #     nodes[start].timelast = timelast
 #     nodes[end].leftneighbor = start
 #     nodes[end].left_state = state
+#
+# UNSET = -1
+# def _is_triplet(val) -> bool:
+#     return isinstance(val, tuple) and len(val) == 3
+#
+# def _ensure(nodes, key):
+#     node = nodes.get(key)
+#     if node is None:
+#         node = tegnode.tegnode_new(
+#                             asc_nodes_region_id=-1,
+#                             rightneighbor=-1,
+#                             leftneighbor=-1,
+#                             right_state=-1,
+#             left_state=-1,node_type=-1,
+#
+#                             timelast=-1,
+#                         )    # 你的类默认字段均为 -1
+#         nodes[key] = node
+#     return node
+#
+#
+# def assign_Link(start, end, nodes, state, type, timelast):
+#     """
+#     把 start 的 rightneighbor 连接到 end，并保持双向一致。
+#     缺节点时自动创建默认节点；未设置邻居(-1/None)时不做清理。
+#     """
+#
+#     # 0) 确保两端节点存在
+#     s = _ensure(nodes, start)
+#     e = _ensure(nodes, end)
+#
+#     # 如果本来就连的是同一端，只更新状态即可
+#     if _is_triplet(s.rightneighbor) and s.rightneighbor == end:
+#         s.right_state = state
+#         s.type = type
+#         s.timelast = timelast
+#         e.leftneighbor = start
+#         e.left_state = state
+#         return
+#
+#     # 1) 断开 start 原来的右邻（若存在且确实指回 start）
+#     rn = s.rightneighbor
+#     if _is_triplet(rn):
+#         rn_node = nodes.get(rn)
+#         if rn_node and rn_node.leftneighbor == start:
+#             rn_node.leftneighbor = -1
+#             rn_node.left_state   = -1
+#             # 如需一并清理，可按需解除注释：
+#             # rn_node.type     = UNSET
+#             # rn_node.timelast = UNSET
+#
+#     # 2) 断开 end 原来的左邻（若存在且确实指向 end）
+#     ln = e.leftneighbor
+#     if _is_triplet(ln):
+#         ln_node = nodes.get(ln)
+#         if ln_node and ln_node.rightneighbor == end:
+#             ln_node.rightneighbor = UNSET
+#             ln_node.right_state   = UNSET
+#             ln_node.node_type          = UNSET
+#             ln_node.timelast      = UNSET
+#
+#     # 3) 建立 start→end 与 end←start
+#     s.rightneighbor = end
+#     s.right_state   = state
+#     s.node_type          = type
+#     s.timelast      = timelast
+#
+#     e.leftneighbor  = start
+#     e.left_state    = state
 
-UNSET = -1
-def _is_triplet(val) -> bool:
-    return isinstance(val, tuple) and len(val) == 3
 
-def _ensure(nodes, key):
-    node = nodes.get(key)
-    if node is None:
-        node = tegnode.tegnode_new(
-                            asc_nodes_region_id=-1,
-                            rightneighbor=-1,
-                            leftneighbor=-1,
-                            right_state=-1,
-            left_state=-1,node_type=-1,
-
-                            timelast=-1,
-                        )    # 你的类默认字段均为 -1
-        nodes[key] = node
-    return node
-
-
-def assign_Link(start, end, nodes, state, type, timelast):
-    """
-    把 start 的 rightneighbor 连接到 end，并保持双向一致。
-    缺节点时自动创建默认节点；未设置邻居(-1/None)时不做清理。
-    """
-
-    # 0) 确保两端节点存在
-    s = _ensure(nodes, start)
-    e = _ensure(nodes, end)
-
-    # 如果本来就连的是同一端，只更新状态即可
-    if _is_triplet(s.rightneighbor) and s.rightneighbor == end:
-        s.right_state = state
-        s.type = type
-        s.timelast = timelast
-        e.leftneighbor = start
-        e.left_state = state
-        return
-
-    # 1) 断开 start 原来的右邻（若存在且确实指回 start）
-    rn = s.rightneighbor
-    if _is_triplet(rn):
-        rn_node = nodes.get(rn)
-        if rn_node and rn_node.leftneighbor == start:
-            rn_node.leftneighbor = -1
-            rn_node.left_state   = -1
-            # 如需一并清理，可按需解除注释：
-            # rn_node.type     = UNSET
-            # rn_node.timelast = UNSET
-
-    # 2) 断开 end 原来的左邻（若存在且确实指向 end）
-    ln = e.leftneighbor
-    if _is_triplet(ln):
-        ln_node = nodes.get(ln)
-        if ln_node and ln_node.rightneighbor == end:
-            ln_node.rightneighbor = UNSET
-            ln_node.right_state   = UNSET
-            ln_node.node_type          = UNSET
-            ln_node.timelast      = UNSET
-
-    # 3) 建立 start→end 与 end←start
-    s.rightneighbor = end
-    s.right_state   = state
-    s.node_type          = type
-    s.timelast      = timelast
-
-    e.leftneighbor  = start
-    e.left_state    = state
-
+from operator import itemgetter
+import  draw.pymatlab2.basic.assignlink as assignlink
 
 def get_no_conflict_link_nodes4(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_new],
-    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio
+    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime
 ):
     """
     优化版：
@@ -1006,7 +1466,7 @@ def get_no_conflict_link_nodes4(
     # 仅遍历必要范围（end_ts-1，因为我们总是看 t 与 t+1）
     # e1 = end_ts - 1
 
-    step = 3668
+    step = ig_endtime-1
 
     # for step in range(start_ts, e1):
         # 只处理 i ∈ [0, P-2]（与你原代码一致）
@@ -1045,8 +1505,11 @@ def get_no_conflict_link_nodes4(
     # here we get the change link terminal groups,next stage ,we
     # we begin do our algorithm2 steps
 
-    length = len(change_link_terminal)
-    by_y = sorted(change_link_terminal, key=lambda t: t[1])
+
+    by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
+
+
+   # by_y = sorted(change_link_terminal, key=lambda t: t[1])
     #test_nodes = copy.deepcopy(nownodes)
     test_nodes = copy.copy(nownodes)
     endtiime = step
@@ -1079,18 +1542,20 @@ def get_no_conflict_link_nodes4(
                 # firstly ,we setup the setup period
                 for k in range(time_2_build):
                     setup_time_index =setup_start+k
-                    assign_Link((x,y,setup_time_index), (future_x,future_y,setup_time_index), test_nodes, 0, 0, time_2_build-k)
+                    assignlink.assign_Link((x,y,setup_time_index), (future_x,future_y,setup_time_index), test_nodes, 0, 0, time_2_build-k)
 
                 # then ,we arrage the working period
 
                 for k in range(work_start,endtiime+1):
-                    assign_Link((x,y,k), (future_x,future_y,k), test_nodes, 1, 0, 0)
+                    assignlink.assign_Link((x,y,k), (future_x,future_y,k), test_nodes, 1, 0, 0)
 
 
 
 
+    edges_by_step,pending_edge = motif.transform_nodes_2_rawedge_test(test_nodes, P, N, start_ts, end_ts)
 
 
 
-    return change_link_terminal
+
+    return edges_by_step,pending_edge
 
