@@ -1490,6 +1490,29 @@ def get_no_conflict_link_nodes3(
 #
 #     e.leftneighbor  = start
 #     e.left_state    = state
+from itertools import groupby
+
+def group_by_y_then_x(triples, dedup=True):
+    """
+    triples: [(x, y, z), ...]
+    返回：[(y, [(x, [(x,y,z)...]), ...]), ...]，y 组按降序，组内 x 组按升序
+    """
+    data = set(triples) if dedup else list(triples)
+    # 排序：确保 groupby 连续分组 —— y 降序，其次 x 升序，最后 z 升序
+    ordered = sorted(data, key=lambda t: (-t[1], t[0], t[2]))
+
+    out = []
+    for y, items_y in groupby(ordered, key=itemgetter(1)):
+        items_y = list(items_y)                 # 此时已按 x 升序
+        x_groups = []
+        for x, items_x in groupby(items_y, key=itemgetter(0)):
+            x_groups.append((x, list(items_x))) # 同一 (x,y) 的所有 (x,y,z)
+        out.append((y, x_groups))
+    return out
+
+def flatten_groups(groups):
+    """把上面的分组结构扁平化为排序后的列表"""
+    return [item for _, xgs in groups for _, items in xgs for item in items]
 
 
 from operator import itemgetter
@@ -1497,7 +1520,7 @@ import  draw.pymatlab2.basic.assignlink as assignlink
 
 def get_no_conflict_link_nodes4(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_new],
-    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime
+    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime,flag
 ):
     """
     优化版：
@@ -1514,8 +1537,12 @@ def get_no_conflict_link_nodes4(
     # # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
     # nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
     # 原来：nownodes = dict(nodes)  # 仍共享对象，改了会污染 base
-    nownodes = COWNodes(nodes)      # ✅ 改为写时拷贝视图
+    if flag==1:
+        nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
+    else:
+        nownodes = COWNodes(nodes)      # ✅ 改为写时拷贝视图
    # nownodes = deepcopy(nodes)
+
     nget = nownodes.get
     # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
 
@@ -1545,6 +1572,22 @@ def get_no_conflict_link_nodes4(
     # ============== 第一轮：处理“切换/建链/断链”的冲突与回溯 ==============
     # 仅遍历必要范围（end_ts-1，因为我们总是看 t 与 t+1）
     # e1 = end_ts - 1
+    if flag==1:
+        test_nodes = copy.copy(nownodes)
+    else:
+        test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
+
+    for i in range(P - 1):
+        for j in range(N):
+            n1 = ensure(i, j, ig_endtime)
+            if n1.right_state==0:
+                neighbor=n1.rightneighbor
+                rx=neighbor[0]
+                ry=neighbor[1]
+                for k in range(ig_endtime,ig_endtime+time_2_build):
+                    assignlink.assign_Link((i,j,k), (rx,ry,k), test_nodes, 1, -1, 0)
+
+   #
 
     step = ig_endtime-1
 
@@ -1554,7 +1597,9 @@ def get_no_conflict_link_nodes4(
         # if step==1233:
         #     print(1)
     change_link_terminal = []
+    mantan_link_terminal = []
 
+    delete_link_terminal = []
     for i in range(P - 1):
         for j in range(N):
             # if (i,j)==(15,26):
@@ -1569,38 +1614,39 @@ def get_no_conflict_link_nodes4(
             ln2 = n2.leftneighbor
 
 
+
             # 情况 A：两步都有 rightneighbor，但目标不同 -> 触发调整
             if rn1 and rn2:
+
                 if (rn1[0], rn1[1]) != (rn2[0], rn2[1]):
                     change_link_terminal.append((i, j, step))
+                    # continue
                #     print((i, j, step))
+                # 如果是相等的，但是状态不一样，实际上这个时候完全不需要简练，直接将相关点进行覆盖即可
+                elif ((rn1[0], rn1[1]) == (rn2[0], rn2[1])) and (n1.right_state==1) and (n2.right_state==0):
+                    mantan_link_terminal.append((i, j, step))
+
             # 如果前面没有，后面有，很显然要调整
             elif not rn1 and rn2:
                 change_link_terminal.append((i, j, step))
-
+            elif rn1 and not rn2:
+                delete_link_terminal.append((i, j, step))
 
             if ln1 and ln2:
                 if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
                     change_link_terminal.append((ln2[0], ln2[1], step))
+
                #     print((ln2[0], ln2[1], step))
                   #  adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
     # here we get the change link terminal groups,next stage ,we
     # we begin do our algorithm2 steps
 
 
-    by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
-    print()
-
-
-   # by_y = sorted(change_link_terminal, key=lambda t: t[1])
-    #test_nodes = copy.deepcopy(nownodes)
-   # test_nodes = copy.copy(nownodes)
-    test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
+    #by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
+    groups = group_by_y_then_x(set(change_link_terminal), dedup=True)
+    by_y = flatten_groups(groups)
 
     endtiime = step
-
-
-
     n = len(by_y)
     if n == 0:
         pass
@@ -1611,6 +1657,7 @@ def get_no_conflict_link_nodes4(
             batch = by_y[start: start + chunk_size]
             print(f"# batch {batch_idx} (items {start}..{start + len(batch) - 1})")
             # firstly ,we the setup   start
+            # print(batch)
 
 
             setup_start = endtiime-(batch_idx)*time_2_build+1
@@ -1637,9 +1684,8 @@ def get_no_conflict_link_nodes4(
 
 
 
+
     edges_by_step,pending_edge = motif.transform_nodes_2_rawedge_test(test_nodes, P, N, start_ts, end_ts)
-
-
 
 
     return edges_by_step,pending_edge
@@ -1742,7 +1788,7 @@ def get_no_conflict_link_nodes_NODE(
 
    # by_y = sorted(change_link_terminal, key=lambda t: t[1])
     #test_nodes = copy.deepcopy(nownodes)
-    test_nodes = copy.copy(nownodes)
+
    #  test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
 
     endtiime = step

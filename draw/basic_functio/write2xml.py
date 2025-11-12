@@ -608,6 +608,84 @@ def iter_nodes2(filename, tegnode_cls):
         else:
             elem.clear()
 
+def iter_nodes2_test(filename, tegnode_cls):
+    """
+    迭代器：逐个 yield (coords, node)
+    - lxml: iterparse(huge_tree=True) + deep-clear
+    - 兼容 stdlib；不支持 tag= 时退化到手动过滤
+    """
+    cls = tegnode_cls
+    ptuple = _parse_tuple_int
+    ATTR_TRUE = {'True', 'true', '1'}
+
+    try:
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node', huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',), tag='Node')
+        use_tag_filter = True
+    except TypeError:
+        if _HAS_LXML:
+            context = _ET.iterparse(str(filename), events=('end',), huge_tree=True)
+        else:
+            context = _ET.iterparse(str(filename), events=('end',))
+        use_tag_filter = False
+
+    for _, elem in context:
+        if use_tag_filter is False and elem.tag != 'Node':
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            elem.clear()
+            continue
+
+        at = elem.attrib
+        coord = at.get('coordination')
+        if not coord:
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            elem.clear()
+            continue
+
+        try:
+            x_str, y_str, s_str = coord.split(',')
+            coords = (int(x_str), int(y_str), int(s_str))
+        except Exception:
+            if _HAS_LXML:
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
+            elem.clear()
+            continue
+
+        rn = ptuple(at.get('rightneighbor'))
+        ln = ptuple(at.get('leftneighbor'))
+
+        asc_flag = (at.get('asc_nodes_region_id') in ATTR_TRUE)
+        ls = at.get('left_state');   left_state  = int(ls) if ls and ls.strip() else -1
+        rs = at.get('right_state');  right_state = int(rs) if rs and rs.strip() else -1
+        nt = at.get('node_type');  node_type = int(nt) if nt and nt.strip() else -1
+        tl = at.get('timelast');
+        timelast = int(tl) if tl and tl.strip() else -1
+
+        node = cls(
+            asc_nodes_region_id=asc_flag,
+            rightneighbor=rn,
+            leftneighbor=ln,
+            left_state=left_state,
+            right_state=right_state,
+            node_type = node_type,
+            timelast = timelast
+            
+        )
+        yield coords, node
+
+        if _HAS_LXML:
+            elem.clear()
+            while elem.getprevious() is not None:
+                del elem.getparent()[0]
+        else:
+            elem.clear()
 
 def _resolve_cls_spec(tegnode_cls) -> Tuple[str, str]:
     """
@@ -628,6 +706,7 @@ def _resolve_cls_spec(tegnode_cls) -> Tuple[str, str]:
         raise ValueError("tegnode_cls must be a class or 'pkg.mod:Class' string")
     return module_name, class_name
 # 2) 顺序装载（最省内存，通常已足够快）
+
 def load_all_nodes_sequential(paths, tegnode_cls):
     total = {}
     for p in paths:
@@ -635,6 +714,12 @@ def load_all_nodes_sequential(paths, tegnode_cls):
             total[coords] = node
     return total
 
+def load_all_nodes_sequential_test(paths, tegnode_cls):
+    total = {}
+    for p in paths:
+        for coords, node in iter_nodes2_test(p, tegnode_cls):
+            total[coords] = node
+    return total
 
 
 
