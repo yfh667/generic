@@ -1574,7 +1574,9 @@ def get_no_conflict_link_nodes4(
                 if (rn1[0], rn1[1]) != (rn2[0], rn2[1]):
                     change_link_terminal.append((i, j, step))
                #     print((i, j, step))
-
+            # 如果前面没有，后面有，很显然要调整
+            elif not rn1 and rn2:
+                change_link_terminal.append((i, j, step))
 
 
             if ln1 and ln2:
@@ -1587,6 +1589,7 @@ def get_no_conflict_link_nodes4(
 
 
     by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
+    print()
 
 
    # by_y = sorted(change_link_terminal, key=lambda t: t[1])
@@ -1640,4 +1643,152 @@ def get_no_conflict_link_nodes4(
 
 
     return edges_by_step,pending_edge
+
+
+
+def get_no_conflict_link_nodes_NODE(
+    nodes: Dict[Tuple[int, int, int], tegnode.tegnode_new],
+    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime
+):
+    """
+    优化版：
+    - 不再 deepcopy + 预填所有节点，而是“按需创建”缺失节点（lazy ensure）
+    - 大量局部绑定与一次遍历，减少 Python 层开销
+    - 语义与原逻辑一致
+    """
+    # ---- 局部绑定，减少查找开销 ----
+    TC = tegnode.tegnode_new
+
+
+
+
+    # # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
+    nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
+    # 原来：nownodes = dict(nodes)  # 仍共享对象，改了会污染 base
+    # nownodes = COWNodes(nodes)      # ✅ 改为写时拷贝视图
+   # nownodes = deepcopy(nodes)
+    nget = nownodes.get
+    # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
+
+    # 按需创建的默认节点（每次必须新建实例，不能复用同一个）
+    def _mk_empty():
+        return TC(
+            asc_nodes_region_id=-1,
+            rightneighbor=None,
+            leftneighbor=None,
+            left_state=-1,
+            right_state=-1,
+        )
+
+    # 确保 (i,j,t) 存在，若无则创建
+    def ensure(i: int, j: int, t: int):
+        k = (i, j, t)
+        n = nget(k)
+        if n is None:
+            n = _mk_empty()
+            nownodes[k] = n
+        # 关键：若在观察名单内且还不是代理，则包一层
+        # if k in WATCH and not isinstance(n, NodeProxy):
+        #     n = NodeProxy(n, k)
+        #     nownodes[k] = n
+        return n
+    # print(nownodes[15,26,1203])
+    # ============== 第一轮：处理“切换/建链/断链”的冲突与回溯 ==============
+    # 仅遍历必要范围（end_ts-1，因为我们总是看 t 与 t+1）
+    # e1 = end_ts - 1
+
+    step = ig_endtime-1
+
+    # for step in range(start_ts, e1):
+        # 只处理 i ∈ [0, P-2]（与你原代码一致）
+        # actually，我们应该考虑的是以时间片为层级的
+        # if step==1233:
+        #     print(1)
+    change_link_terminal = []
+
+    for i in range(P - 1):
+        for j in range(N):
+            # if (i,j)==(15,26):
+            #     print(1)
+            n1 = ensure(i, j, step)
+            n2 = ensure(i, j, step + 1)
+
+            rn1 = n1.rightneighbor
+            rn2 = n2.rightneighbor
+
+            ln1 = n1.leftneighbor
+            ln2 = n2.leftneighbor
+
+
+            # 情况 A：两步都有 rightneighbor，但目标不同 -> 触发调整
+            if rn1 and rn2:
+                if (rn1[0], rn1[1]) != (rn2[0], rn2[1]):
+                    change_link_terminal.append((i, j, step))
+               #     print((i, j, step))
+
+
+
+            if ln1 and ln2:
+                if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
+                    change_link_terminal.append((ln2[0], ln2[1], step))
+               #     print((ln2[0], ln2[1], step))
+                  #  adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
+    # here we get the change link terminal groups,next stage ,we
+    # we begin do our algorithm2 steps
+
+
+    by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
+
+
+   # by_y = sorted(change_link_terminal, key=lambda t: t[1])
+    #test_nodes = copy.deepcopy(nownodes)
+    test_nodes = copy.copy(nownodes)
+   #  test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
+
+    endtiime = step
+
+
+
+    n = len(by_y)
+    if n == 0:
+        pass
+    else:
+        chunk_size = max(int(n * ratio), 1)
+
+        for batch_idx, start in enumerate(range(0, n, chunk_size), start=1):
+            batch = by_y[start: start + chunk_size]
+            print(f"# batch {batch_idx} (items {start}..{start + len(batch) - 1})")
+            # firstly ,we the setup   start
+
+
+            setup_start = endtiime-(batch_idx)*time_2_build+1
+            work_start = setup_start+time_2_build
+
+            for item in batch:
+                x = item[0]
+                y = item[1]
+
+                future_neighbor = test_nodes[x, y, endtiime + 1].rightneighbor
+                future_x = future_neighbor[0]
+                future_y = future_neighbor[1]
+
+                # firstly ,we setup the setup period
+                for k in range(time_2_build):
+                    setup_time_index =setup_start+k
+                    assignlink.assign_Link((x,y,setup_time_index), (future_x,future_y,setup_time_index), test_nodes, 0, 0, time_2_build-k)
+
+                # then ,we arrage the working period
+
+                for k in range(work_start,endtiime+1):
+                    assignlink.assign_Link((x,y,k), (future_x,future_y,k), test_nodes, 1, 0, 0)
+
+
+
+
+    #edges_by_step,pending_edge = motif.transform_nodes_2_rawedge_test(test_nodes, P, N, start_ts, end_ts)
+
+
+
+
+
 
