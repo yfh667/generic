@@ -3,6 +3,75 @@ import copy
 
 import genaric2.tegnode as tegnode
 import  draw.pymatlab2.basic.assignlink as assignlink
+from collections.abc import MutableMapping
+
+def _clone_node(n):
+    # 你的字段都是标量/三元组，浅拷贝就够；若后续加了可变字段再改成深拷贝
+    return tegnode.tegnode_new(
+        asc_nodes_region_id = getattr(n, "asc_nodes_region_id", -1),
+        rightneighbor       = getattr(n, "rightneighbor", None),
+        leftneighbor        = getattr(n, "leftneighbor", None),
+        left_state          = getattr(n, "left_state", -1),
+        right_state         = getattr(n, "right_state", -1),
+        node_type           = getattr(n, "node_type", -1),
+        timelast            = getattr(n, "timelast", -1),
+    )
+
+class COWNodes(MutableMapping):
+    """
+    Copy-On-Write 节点视图：
+    - 读：优先 overlay；否则从 base 取 *克隆* 放入 overlay 再返回（避免改到 base）
+    - 写：只写 overlay
+    - base 可以是 dict，或另一层 COWNodes（允许多层叠加）
+    """
+    def __init__(self, base):
+        self.base = base
+        self.overlay = {}
+
+    # --- 必需接口 ---
+    def __getitem__(self, key):
+        if key in self.overlay:
+            return self.overlay[key]
+        if key in self.base:
+            v = _clone_node(self.base[key])
+            self.overlay[key] = v
+            return v
+        # 不存在时，按你习惯返回一个“新节点”
+        v = tegnode.tegnode_new()
+        self.overlay[key] = v
+        return v
+
+    def get(self, key, default=None):
+        if key in self.overlay:
+            return self.overlay[key]
+        if key in self.base:
+            v = _clone_node(self.base[key])
+            self.overlay[key] = v
+            return v
+        return default
+
+    def __setitem__(self, key, value):
+        self.overlay[key] = value
+
+    def __contains__(self, key):
+        return key in self.overlay or key in self.base
+
+    def __delitem__(self, key):
+        if key in self.overlay:
+            del self.overlay[key]
+        else:
+            raise KeyError(key)
+
+    def __len__(self):
+        return len(set(self.overlay) | set(self.base))
+
+    def __iter__(self):
+        seen = set()
+        for k in self.overlay:
+            seen.add(k); yield k
+        for k in self.base:
+            if k not in seen:
+                yield k
 
 import math
 # def get_no_conflict_link(raw_edges_by_step,start_ts,end_ts,time_2_build,N,P):
@@ -361,6 +430,16 @@ def get_no_conflict_link_test(raw_edges_by_step,offsets,rects,start_ts,end_ts,ti
                         #     # 说明前是其余外部链路，后面是区域内部链路，前面链路需要进行断链为后面准备,后面覆盖前面的
                         #     adjust_link_nodes_test(i, j, step, nodes, time_2_build, start_ts, end_ts, option=2)
                 # the
+                elif not n1.rightneighbor and n2.rightneighbor:
+                    n2_neighbor_node = nodes.get((n2.rightneighbor[0], n2.rightneighbor[1], step))
+                    n2_region_group_id = region_in_communication(n2, n2_neighbor_node)
+                    change_terminal.append((i, j, step, 0))
+                    # if n2_region_group_id != -1:
+                    #
+                    # else:
+                    #     change_terminal.append((i, j, step, 1))
+
+
 
         for terminal in change_terminal:
     #        adjust_link_nodes_test(terminal[0], terminal[1], step, nodes, time_2_build, start_ts, end_ts, option=0)
@@ -1432,9 +1511,10 @@ def get_no_conflict_link_nodes4(
 
 
 
-    # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
-    nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
-
+    # # 工作字典：浅拷贝映射即可（不复制对象），按需创建新节点
+    # nownodes: Dict[Tuple[int, int, int], tegnode.tegnode_new] = dict(nodes)
+    # 原来：nownodes = dict(nodes)  # 仍共享对象，改了会污染 base
+    nownodes = COWNodes(nodes)      # ✅ 改为写时拷贝视图
    # nownodes = deepcopy(nodes)
     nget = nownodes.get
     # WATCH = {(15, 26, 1203)}  # 也可以加  (15,26,1204)、(15,26,1233) 等
@@ -1511,7 +1591,9 @@ def get_no_conflict_link_nodes4(
 
    # by_y = sorted(change_link_terminal, key=lambda t: t[1])
     #test_nodes = copy.deepcopy(nownodes)
-    test_nodes = copy.copy(nownodes)
+   # test_nodes = copy.copy(nownodes)
+    test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
+
     endtiime = step
 
 
