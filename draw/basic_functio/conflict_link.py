@@ -261,13 +261,32 @@ def adjust_link_nodes_test(i, j, step, nodes, time2setup, start_ts, end_ts, opti
         rx =r[0]
         ry = r[1]
 
-        for k in range(time2setup):
-            bias = step - k
-            if bias >= start_ts:
-                # nownode = nodes[i, j, bias]
 
-                assignlink.assign_Link((i, j, bias), (rx,ry,bias), nodes, 0,
-                                       1, k+1)
+
+        lowbias = step - time2setup+1
+
+
+        if lowbias>=start_ts:
+            # print("there")
+            for k in range(time2setup):
+                bias = step - k
+                if bias >= start_ts:
+                    # nownode = nodes[i, j, bias]
+
+                    assignlink.assign_Link((i, j, bias), (rx,ry,bias), nodes, 0,
+                                           1, k+1)
+
+
+        else:     # 如果出现，建联时间不够呢？因此此处需要补偿这一行为
+          # print("here")
+          for k in range(time2setup):
+              bias = start_ts +k
+              if bias < end_ts:
+                  # nownode = nodes[i, j, bias]
+
+                  assignlink.assign_Link((i, j, bias), (rx, ry, bias), nodes, 0,
+                                         1,time2setup-k)
+
 # 后面预建链
     elif option == 1:
         future_node = nodes[i, j, step+1]
@@ -300,11 +319,11 @@ def _xy(nei):
 
 # we check ,whether (x,y,z)是否处于热点链接，
 
-def hot_link_flag(x,y,time,time2setup,nodes):
+def hot_link_flag(x,y,time,time2setup,nodes,start_ts,end_ts ):
     flag=0
     for i in range(time2setup):
         nowtime = time -i
-        if nowtime<0:
+        if nowtime<start_ts:
             return  flag
         n1node = nodes[(x,y,nowtime)]
         if not n1node.rightneighbor:
@@ -407,8 +426,8 @@ def get_no_conflict_link_test(raw_edges_by_step,offsets,rects,start_ts,end_ts,ti
     for terminals in consider_terminal_pair:
         start_terminal = terminals[0]
         target_terminal = terminals[1]
-        flag1 =hot_link_flag(start_terminal[0],start_terminal[1],start_terminal[2],time_2_build,nodes)
-        flag2 =hot_link_flag(target_terminal[0],target_terminal[1],target_terminal[2],time_2_build,nodes)
+        flag1 =hot_link_flag(start_terminal[0],start_terminal[1],start_terminal[2],time_2_build,nodes,start_ts, end_ts)
+        flag2 =hot_link_flag(target_terminal[0],target_terminal[1],target_terminal[2],time_2_build,nodes,start_ts, end_ts)
         if flag1 or flag2:
             # 说明了两个点其中有一个或者都是区域内部链接，因此，后面链路进行拖鞋
             change_terminal.append((start_terminal[0], start_terminal[1], start_terminal[2], 1))
@@ -1695,15 +1714,15 @@ def get_no_conflict_link_nodes4(
     else:
         test_nodes = COWNodes(nownodes)  # ✅ 再叠一层，专门给本次批处理试验
 
-    for i in range(P - 1):
-        for j in range(N):
-            n1 = ensure(i, j, ig_endtime)
-            if n1.right_state==0:
-                neighbor=n1.rightneighbor
-                rx=neighbor[0]
-                ry=neighbor[1]
-                for k in range(ig_endtime,ig_endtime+time_2_build):
-                    assignlink.assign_Link((i,j,k), (rx,ry,k), test_nodes, 1, -1, 0)
+    # for i in range(P - 1):
+    #     for j in range(N):
+    #         n1 = ensure(i, j, ig_endtime)
+    #         if n1.right_state==0:
+    #             neighbor=n1.rightneighbor
+    #             rx=neighbor[0]
+    #             ry=neighbor[1]
+    #             for k in range(ig_endtime,ig_endtime+time_2_build):
+    #                 assignlink.assign_Link((i,j,k), (rx,ry,k), test_nodes, 1, -1, 0)
 
    #
 
@@ -1720,8 +1739,8 @@ def get_no_conflict_link_nodes4(
     delete_link_terminal = []
     for i in range(P - 1):
         for j in range(N):
-            # if (i,j)==(15,26):
-            #     print(1)
+            if (i,j)==(5,33):
+                print(1)
             n1 = ensure(i, j, step)
             n2 = ensure(i, j, step + 1)
 
@@ -1731,12 +1750,15 @@ def get_no_conflict_link_nodes4(
             ln1 = n1.leftneighbor
             ln2 = n2.leftneighbor
 
+            if  n2.right_state == 0:
+                continue
+
 
 
             # 情况 A：两步都有 rightneighbor，但目标不同 -> 触发调整
             if rn1 and rn2:
 
-                if (rn1[0], rn1[1]) != (rn2[0], rn2[1]):
+                if (rn1[0], rn1[1]) != (rn2[0], rn2[1])  :
                     change_link_terminal.append((i, j, step))
                     # continue
                #     print((i, j, step))
@@ -1750,9 +1772,9 @@ def get_no_conflict_link_nodes4(
             elif rn1 and not rn2:
                 delete_link_terminal.append((i, j, step))
 
-            if ln1 and ln2:
-                if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
-                    change_link_terminal.append((ln2[0], ln2[1], step))
+            # if ln1 and ln2:
+            #     if (ln1[0], ln1[1]) != (ln2[0], ln2[1]):
+            #         change_link_terminal.append((ln2[0], ln2[1], step))
 
                #     print((ln2[0], ln2[1], step))
                   #  adjust_link_nodes(i, j, step, nownodes, time_2_build, start_ts, end_ts, option=0)
@@ -1762,6 +1784,7 @@ def get_no_conflict_link_nodes4(
 
     #by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
     groups = group_by_y_then_x(set(change_link_terminal), dedup=True)
+
     by_y = flatten_groups(groups)
 
     endtiime = step
@@ -1800,13 +1823,9 @@ def get_no_conflict_link_nodes4(
                     assignlink.assign_Link((x,y,k), (future_x,future_y,k), test_nodes, 1, 0, 0)
 
 
-
-
-
     edges_by_step,pending_edge = motif.transform_nodes_2_rawedge_test(test_nodes, P, N, start_ts, end_ts)
 
-
-    return edges_by_step,pending_edge
+    return edges_by_step,pending_edge,by_y
 
 
 
