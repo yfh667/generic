@@ -188,6 +188,7 @@ def transform_nodes_2_rawedge_test(nodes, P, N, start_ts, end_ts):
     """
     edge_by_step = {}
     pending_edge = {}
+    iG_edge = {}
 
     for step in range(start_ts, end_ts):
         for i in range(P):
@@ -205,11 +206,15 @@ def transform_nodes_2_rawedge_test(nodes, P, N, start_ts, end_ts):
                     edge_by_step.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
                     # 无向：对方也加自己
                     # edge_by_step.setdefault(step, {}).setdefault(rightneighbor_id, set()).add(nowid)
-                elif nowdes.rightneighbor is not None and nowdes.rightneighbor!=-1 and nowdes.right_state==0:
+                elif nowdes.rightneighbor is not None and nowdes.rightneighbor!=-1 and nowdes.right_state==0 and nowdes.node_type==1:
                     rightneighbor = nowdes.rightneighbor
                     rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
                     pending_edge.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
+                elif nowdes.rightneighbor is not None and nowdes.rightneighbor!=-1 and nowdes.right_state==0 and nowdes.node_type==0:
+                    rightneighbor = nowdes.rightneighbor
+                    rightneighbor_id = rightneighbor[0] * N + rightneighbor[1]
+                    iG_edge.setdefault(step, {}).setdefault(nowid, set()).add(rightneighbor_id)
 
 
 
-    return edge_by_step,pending_edge
+    return edge_by_step,pending_edge,iG_edge

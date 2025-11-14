@@ -574,15 +574,39 @@ class SatelliteViewer(QtWidgets.QWidget):
                         dash=True
                     )
                 self._edges_line_items.append(item)
+        # 3) IG 链路 —— 蓝色虚线
+        ig_links = getattr(self, "IG_link_by_step", {}).get(step, {})
+        for src, dsts in ig_links.items():
+            for dst in dsts:
+                if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                    item = self.draw_curved_edge(
+                        self._all_cols[src], self._all_rows[src],
+                        self._all_cols[dst], self._all_rows[dst],
+                        curve=0.5, dash=True, color='#1E88E5'
+                    )
+                else:
+                    item = self.draw_straight_edge(
+                        self._all_cols[src], self._all_rows[src],
+                        self._all_cols[dst], self._all_rows[dst],
+                        dash=True, color='#1E88E5'
+                    )
+                self._edges_line_items.append(item)
 
-    def draw_straight_edge(self, x0, y0, x1, y1, dash=False):
+    def draw_straight_edge(self, x0, y0, x1, y1, dash=False,color=None, width=None):
         path = QPainterPath()
         path.moveTo(x0, y0)
         path.lineTo(x1, y1)
         item = QGraphicsPathItem(path)
+
+        if color is None:
+            # 默认行为：虚线=红色，实线=灰色
+            color = 'red' if dash else '#888'
+        if width is None:
+            width = 1.2
+
         pen = pg.mkPen(
-            color='red' if dash else '#888',
-            width=1.2,
+            color=color,              # ✅ 用传进来的 color
+            width=width,              # ✅ 用传进来的 width
             style=QtCore.Qt.DashLine if dash else QtCore.Qt.SolidLine
         )
         item.setPen(pen)
@@ -590,16 +614,23 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.plot_widget.addItem(item)
         return item
 
-    def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5, dash=False):
+    def draw_curved_edge(self, x0, y0, x1, y1, curve=0.5, dash=False,color=None, width=None):
         path = QPainterPath()
         path.moveTo(x0, y0)
         ctrl_x = (x0 + x1) / 2
         ctrl_y = (y0 + y1) / 2 + curve * abs(x1 - x0)
         path.quadTo(ctrl_x, ctrl_y, x1, y1)
         item = QGraphicsPathItem(path)
+
+        if color is None:
+            # 默认行为：虚线=红色，实线=灰色
+            color = 'red' if dash else '#888'
+        if width is None:
+            width = 1.2
+
         pen = pg.mkPen(
-            color='red' if dash else '#888',
-            width=1.2,
+            color=color,              # ✅ 用传进来的 color
+            width=width,              # ✅ 用传进来的 width
             style=QtCore.Qt.DashLine if dash else QtCore.Qt.SolidLine
         )
         item.setPen(pen)
