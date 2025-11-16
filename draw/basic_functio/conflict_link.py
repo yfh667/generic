@@ -1629,24 +1629,50 @@ def get_no_conflict_link_nodes3(
 #     e.left_state    = state
 from itertools import groupby
 
-def group_by_y_then_x(triples, dedup=True):
+# def group_by_y_then_x(triples, dedup=True):
+#     """
+#     triples: [(x, y, z), ...]
+#     返回：[(y, [(x, [(x,y,z)...]), ...]), ...]，y 组按降序，组内 x 组按升序
+#     """
+#     data = set(triples) if dedup else list(triples)
+#     # 排序：确保 groupby 连续分组 —— y 降序，其次 x 升序，最后 z 升序
+#     ordered = sorted(data, key=lambda t: (-t[1], t[0], t[2]))
+#
+#     out = []
+#     for y, items_y in groupby(ordered, key=itemgetter(1)):
+#         items_y = list(items_y)                 # 此时已按 x 升序
+#         x_groups = []
+#         for x, items_x in groupby(items_y, key=itemgetter(0)):
+#             x_groups.append((x, list(items_x))) # 同一 (x,y) 的所有 (x,y,z)
+#         out.append((y, x_groups))
+#     return out
+
+def group_by_y_then_x(triples, dedup=True, flag=0):
     """
     triples: [(x, y, z), ...]
-    返回：[(y, [(x, [(x,y,z)...]), ...]), ...]，y 组按降序，组内 x 组按升序
+    返回：[(y, [(x, [(x,y,z)...]), ...]), ...]
+    - flag=0: y 按降序
+    - flag=1: y 按升序
+    组内 x 始终按升序
     """
     data = set(triples) if dedup else list(triples)
-    # 排序：确保 groupby 连续分组 —— y 降序，其次 x 升序，最后 z 升序
-    ordered = sorted(data, key=lambda t: (-t[1], t[0], t[2]))
+
+    # 根据 flag 决定 y 的排序方向
+    def sort_key(t):
+        y = t[1]
+        y_key = -y if flag == 0 else y   # 0: 降序；1: 升序
+        return (y_key, t[0], t[2])
+
+    ordered = sorted(data, key=sort_key)
 
     out = []
     for y, items_y in groupby(ordered, key=itemgetter(1)):
-        items_y = list(items_y)                 # 此时已按 x 升序
+        items_y = list(items_y)  # 此时已按 x 升序
         x_groups = []
         for x, items_x in groupby(items_y, key=itemgetter(0)):
-            x_groups.append((x, list(items_x))) # 同一 (x,y) 的所有 (x,y,z)
+            x_groups.append((x, list(items_x)))
         out.append((y, x_groups))
     return out
-
 def flatten_groups(groups):
     """把上面的分组结构扁平化为排序后的列表"""
     return [item for _, xgs in groups for _, items in xgs for item in items]
@@ -1657,7 +1683,7 @@ import  draw.pymatlab2.basic.assignlink as assignlink
 
 def get_no_conflict_link_nodes4(
     nodes: Dict[Tuple[int, int, int], tegnode.tegnode_new],
-    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime,flag
+    start_ts: int, end_ts: int, time_2_build: int, N: int, P: int,ratio,ig_endtime,flag,adjustflag=0
 ):
     """
     优化版：
@@ -1783,7 +1809,7 @@ def get_no_conflict_link_nodes4(
 
 
     #by_y = sorted(change_link_terminal, key=itemgetter(1), reverse=True)
-    groups = group_by_y_then_x(set(change_link_terminal), dedup=True)
+    groups = group_by_y_then_x(set(change_link_terminal), dedup=True,flag=adjustflag)
 
     by_y = flatten_groups(groups)
 
