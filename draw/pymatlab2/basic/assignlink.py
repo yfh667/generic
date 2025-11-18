@@ -1,6 +1,6 @@
 UNSET = -1
 
-
+import genaric2.tegnode as tegnode
 def _is_triplet(val) -> bool:
     return isinstance(val, tuple) and len(val) == 3
 
