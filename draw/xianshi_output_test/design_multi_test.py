@@ -30,10 +30,10 @@ RANGES = [
 
 # 要批量跑的建链时间
 # TTB_VALUES = [10,20,30,40,50, 70,80, 90, 100, 110,  120,130,140]
-TTB_VALUES = [10,20,30,40,50, 70,80, 90, 100, 110,  120,130,140]
+TTB_VALUES = [10,20,30,40,50, 60,70,80, 90, 100, 110,  120,130,140]
 # 每个 TTB 的并行进程数（别把磁盘打爆，32 已很猛）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
-SIMULATION_EDITION = 'motif2'
+SIMULATION_EDITION = 'motif3'
 CONFIG_DIR = Path(INPUT_DIR) / f"{SIMULATION_EDITION}" / "config"
 
 # SIMULATION_EDITION = 'motif2'
