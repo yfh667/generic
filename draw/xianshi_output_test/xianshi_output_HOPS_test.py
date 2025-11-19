@@ -12,6 +12,7 @@ import draw.read_snap_xml  as read_snap_xml
 import draw.basic_functio.write2xml as write2xml
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 import draw.pymatlab2.chartalgorithm.plot_intergroup_avg_shortest_path as avgsp  # 你之前的模块（含 export_intergroup_avgspath_to_origin）
+import draw.basic_functio.motif as motif
 
 # ===== 星座 & 时间段 =====
 P, N = 18, 36
@@ -23,13 +24,19 @@ RANGES = [
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]   # [0, 22005)
 
 DEFAULT_TTB_VALUES = [10,20,30,40,50,60,70,80,90,100,110,120,130,140]
+SIMULATION_EDITION = 'motif2'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
-def version_name(ttb: int) -> str:
-    return f"topology_{ttb}"
+# def version_name(ttb: int) -> str:
+#     return f"topology_{ttb}"
 
 def dirs_and_xmls(ttb: int):
-    version = version_name(ttb)
+
+
+    DEFAULT_VERSION = f"{SIMULATION_EDITION}/topology_{ttb}"
+    # version = version_name(ttb)
+    version = os.getenv("TOPOLOGY_VERSION", DEFAULT_VERSION)
+    # version = version_name(ttb)
     modify_dir = Path(INPUT_DIR) / version / "modify"
     figure_dir = Path(INPUT_DIR) / version / "figure"
     figure_dir.mkdir(parents=True, exist_ok=True)
@@ -95,8 +102,9 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
         raise FileNotFoundError(f"[TTB={ttb}] 缺少 XML（{len(missing)}），例如：{missing[:2]} ...")
 
     print(f"[TTB={ttb}] 读取 inter XML（{len(xml_paths)} 个）…")
-    totalnode = write2xml.load_all_nodes_sequential(xml_paths, tegnode.tegnode_complete)
-    all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
+    totalnode = write2xml.load_all_nodes_sequential_test(xml_paths, tegnode.tegnode_new)
+    #all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
+    all_inter_edge, pending_edge, iG_edge = motif.transform_nodes_2_rawedge_test(totalnode, P, N, START_TS, END_TS)
 
     # 双向化 inter
     for step in list(all_inter_edge.keys()):

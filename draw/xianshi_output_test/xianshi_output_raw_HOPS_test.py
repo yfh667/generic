@@ -4,7 +4,6 @@
 import os, sys, time, traceback, argparse, multiprocessing as mp
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import draw.basic_functio.motif as motif
 
 # ===== 项目依赖 =====
 from config import DATA_DIR, INPUT_DIR
@@ -13,7 +12,7 @@ import draw.read_snap_xml  as read_snap_xml
 import draw.basic_functio.write2xml as write2xml
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
 import draw.pymatlab2.chartalgorithm.plot_intergroup_avg_shortest_path as avgsp  # 你之前的模块（含 export_intergroup_avgspath_to_origin）
-import draw.pymatlab2.chartalgorithm.export_topology_summary as export_topology_summary
+import draw.basic_functio.motif as motif
 
 # ===== 星座 & 时间段 =====
 P, N = 18, 36
@@ -24,30 +23,26 @@ RANGES = [
 ]
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]   # [0, 22005)
 
-DEFAULT_TTB_VALUES = [10,20,30,40,50,60,70,80,90,100,110,120,130,140]
+DEFAULT_TTB_VALUES = [10 ]
 SIMULATION_EDITION = 'motif2'
+# DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
+# def version_name(ttb: int) -> str:
+#     return f"topology_{ttb}"
 
 def dirs_and_xmls(ttb: int):
-    """
-    返回 (modify_dir, figure_dir, xml_paths)
-    modify_dir: INPUT_DIR/topology_{ttb}/modify
-    figure_dir: INPUT_DIR/topology_{ttb}/figure
-    xml_paths:  该 TTB 对应的 13 段 XML 完整路径列表
-    """
 
-
-    DEFAULT_VERSION = f"{SIMULATION_EDITION}/topology_{ttb}"
+    DEFAULT_VERSION = f"{SIMULATION_EDITION}/raw"
     # version = version_name(ttb)
     version = os.getenv("TOPOLOGY_VERSION", DEFAULT_VERSION)
-    modify_dir = Path(INPUT_DIR) / version / "modify"
+
+
+
+    raw_dir = Path(INPUT_DIR) / version / "raw"
     figure_dir = Path(INPUT_DIR) / version / "figure"
     figure_dir.mkdir(parents=True, exist_ok=True)
-
-    xml_paths = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
-    return modify_dir, figure_dir, xml_paths
-
-
+    xml_paths = [raw_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
+    return raw_dir, figure_dir, xml_paths
 
 def cache_dir() -> Path:
     d = Path(INPUT_DIR) / "_cache"
@@ -108,31 +103,46 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
         raise FileNotFoundError(f"[TTB={ttb}] 缺少 XML（{len(missing)}），例如：{missing[:2]} ...")
 
     print(f"[TTB={ttb}] 读取 inter XML（{len(xml_paths)} 个）…")
-
     totalnode = write2xml.load_all_nodes_sequential_test(xml_paths, tegnode.tegnode_new)
-    all_inter_edge, pending_edge, iG_edge = motif.transform_nodes_2_rawedge_test(totalnode, P, N, START_TS, END_TS)
+    all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
 
- #   all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
+    # all_inter_edge, pending_edge, iG_edge = motif.transform_nodes_2_rawedge_test(totalnode, P, N, START_TS, END_TS)
+
+    # 双向化 inter
+    for step in list(all_inter_edge.keys()):
+        all_inter_edge[step] = make_edges_bidirectional(all_inter_edge[step])
+
+    # 读取公共 group_data（缓存）
+    group_data = load_group_data_cached()
+
+    # —— 构造 all_edges（含 intra+inter）供 avgsp.compute 使用 ——
+    # 这里不生成巨大的 all_intra_edge；每步把环内边追加进去即可。
+    all_edges = {}
+    # 预计算 648 个节点的左右邻居
+    base_neighbors = {
+        i * N + j: (i * N + ((j + 1) % N), i * N + ((j - 1) % N))
+        for i in range(P) for j in range(N)
+    }
+    for step in range(START_TS, END_TS):
+        adj = {}
+        # intra（左右邻居）
+        for node, (r, l) in base_neighbors.items():
+            adj.setdefault(node, set()).update((r, l))
+        # inter
+        inter = all_inter_edge.get(step, {})
+        for src, dsts in inter.items():
+            adj.setdefault(src, set()).update(dsts)
+        all_edges[step] = adj
 
     # 计算并导出 CSV
-    csv_path = export_topology_summary.export_topology_summary(
-        all_inter_edge,
+    csv_path = avgsp.export_intergroup_avgspath_to_origin(
+        all_edges, group_data,
         out_dir=figure_dir,
-        basename=f"topology_snapshot_ttb{ttb}",
-        to=("csv"),  # 想要什么格式就写什么
-        directed=False,
-        with_helpers=True,  # 生成 stable_line / change_line / change_mark
-        with_alt_group=True  # 生成 color_group（0/1 交替，用于分段上色）
+        basename=f"avgspath_raw",
+        group_a=0, group_b=4,
+        steps=(START_TS, END_TS-1),
+        undirected=True
     )
-
-    # csv_path = avgsp.export_intergroup_avgspath_to_origin(
-    #     all_edges, group_data,
-    #     out_dir=figure_dir,
-    #     basename=f"avgspath_{ttb}",
-    #     group_a=0, group_b=4,
-    #     steps=(START_TS, END_TS-1),
-    #     undirected=True
-    # )
     dt = time.time() - t0
     print(f"[TTB={ttb}] 完成，用时 {dt:.1f}s -> {csv_path}")
     return ttb, [str(csv_path)]
