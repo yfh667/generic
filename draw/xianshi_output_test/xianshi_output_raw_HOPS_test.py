@@ -24,7 +24,7 @@ RANGES = [
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]   # [0, 22005)
 
 DEFAULT_TTB_VALUES = [10 ]
-SIMULATION_EDITION = 'motif2'
+SIMULATION_EDITION = 'motif3'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
 # def version_name(ttb: int) -> str:

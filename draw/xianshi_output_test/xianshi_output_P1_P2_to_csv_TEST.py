@@ -31,7 +31,7 @@ START_TS, END_TS = RANGES[0][0], RANGES[-1][1]  # [0, 22005)
 # 默认要批量计算的建链时长（秒）
 DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
 # DEFAULT_TTB_VALUES = [ 30 ]
-SIMULATION_EDITION = 'motif2'
+SIMULATION_EDITION = 'motif3'
 
 def version_name(ttb: int) -> str:
     return f"topology_{ttb}"

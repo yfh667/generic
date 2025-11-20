@@ -39,7 +39,7 @@ START_TS, END_TS = RANGES[0][0], RANGES[-1][1]  # [0, 22005)
 # 默认要批量计算的建链时长（秒）
 DEFAULT_TTB_VALUES = [10,20,30,40, 50, 60,70,80, 90, 100, 110, 120, 130, 140]
 # DEFAULT_TTB_VALUES = [ 30 ]
-SIMULATION_EDITION = 'motif2'
+SIMULATION_EDITION = 'motif3'
 
 def version_name(ttb: int) -> str:
     return f"topology_{ttb}"
@@ -111,25 +111,25 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
 
     print(f"[TTB={ttb}] 导出 CSV …")
 
-    p1_file_path = psn.export_pending_series_to_origin(
-        pending_edge,
-        out_dir=figure_dir,
-        basename=f"p1_pending_edges_ttb{ttb}",
-        to=("csv",),  # 需要 Excel 同时导出可改为 ("csv","xlsx")
-        fill_missing=True,
-        max_t_seconds=None,
-        smooth_window=None  # 想多导一列平滑曲线就填窗口大小（如 5）
-    )
-
-    p2_file_path = psn.export_pending_series_to_origin(
-        iG_edge,
-        out_dir=figure_dir,
-        basename=f"p2_pending_edges_ttb{ttb}",
-        to=("csv",),  # 需要 Excel 同时导出可改为 ("csv","xlsx")
-        fill_missing=True,
-        max_t_seconds=None,
-        smooth_window=None  # 想多导一列平滑曲线就填窗口大小（如 5）
-    )
+    # p1_file_path = psn.export_pending_series_to_origin(
+    #     pending_edge,
+    #     out_dir=figure_dir,
+    #     basename=f"p1_pending_edges_ttb{ttb}",
+    #     to=("csv",),  # 需要 Excel 同时导出可改为 ("csv","xlsx")
+    #     fill_missing=True,
+    #     max_t_seconds=None,
+    #     smooth_window=None  # 想多导一列平滑曲线就填窗口大小（如 5）
+    # )
+    #
+    # p2_file_path = psn.export_pending_series_to_origin(
+    #     iG_edge,
+    #     out_dir=figure_dir,
+    #     basename=f"p2_pending_edges_ttb{ttb}",
+    #     to=("csv",),  # 需要 Excel 同时导出可改为 ("csv","xlsx")
+    #     fill_missing=True,
+    #     max_t_seconds=None,
+    #     smooth_window=None  # 想多导一列平滑曲线就填窗口大小（如 5）
+    # )
 
 
 
@@ -179,7 +179,9 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     )
 
     dt = time.time() - t0
-    out_files = [p1_file_path, p2_file_path,csv_path,csv_path2]
+   # out_files = [p1_file_path, p2_file_path,csv_path,csv_path2]
+    out_files = [ csv_path,csv_path2]
+
 
     print(f"[TTB={ttb}] 完成，用时 {dt:.1f}s -> {out_files}")
     return ttb, [str(p) for p in out_files]

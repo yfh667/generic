@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QGraphicsPathItem
 from PyQt5 import QtWidgets, QtCore
 import numpy as np
 import pyqtgraph as pg
-
+import draw.basic_functio.basic_motif_option as basic_motif_option
 # ====== 常量（与原始一致） ======
 N = 36   # 每轨道卫星数
 P = 18   # 轨道平面数
@@ -31,6 +31,17 @@ GROUP_COLORS = [
     '#00FFFF',  # 青 (Group 5)
     '#FFFF00',  # 黄 (Group 6)
 ]
+def getoption(x1,y1,x2,y2,N):
+    if x2-x1==1 and y2-y1==0:
+        return 0
+    elif x2-x1==1 and  y2==(y1 - 1 + N) % N :
+        return 1
+    elif x2-x1==2 and y2==y1:
+        return 2
+    elif x2-x1==1 and y2==(y1 + 1) % N:
+        return 4
+    elif x2-x1==2 and y2==(y1 - 1 + N) % N:
+        return 5
 
 # ========== UI 主类 ==========
 class SatelliteViewer(QtWidgets.QWidget):
@@ -543,7 +554,9 @@ class SatelliteViewer(QtWidgets.QWidget):
         # 画线
         for src, dsts in edges.items():
             for dst in dsts:
-                if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                opt = getoption(self._all_cols[src], self._all_rows[src],
+                                self._all_cols[dst], self._all_rows[dst], N)
+                if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],
                         self._all_cols[dst], self._all_rows[dst],
@@ -555,13 +568,40 @@ class SatelliteViewer(QtWidgets.QWidget):
                         self._all_cols[dst], self._all_rows[dst],
                         dash=False
                     )
+
+                # if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                #     item = self.draw_curved_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         curve=0.5, dash=False
+                #     )
+                # else:
+                #     item = self.draw_straight_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         dash=False
+                #     )
                 self._edges_line_items.append(item)
 
         # 虚线（pending）
         pending_links = getattr(self, "pending_links_by_step", {}).get(step, {})
         for src, dsts in pending_links.items():
             for dst in dsts:
-                if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                # if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                #     item = self.draw_curved_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         curve=0.5, dash=True
+                #     )
+                # else:
+                #     item = self.draw_straight_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         dash=True
+                #     )
+                opt = getoption(self._all_cols[src], self._all_rows[src],
+                                self._all_cols[dst], self._all_rows[dst], N)
+                if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],
                         self._all_cols[dst], self._all_rows[dst],
@@ -573,12 +613,27 @@ class SatelliteViewer(QtWidgets.QWidget):
                         self._all_cols[dst], self._all_rows[dst],
                         dash=True
                     )
+
                 self._edges_line_items.append(item)
         # 3) IG 链路 —— 蓝色虚线
         ig_links = getattr(self, "IG_link_by_step", {}).get(step, {})
         for src, dsts in ig_links.items():
             for dst in dsts:
-                if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                # if abs(self._all_cols[src] - self._all_cols[dst]) > 1:
+                #     item = self.draw_curved_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         curve=0.5, dash=True, color='#1E88E5'
+                #     )
+                # else:
+                #     item = self.draw_straight_edge(
+                #         self._all_cols[src], self._all_rows[src],
+                #         self._all_cols[dst], self._all_rows[dst],
+                #         dash=True, color='#1E88E5'
+                #     )
+                opt = getoption(self._all_cols[src], self._all_rows[src],
+                                self._all_cols[dst], self._all_rows[dst], N)
+                if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],
                         self._all_cols[dst], self._all_rows[dst],

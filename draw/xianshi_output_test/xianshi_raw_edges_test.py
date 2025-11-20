@@ -33,7 +33,7 @@ RANGES = [
 TTB_VALUES = [10 ]
 # 每个 TTB 的并行进程数（别把磁盘打爆，32 已很猛）
 WORKERS_PER_TTB = min(32, os.cpu_count() or 8, len(RANGES))
-SIMULATION_EDITION = 'motif2'
+SIMULATION_EDITION = 'motif3'
 CONFIG_DIR = Path(INPUT_DIR) / f"{SIMULATION_EDITION}" / "config"
 
 # SIMULATION_EDITION = 'motif2'

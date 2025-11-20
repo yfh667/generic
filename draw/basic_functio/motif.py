@@ -40,7 +40,10 @@ def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
 
         nextnode_x = x + 1
         nextnode_y = (y+1) % N
-
+    #4-9
+    elif option == 5:
+        nextnode_x = x + 2
+        nextnode_y = (y - 1 + N) % N
 
     if nextnode_x < x_min or nextnode_x > x_max:
         return None
