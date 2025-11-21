@@ -13,6 +13,7 @@ def write_distinct_motif(x_min, x_max, y_min, y_max, P, N, nodes, option=0):
 
 
 def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
+    # a b c
     # 1 2 3
     # 4 5 6
     # 7 8 9
@@ -44,7 +45,10 @@ def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
     elif option == 5:
         nextnode_x = x + 2
         nextnode_y = (y - 1 + N) % N
-
+    #4-b
+    elif option==6:
+        nextnode_x = x + 1
+        nextnode_y = (y + 2 ) % N
     if nextnode_x < x_min or nextnode_x > x_max:
         return None
     if nextnode_y < y_min or nextnode_y > y_max:
