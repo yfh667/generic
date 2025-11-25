@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Snapshot 100 • deck.gl GreatCircleLayer Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- MapLibre -->
+  <link
+    href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+    rel="stylesheet"
+  />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <!-- deck.gl -->
+  <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+        sans-serif;
+    }
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    (async function () {
+      /* ========= 1. 读取 snapshot_100.json ========= */
+
+      const resp = await fetch("./snapshot_100.json");
+      if (!resp.ok) {
+        alert("无法读取 snapshot_100.json，请确认与本 HTML 在同一目录。");
+        return;
+      }
+      const snapshot = await resp.json();
+
+      const satellites = snapshot.satellites || [];
+      const links = snapshot.links_active || snapshot.links || [];
+
+      // id -> 卫星对象
+      const satMap = new Map();
+      satellites.forEach((s) => satMap.set(String(s.id), s));
+
+      // GreatCircleLayer 数据：每条链路一个 {source, target}
+      const arcsData = [];
+      links.forEach((link) => {
+        const s = satMap.get(String(link.source));
+        const t = satMap.get(String(link.target));
+        if (!s || !t) return;
+        arcsData.push({
+          source: [Number(s.lng), Number(s.lat)],
+          target: [Number(t.lng), Number(t.lat)],
+        });
+      });
+
+      /* ========= 2. 初始化 MapLibre 底图 ========= */
+
+      const map = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          sources: {
+            carto: {
+              type: "raster",
+              tiles: [
+                "https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+              ],
+              tileSize: 256,
+              attribution: "© OpenStreetMap contributors, © CARTO",
+            },
+          },
+          layers: [
+            {
+              id: "bg",
+              type: "background",
+              paint: { "background-color": "#f3f3f3" },
+            },
+            { id: "carto", type: "raster", source: "carto" },
+          ],
+        },
+        center: [0, 0],
+        zoom: 1.5,
+        renderWorldCopies: true,
+        antialias: true,
+      });
+
+      map.on("load", () => {
+        /* ========= 3. 用 deck.gl 叠加弧形链路 & 卫星点 ========= */
+
+        // 卫星点：ScatterplotLayer（半径用像素单位）
+        const satLayer = new deck.ScatterplotLayer({
+          id: "satellites",
+          data: satellites,
+          getPosition: (d) => [Number(d.lng), Number(d.lat)],
+          radiusUnits: "pixels",
+          getRadius: 3.5,
+          getFillColor: [255, 255, 255, 255],
+          getLineColor: [60, 60, 60, 255],
+          lineWidthUnits: "pixels",
+          getLineWidth: 1.2,
+          stroked: true,
+          filled: true,
+          pickable: true,
+        });
+
+        // 链路：GreatCircleLayer，天然画球面弧线
+        const linkLayer = new deck.GreatCircleLayer({
+          id: "links",
+          data: arcsData,
+          getSourcePosition: (d) => d.source,
+          getTargetPosition: (d) => d.target,
+          getWidth: 1,
+          widthUnits: "pixels",
+          getSourceColor: [90, 90, 90, 220],
+          getTargetColor: [90, 90, 90, 220],
+          greatCircle: true, // 默认就是 true，这里显式写一下
+          pickable: false,
+        });
+
+        // MapboxOverlay 可以直接挂在 MapLibre 上
+        const overlay = new deck.MapboxOverlay({
+          interleaved: true,
+          layers: [linkLayer, satLayer],
+        });
+
+        map.addControl(overlay);
+
+        // 简单 hover：显示 ID / Alt
+        map.on("mousemove", (e) => {
+          const pickInfo = overlay.pickObject({
+            x: e.point.x,
+            y: e.point.y,
+          });
+          map.getCanvas().style.cursor =
+            pickInfo && pickInfo.layer && pickInfo.layer.id === "satellites"
+              ? "pointer"
+              : "";
+
+          if (
+            pickInfo &&
+            pickInfo.layer &&
+            pickInfo.layer.id === "satellites"
+          ) {
+            const d = pickInfo.object;
+            const id = d.id;
+            const alt = d.alt;
+            if (!window._satPopup) {
+              window._satPopup = new maplibregl.Popup({
+                closeButton: false,
+                closeOnClick: false,
+              });
+            }
+            window._satPopup
+              .setLngLat(e.lngLat)
+              .setHTML(
+                `<div style="font-size:12px;">ID: ${id}<br/>Alt: ${alt} km</div>`
+              )
+              .addTo(map);
+          } else if (window._satPopup) {
+            window._satPopup.remove();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

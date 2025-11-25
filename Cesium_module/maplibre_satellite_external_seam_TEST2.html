@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Satellite Network • deck.gl GreatCircleLayer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- MapLibre -->
+  <link
+    href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+    rel="stylesheet"
+  />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <!-- deck.gl（包含 MapboxOverlay / GreatCircleLayer / ScatterplotLayer 等） -->
+  <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f3f3f3;
+    }
+    #map { position: absolute; inset: 0; }
+
+    .ui-panel {
+      position: absolute;
+      background: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12);
+      font-size: 12px;
+      line-height: 1.2;
+      backdrop-filter: blur(2px);
+    }
+    .control-panel {
+      left: 12px;
+      top: 12px;
+      width: 280px;
+    }
+    .control-panel label {
+      font-weight: 600;
+      color: #333;
+    }
+    .control-panel input[type="range"] {
+      width: 100%;
+      margin-top: 8px;
+    }
+    .control-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .control-row input[type="text"] {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .control-row button {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .control-row select {
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="control-panel ui-panel">
+    <label for="center-lon">Center Longitude: <span id="lon-value">0° E</span></label>
+    <input id="center-lon" type="range" min="-180" max="180" value="0" step="1" />
+    <div class="control-row">
+      <input id="center-lon-input" type="text" placeholder="如 110E / 75W / -120" />
+      <button id="center-lon-apply">应用</button>
+    </div>
+    <div class="control-row">
+      <button id="btn-export">导出 PNG</button>
+      <select id="export-scale" title="导出倍率">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="3">3×</option>
+        <option value="4">4×</option>
+      </select>
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input id="transparent-bg" type="checkbox" /> 透明底
+      </label>
+    </div>
+  </div>
+
+  <script>
+  (async function () {
+
+    const SATELLITES_PER_ORBIT = 36; // 每轨卫星数
+    const CIRCLE_RADIUS_PX = 3.5;
+    const CIRCLE_STROKE_PX = 1.3;
+
+    /* ==================== 工具函数 ==================== */
+
+    function normalizeLongitude(lng) {
+      let v = Number(lng);
+      if (!Number.isFinite(v)) return null;
+      v = ((((v + 180) % 360) + 360) % 360) - 180;
+      if (v === -180) v = 180;
+      return v;
+    }
+
+    function parseLongitudeInput(str) {
+      if (!str) return null;
+      const s = String(str).trim().toUpperCase();
+      const m = s.match(/^([+-]?\d+(?:\.\d+)?)(?:\s*([EW]))?$/);
+      if (!m) return null;
+      let val = parseFloat(m[1]);
+      const hemi = m[2];
+      if (hemi === "W") val = -Math.abs(val);
+      if (hemi === "E") val =  Math.abs(val);
+      return normalizeLongitude(val);
+    }
+
+    function fmtLonText(lng) {
+      const dir = lng < 0 ? "W" : "E";
+      const abs = Math.abs(lng);
+      return `${abs.toFixed(0)}° ${dir}`;
+    }
+
+    // 经度换窗：保证在 [center-180, center+180]
+    function remapLongitude(lng, center) {
+      let newLng = lng;
+      while (newLng <= center - 180) newLng += 360;
+      while (newLng >  center + 180) newLng -= 360;
+      return newLng;
+    }
+
+    // 纠正跨 180° 经线的断裂
+    function connectAcrossDateline(s, t) {
+      const target = [...t];
+      const d = s[0] - t[0];
+      if (d > 180) target[0] += 360;
+      else if (d < -180) target[0] -= 360;
+      return target;
+    }
+
+    function hexToRgba(hex, alpha = 255) {
+      if (!hex) return [128, 128, 128, alpha];
+      const s = hex.replace("#", "").trim();
+      if (s.length === 3) {
+        const r = parseInt(s[0] + s[0], 16);
+        const g = parseInt(s[1] + s[1], 16);
+        const b = parseInt(s[2] + s[2], 16);
+        return [r, g, b, alpha];
+      } else if (s.length >= 6) {
+        const r = parseInt(s.slice(0, 2), 16);
+        const g = parseInt(s.slice(2, 4), 16);
+        const b = parseInt(s.slice(4, 6), 16);
+        return [r, g, b, alpha];
+      }
+      return [128, 128, 128, alpha];
+    }
+
+    function downloadDataURL(dataURL, filename) {
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function exportCurrentPNG(map, { transparent = false, filename = 'satellite_network.png' } = {}) {
+      let restored = false;
+      if (transparent && map.getLayer('bg')) {
+        map.setLayoutProperty('bg', 'visibility', 'none');
+        restored = true;
+      }
+      const dataURL = map.getCanvas().toDataURL('image/png');
+      downloadDataURL(dataURL, filename);
+      if (restored) {
+        map.setLayoutProperty('bg', 'visibility', 'visible');
+      }
+    }
+
+    async function exportHiResPNG(map, scale = 2, { transparent = false, filename = 'satellite_network_2x.png' } = {}) {
+      const rect = map.getContainer().getBoundingClientRect();
+      const tmp = document.createElement('div');
+      tmp.style.position = 'fixed';
+      tmp.style.left = '-99999px';
+      tmp.style.top = '0';
+      tmp.style.width  = `${Math.round(rect.width  * scale)}px`;
+      tmp.style.height = `${Math.round(rect.height * scale)}px`;
+      document.body.appendChild(tmp);
+
+      const styleClone = JSON.parse(JSON.stringify(map.getStyle()));
+      if (transparent) {
+        const bgIdx = (styleClone.layers || []).findIndex(
+          l => l.id === 'bg' && l.type === 'background'
+        );
+        if (bgIdx >= 0) {
+          styleClone.layers[bgIdx].layout = styleClone.layers[bgIdx].layout || {};
+          styleClone.layers[bgIdx].layout.visibility = 'none';
+        }
+      }
+
+      const map2 = new maplibregl.Map({
+        container: tmp,
+        style: styleClone,
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+        renderWorldCopies: map.options.renderWorldCopies ?? true,
+        antialias: true,
+        preserveDrawingBuffer: true
+      });
+
+      await new Promise(res => map2.once('load', res));
+
+      // 用同一批数据构造 deck.gl 图层
+      const overlay2 = new deck.MapboxOverlay({
+        interleaved: true,
+        layers: buildLayers()
+      });
+      map2.addControl(overlay2);
+      await new Promise(res => map2.once('idle', res));
+
+      const dataURL = map2.getCanvas().toDataURL('image/png');
+      downloadDataURL(dataURL, filename);
+
+      overlay2.finalize && overlay2.finalize();
+      map2.remove();
+      tmp.remove();
+    }
+
+    /* ==================== 读取数据 ==================== */
+
+    const snapshotResp = await fetch("./snapshot_100.json");
+    if (!snapshotResp.ok) {
+      alert("无法读取 snapshot_100.json，请确认与本 HTML 在同一目录。");
+      return;
+    }
+    const snapshot = await snapshotResp.json();
+    const satellitesRaw   = snapshot.satellites      || [];
+    const linksActiveRaw  = snapshot.links_active    || snapshot.links || [];
+    const linksPendingRaw = snapshot.links_pending   || [];
+
+    // Path.json（可选）
+    let pathNodes = [];
+    try {
+      const pr = await fetch("./Path.json");
+      if (pr.ok) {
+        const pj = await pr.json();
+        if (Array.isArray(pj)) {
+          pathNodes = pj.map(n => Number(n)).filter(Number.isFinite);
+        } else if (typeof pj === "string") {
+          pathNodes = pj.split(/[-,\s]+/).map(n => Number(n)).filter(Number.isFinite);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // highlighted.json（可选）
+    const highlightColorMap = new Map(); // sid(int) -> [r,g,b,a]
+    try {
+      const hr = await fetch("./highlighted.json");
+      if (hr.ok) {
+        const hj = await hr.json();
+        (hj || []).forEach(group => {
+          const colorArr = hexToRgba(group.color || "#ff0000", 255);
+          (group.satellites || []).forEach(sid => {
+            highlightColorMap.set(Number(sid), colorArr);
+          });
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    /* ==================== 可视化数据缓存 ==================== */
+
+    let satData = [];
+    let activeArcs = [];
+    let pendingArcs = [];
+    let pathArcs = [];
+    let currentCenter = 0;
+    let overlay = null;
+
+    function buildLinkArray(rawLinks, coordsById, isPending) {
+      const out = [];
+      (rawLinks || []).forEach(link => {
+        const sCoord = coordsById.get(String(link.source));
+        const tCoord = coordsById.get(String(link.target));
+        if (!sCoord || !tCoord) return;
+
+        const target = connectAcrossDateline(sCoord, tCoord);
+        const sId = Number(link.source);
+        const tId = Number(link.target);
+        const sOrbit = Math.floor(sId / SATELLITES_PER_ORBIT);
+        const tOrbit = Math.floor(tId / SATELLITES_PER_ORBIT);
+        const isNormal = Math.abs(sOrbit - tOrbit) <= 1;
+
+        const color = isPending
+          ? (isNormal ? [0, 119, 255, 230] : [0, 170, 255, 230])
+          : (isNormal ? [0, 0, 0, 220]     : [0, 119, 255, 220]);
+
+        out.push({
+          source: sCoord,
+          target,
+          color,
+          isNormal,
+          isPending
+        });
+      });
+      return out;
+    }
+
+    function buildPathArcsFromNodes(nodes, coordsById) {
+      const out = [];
+      if (!Array.isArray(nodes) || nodes.length < 2) return out;
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const a = coordsById.get(String(nodes[i]));
+        const b = coordsById.get(String(nodes[i + 1]));
+        if (!a || !b) continue;
+        const target = connectAcrossDateline(a, b);
+        out.push({
+          source: a,
+          target,
+          color: [229, 57, 53, 240],
+          index: i
+        });
+      }
+      return out;
+    }
+
+    function buildVisualizationData(centerLng) {
+      currentCenter = centerLng;
+      const coordsById = new Map();
+
+      satData = satellitesRaw.map(sat => {
+        const lon = remapLongitude(Number(sat.lng), centerLng);
+        const lat = Number(sat.lat);
+        coordsById.set(String(sat.id), [lon, lat]);
+
+        const sid = Number(sat.id);
+        const color = highlightColorMap.get(sid) || [128, 128, 128, 255];
+
+        return {
+          id: sat.id,
+          lng: lon,
+          lat: lat,
+          alt: sat.alt,
+          color
+        };
+      });
+
+      activeArcs  = buildLinkArray(linksActiveRaw,  coordsById, false);
+      pendingArcs = buildLinkArray(linksPendingRaw, coordsById, true);
+      pathArcs    = buildPathArcsFromNodes(pathNodes, coordsById);
+    }
+
+    /* ==================== 构造 deck.gl 图层 ==================== */
+
+    function buildLayers() {
+      const satLayer = new deck.ScatterplotLayer({
+        id: "satellites",
+        data: satData,
+        getPosition: d => [d.lng, d.lat],
+        radiusUnits: "pixels",
+        getRadius: CIRCLE_RADIUS_PX,
+        getFillColor: [255, 255, 255, 255],
+        stroked: true,
+        lineWidthUnits: "pixels",
+        getLineWidth: CIRCLE_STROKE_PX,
+        getLineColor: d => d.color,
+        pickable: true
+      });
+
+      const activeLayer = new deck.GreatCircleLayer({
+        id: "links-active",
+        data: activeArcs,
+        getSourcePosition: d => d.source,
+        getTargetPosition: d => d.target,
+        getSourceColor: d => d.color,
+        getTargetColor: d => d.color,
+        widthUnits: "pixels",
+        getWidth: 1.1,
+        pickable: false
+      });
+
+      const pendingLayer = new deck.GreatCircleLayer({
+        id: "links-pending",
+        data: pendingArcs,
+        getSourcePosition: d => d.source,
+        getTargetPosition: d => d.target,
+        getSourceColor: d => d.color,
+        getTargetColor: d => d.color,
+        widthUnits: "pixels",
+        getWidth: 1.1,
+        pickable: false
+      });
+
+      const pathLayer = new deck.GreatCircleLayer({
+        id: "path-overlay",
+        data: pathArcs,
+        getSourcePosition: d => d.source,
+        getTargetPosition: d => d.target,
+        getSourceColor: d => d.color,
+        getTargetColor: d => d.color,
+        widthUnits: "pixels",
+        getWidth: 2.0,
+        pickable: false
+      });
+
+      // 叠放顺序：先链路，再路径，再卫星点
+      return [activeLayer, pendingLayer, pathLayer, satLayer];
+    }
+
+    /* ==================== MapLibre + deck.gl 初始化 ==================== */
+
+    const map = new maplibregl.Map({
+      container: "map",
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: "raster",
+            tiles: [
+              "https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+            ],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors, © CARTO"
+          }
+        },
+        layers: [
+          { id: "bg", type: "background", paint: { "background-color": "#f3f3f3" } },
+          { id: "carto", type: "raster", source: "carto" }
+        ]
+      },
+      center: [0, 0],
+      zoom: 1.5,
+      renderWorldCopies: true,
+      antialias: true,
+      preserveDrawingBuffer: true
+    });
+
+    function updateCenter(centerLng) {
+      buildVisualizationData(centerLng);
+      if (overlay) {
+        overlay.setProps({ layers: buildLayers() });
+      }
+      map.easeTo({ center: [centerLng, map.getCenter().lat], duration: 0 });
+    }
+
+    map.on("load", () => {
+      buildVisualizationData(0);
+
+      overlay = new deck.MapboxOverlay({
+        interleaved: true,
+        layers: buildLayers()
+      });
+      map.addControl(overlay);
+
+      // hover popup
+      const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false
+      });
+
+      map.on("mousemove", e => {
+        const pickInfo = overlay.pickObject({ x: e.point.x, y: e.point.y });
+        if (pickInfo && pickInfo.layer && pickInfo.layer.id === "satellites") {
+          const d = pickInfo.object;
+          map.getCanvas().style.cursor = "pointer";
+          popup
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<div style="font-size:12px;">ID: ${d.id}<br/>Alt: ${d.alt} km</div>`
+            )
+            .addTo(map);
+        } else {
+          map.getCanvas().style.cursor = "";
+          popup.remove();
+        }
+      });
+
+      // UI 控件
+      const slider       = document.getElementById("center-lon");
+      const valueDisplay = document.getElementById("lon-value");
+      const inputBox     = document.getElementById("center-lon-input");
+      const applyBtn     = document.getElementById("center-lon-apply");
+
+      function applyCenterFromInput() {
+        const parsed = parseLongitudeInput(inputBox.value);
+        if (parsed === null) {
+          inputBox.style.borderColor = "#f00";
+          setTimeout(() => (inputBox.style.borderColor = "#ccc"), 800);
+          return;
+        }
+        const v = Math.round(parsed);
+        slider.value = String(v);
+        valueDisplay.textContent = fmtLonText(v);
+        updateCenter(v);
+      }
+
+      slider.addEventListener("input", e => {
+        const v = parseInt(e.target.value, 10);
+        valueDisplay.textContent = fmtLonText(v);
+        inputBox.value = v >= 0 ? `${v}E` : `${Math.abs(v)}W`;
+        updateCenter(v);
+      });
+      applyBtn.addEventListener("click", applyCenterFromInput);
+      inputBox.addEventListener("keydown", e => {
+        if (e.key === "Enter") applyCenterFromInput();
+      });
+
+      inputBox.value = "0E";
+      valueDisplay.textContent = fmtLonText(0);
+
+      // 导出按钮
+      const btnExport  = document.getElementById("btn-export");
+      const selScale   = document.getElementById("export-scale");
+      const chkTransBg = document.getElementById("transparent-bg");
+
+      btnExport.addEventListener("click", async () => {
+        const scale = parseInt(selScale.value, 10);
+        const transparent = !!chkTransBg.checked;
+        if (scale === 1) {
+          exportCurrentPNG(map, {
+            transparent,
+            filename: "satellite_network.png"
+          });
+        } else {
+          await exportHiResPNG(map, scale, {
+            transparent,
+            filename: `satellite_network_${scale}x.png`
+          });
+        }
+      });
+    });
+
+  })();
+  </script>
+</body>
+</html>

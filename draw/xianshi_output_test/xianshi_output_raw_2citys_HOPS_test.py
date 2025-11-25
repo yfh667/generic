@@ -4,15 +4,14 @@
 import os, sys, time, traceback, argparse, multiprocessing as mp
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
+import draw.basic_functio.motif as motif
 # ===== 项目依赖 =====
 from config import DATA_DIR, INPUT_DIR
 import genaric2.tegnode as tegnode
-import draw.read_snap_xml  as read_snap_xml
+import draw.read_snap_xml as read_snap_xml
 import draw.basic_functio.write2xml as write2xml
 import draw.basic_functio.inter_edge2nodes as inter_edge2nodes
-import draw.pymatlab2.chartalgorithm.plot_intergroup_avg_shortest_path as avgsp  # 你之前的模块（含 export_intergroup_avgspath_to_origin）
-import draw.basic_functio.motif as motif
+import  draw.pymatlab2.chartalgorithm.plot_2city_shortest_path as plot_2city_shortest_path
 
 # ===== 星座 & 时间段 =====
 P, N = 18, 36
@@ -23,12 +22,13 @@ RANGES = [
 ]
 START_TS, END_TS = RANGES[0][0], RANGES[-1][1]   # [0, 22005)
 
-DEFAULT_TTB_VALUES = [10 ]
+# DEFAULT_TTB_VALUES = [10,20,30,40,50,60,70,80,90,100,110,120,130,140]
+DEFAULT_TTB_VALUES = [ 60 ]
+
 SIMULATION_EDITION = 'motif1'
-# DEFAULT_TTB_VALUES = [60]
+
 # ===== 路径 & 公共数据缓存 =====
-# def version_name(ttb: int) -> str:
-#     return f"topology_{ttb}"
+
 
 def dirs_and_xmls(ttb: int):
 
@@ -42,7 +42,8 @@ def dirs_and_xmls(ttb: int):
     figure_dir = Path(INPUT_DIR) / version / "figure"
     figure_dir.mkdir(parents=True, exist_ok=True)
     xml_paths = [raw_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
-    return raw_dir, figure_dir, xml_paths
+    xml_file2 = Path(DATA_DIR) / "station_visible_satellites_648_1d_real.xml"
+    return raw_dir, figure_dir, xml_paths,xml_file2
 
 def cache_dir() -> Path:
     d = Path(INPUT_DIR) / "_cache"
@@ -95,7 +96,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
     t0 = time.time()
-    modify_dir, figure_dir, xml_paths = dirs_and_xmls(ttb)
+    raw_dir, figure_dir, xml_paths, xml_file2 = dirs_and_xmls(ttb)
 
     # 检查 inter XML
     missing = [str(p) for p in xml_paths if not p.exists()]
@@ -106,7 +107,14 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     totalnode = write2xml.load_all_nodes_sequential_test(xml_paths, tegnode.tegnode_new)
     all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
 
-    # all_inter_edge, pending_edge, iG_edge = motif.transform_nodes_2_rawedge_test(totalnode, P, N, START_TS, END_TS)
+
+    #totalnode = write2xml.load_all_nodes_sequential(xml_paths, tegnode.tegnode_complete)
+
+   # series = read_snap_xml.parse_station_timeseries(xml_file2, [0, 1, 11, 13], START_TS, END_TS)
+    series = read_snap_xml.parse_station_timeseries(xml_file2, [0, 1, 2, 11, 13, 14], START_TS, END_TS)
+
+   # all_inter_edge = inter_edge2nodes.trans_nodes2edges(totalnode, P, N)
+ #   all_inter_edge, pending_edge, iG_edge = motif.transform_nodes_2_rawedge_test(totalnode, P, N, START_TS, END_TS)
 
     # 双向化 inter
     for step in list(all_inter_edge.keys()):
@@ -134,15 +142,47 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
             adj.setdefault(src, set()).update(dsts)
         all_edges[step] = adj
 
-    # 计算并导出 CSV
-    csv_path = avgsp.export_intergroup_avgspath_to_origin(
-        all_edges, group_data,
+    beijin = series[0]
+    chongqin = series[1]
+    wulumuqi = series[2]
+
+    huasha = series[3]
+    boling = series[4]
+    paris = series[5]
+
+    csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+        all_edges, boling, beijin,
         out_dir=figure_dir,
-        basename=f"avgspath_raw",
-        group_a=0, group_b=4,
-        steps=(START_TS, END_TS-1),
-        undirected=True
+        basename=f"minhops_boling_beijin_ttb0",
+        steps=(START_TS, END_TS),
+        undirected=True,
+        with_pair=True,
+        with_path=False
     )
+
+    csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+        all_edges, paris, chongqin,
+        out_dir=figure_dir,
+        basename=f"minhops_paris_chongqin_ttb0",
+        steps=(START_TS, END_TS),
+        undirected=True,
+        with_pair=True,
+        with_path=False
+    )
+
+
+    csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+        all_edges, huasha, wulumuqi,
+        out_dir=figure_dir,
+        basename=f"minhops_huasha_wulumuqi_ttb0",
+        steps=(START_TS, END_TS),
+        undirected=True,
+        with_pair=True,
+        with_path=False
+    )
+
+
+
     dt = time.time() - t0
     print(f"[TTB={ttb}] 完成，用时 {dt:.1f}s -> {csv_path}")
     return ttb, [str(csv_path)]
