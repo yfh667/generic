@@ -31,17 +31,40 @@ GROUP_COLORS = [
     '#00FFFF',  # 青 (Group 5)
     '#FFFF00',  # 黄 (Group 6)
 ]
-def getoption(x1,y1,x2,y2,N):
-    if x2-x1==1 and y2-y1==0:
+# def getoption(x1,y1,x2,y2,N):
+#
+#     if x2-x1==1 and y2-y1==0:
+#         return 0
+#     elif x2-x1==1 and  y2==(y1 - 1 + N) % N :
+#         return 1
+#     elif x2-x1==2 and y2==y1:
+#         return 2
+#     elif x2-x1==1 and y2==(y1 + 1) % N:
+#         return 4
+#     elif x2-x1==2 and y2==(y1 - 1 + N) % N:
+#         return 5
+
+def getoption(x1, y1, x2, y2, N):
+    # 先保证 x1 <= x2，把边规范成“从左到右”
+    if x1 > x2:
+        x1, y1, x2, y2 = x2, y2, x1, y1
+
+    dx = x2 - x1
+
+    if dx == 1 and y2 == y1:
         return 0
-    elif x2-x1==1 and  y2==(y1 - 1 + N) % N :
+    elif dx == 1 and y2 == (y1 - 1 + N) % N:
         return 1
-    elif x2-x1==2 and y2==y1:
+    elif dx == 2 and y2 == y1:
         return 2
-    elif x2-x1==1 and y2==(y1 + 1) % N:
+    elif dx == 1 and y2 == (y1 + 1) % N:
         return 4
-    elif x2-x1==2 and y2==(y1 - 1 + N) % N:
+    elif dx == 2 and y2 == (y1 - 1 + N) % N:
         return 5
+    else:
+        # 不符合你定义的五类，可以打印出来检查
+        # print("Unknown edge type:", x1, y1, "->", x2, y2)
+        return None
 
 # ========== UI 主类 ==========
 class SatelliteViewer(QtWidgets.QWidget):
@@ -554,6 +577,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         # 画线
         for src, dsts in edges.items():
             for dst in dsts:
+
                 opt = getoption(self._all_cols[src], self._all_rows[src],
                                 self._all_cols[dst], self._all_rows[dst], N)
                 if opt == 2:
