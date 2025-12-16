@@ -1,300 +1,206 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>星座仿真结果演示</title>
+    <title>Employment Verification - Luis Baltazar</title>
     <style>
-        /* --- 全局样式与字体 --- */
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
-
-        :root {
-            --bg-color: #121212;
-            --panel-bg-color: #1e1e1e;
-            --border-color: #333;
-            --text-color: #e0e0e0;
-            --text-secondary-color: #a0a0a0;
-            --accent-color: #007bff;
-            --placeholder-border-color: #4a4a4a;
-        }
-
+        /* 页面基础样式 */
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Noto Sans SC', sans-serif;
+            font-family: 'Garamond', 'Times New Roman', serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            background-color: #f0f0f0; /* 背景灰一点，突出中间的纸张感 */
+            color: #333;
+        }
+
+        /* 模拟A4纸张效果 */
+        .page {
+            background-color: white;
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 20px auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* 控制按钮区域的样式 */
+        .action-bar {
+            background-color: #333;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-family: sans-serif;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .btn {
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .instruction {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        /* 信件内容样式 */
+        .header {
+            text-align: center;
+            border-bottom: 3px double #000;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 22px; /* 稍微调小一点以适应单行 */
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #000;
+        }
+        .header p {
+            margin: 5px 0 0;
             font-size: 14px;
+            color: #444;
         }
-
-        /* --- 仪表盘主容器 --- */
-        .dashboard-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            max-width: 1600px;
-            margin: auto;
+        .content {
+            font-size: 16px;
+            line-height: 1.8;
+            text-align: justify;
         }
-
-        /* --- 顶部信息栏 --- */
-        .dashboard-header {
+        .date-section {
+            text-align: right;
+            margin-bottom: 40px;
+            font-weight: bold;
+        }
+        .subject {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 25px;
+            text-align: center;
+            font-size: 17px;
+        }
+        .signature-section {
+            margin-top: 60px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            background-color: var(--panel-bg-color);
-            padding: 15px 25px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
+            page-break-inside: avoid;
         }
-
-        .dashboard-header h1 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 500;
+        .signature-box {
+            width: 45%;
         }
-
-        .header-metrics {
-            display: flex;
-            align-items: center;
-            gap: 25px;
+        .signature-line {
+            border-bottom: 1px solid #000;
+            margin-bottom: 10px;
+            height: 50px;
         }
-
-        .metric-item {
+        .footer {
+            margin-top: 80px;
             text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
         }
 
-        .metric-item .label {
-            font-size: 12px;
-            color: var(--text-secondary-color);
-        }
-
-        .metric-item .value {
-            font-size: 18px;
-            font-weight: 500;
-        }
-
-        #simulation-time .value {
-            color: var(--accent-color);
-            min-width: 60px; /* 防止数字跳动 */
-            display: inline-block;
-            text-align: right;
-        }
-
-        .header-controls button {
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.3s;
-        }
-
-        .header-controls button:hover {
-            background-color: #0056b3;
-        }
-
-        /* --- 内容网格布局 --- */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(12, 1fr); /* 12列网格系统 */
-            grid-auto-rows: minmax(150px, auto);
-            gap: 20px;
-        }
-
-        /* --- 面板/卡片样式 --- */
-        .panel {
-            background-color: var(--panel-bg-color);
-            border-radius: 10px;
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .panel-title {
-            margin: 0 0 15px 0;
-            font-size: 16px;
-            font-weight: 500;
-            color: var(--text-secondary-color);
-        }
-
-        .panel-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        /* --- 占位符样式 --- */
-        .placeholder {
-            flex-grow: 1;
-            border: 2px dashed var(--placeholder-border-color);
-            border-radius: 8px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: var(--text-secondary-color);
-            font-size: 16px;
-            min-height: 150px;
-        }
-
-        /* --- 特定面板的网格布局 --- */
-        .panel-stk { grid-column: 1 / 7; grid-row: 1 / 3; }
-        .panel-topology { grid-column: 7 / 13; grid-row: 1 / 2; }
-        .panel-hops { grid-column: 7 / 13; grid-row: 2 / 3; }
-        .panel-table { grid-column: 1 / 7; grid-row: 3 / 4; }
-        .panel-capacity { grid-column: 7 / 13; grid-row: 3 / 4; }
-
-        /* --- 表格样式 --- */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .data-table th, .data-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .data-table th {
-            color: var(--text-secondary-color);
-            font-weight: 500;
-        }
-
-        /* --- 响应式设计 --- */
-        @media (max-width: 1200px) {
-            .panel-stk { grid-column: 1 / 13; grid-row: 1 / 2; }
-            .panel-topology { grid-column: 1 / 13; grid-row: 2 / 3; }
-            .panel-hops { grid-column: 1 / 13; grid-row: 3 / 4; }
-            .panel-table { grid-column: 1 / 13; grid-row: 4 / 5; }
-            .panel-capacity { grid-column: 1 / 13; grid-row: 5 / 6; }
-        }
-        @media (max-width: 768px) {
-            .dashboard-header {
-                flex-direction: column;
-                gap: 15px;
-                align-items: flex-start;
+        /* 打印专用样式：隐藏按钮和背景色，确保打印出来是完美的文档 */
+        @media print {
+            body {
+                background-color: white;
+                margin: 0;
             }
-            .header-metrics {
-                flex-wrap: wrap;
+            .page {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                padding: 0; /* 打印机自带边距，这里清零或微调 */
+            }
+            .action-bar, .no-print {
+                display: none !important;
             }
         }
-
     </style>
 </head>
 <body>
 
-    <div class="dashboard-container">
-        <header class="dashboard-header">
-            <h1>星座仿真结果演示</h1>
-            <div class="header-metrics">
-                <div class="metric-item">
-                    <div class="label">收敛时间</div>
-                    <div class="value">9.5 min</div>
-                </div>
-                <div class="metric-item">
-                    <div class="label">平均最短路径</div>
-                    <div class="value">16 hops</div>
-                </div>
-                <div id="simulation-time" class="metric-item">
-                    <div class="label">仿真运行时间</div>
-                    <div class="value"><span>0.0</span> s</div>
-                </div>
-            </div>
-            <div class="header-controls">
-                <button>切换布局</button>
-            </div>
-        </header>
-
-        <main class="dashboard-grid">
-
-<div class="panel panel-stk">
-    <h2 class="panel-title">STK 覆盖/观测示意</h2>
-    <div class="panel-content">
-        <div class="placeholder">
-            <img src="/1/stk.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
-        </div>
+    <!-- 顶部操作栏 (打印时会自动消失) -->
+    <div class="action-bar no-print">
+        <button class="btn" onclick="window.print()">📄 保存为 PDF (Save as PDF)</button>
+        <div class="instruction">点击按钮后，在目标打印机中选择 "另存为 PDF" 或 "Microsoft Print to PDF"</div>
     </div>
-</div>
 
-            <div class="panel panel-topology">
-                <h2 class="panel-title">星间拓扑/路径示意</h2>
-                 <div class="panel-content">
-                    <div class="placeholder">
+    <!-- 纸张区域 -->
+    <div class="page">
+        <div class="header">
+            <h1>Ramon C. Cortines School of Visual & Performing Arts</h1>
+            <p>450 N Grand Ave, Los Angeles, CA 90012</p>
+            <p>Phone: (213) 217-8600 | Los Angeles Unified School District</p>
+        </div>
 
-                                  <img src="/1/2d.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
+        <div class="content">
+            <div class="date-section">
+                Date: <span id="currentDate"></span>
+            </div>
 
-                    </div>
+            <div class="subject">
+                RE: Verification of Employment / Faculty Status
+            </div>
+
+            <p>To Whom It May Concern,</p>
+
+            <p>This letter serves as formal verification that <strong>Luis Baltazar</strong> is currently employed as a full-time faculty member at the <strong>Ramon C. Cortines School of Visual & Performing Arts</strong> (Grand Arts / VAPA) under the Los Angeles Unified School District.</p>
+
+            <p>Mr. Baltazar is an active member of our teaching staff for the <strong>2023-2024 Academic Year</strong>. His employment is in good standing, and he holds all privileges and responsibilities associated with his position as an educator at our institution.</p>
+
+            <p>This document is issued upon request to verify eligibility for academic programs, services, and educational discounts available to current K-12 educators.</p>
+
+            <p>Should you require further confirmation regarding this employment, please verify directly with our administrative office.</p>
+
+            <div class="signature-section">
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <strong>Human Resources Dept.</strong><br>
+                    Los Angeles Unified School District
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <strong>Principal / Administration</strong><br>
+                    Ramon C. Cortines VAPA
                 </div>
             </div>
+        </div>
 
-            <div class="panel panel-hops">
-                <h2 class="panel-title">用户平均跳数分布</h2>
-                <div class="panel-content">
-                    <div class="placeholder">
-                                                      <img src="/1/earth_hops.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
-
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel panel-table">
-                 <h2 class="panel-title">示例路径信息</h2>
-                 <div class="panel-content">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Start</th>
-                                <th>End</th>
-                                <th>hops</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>柏林</td>
-                                <td>乌鲁木齐</td>
-                                <td>18</td>
-                            </tr>
-                            <tr>
-                                <td>马德里</td>
-                                <td>重庆</td>
-                                <td>23</td>
-                            </tr>
-                             <tr>
-                                <td>巴黎</td>
-                                <td>北京</td>
-                                <td>18</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                 </div>
-            </div>
-
-            <div class="panel panel-capacity">
-                <h2 class="panel-title">容量与流量纬度分布</h2>
-                 <div class="panel-content">
-                    <div class="placeholder">
-                                                      <img src="/1/liuliang.png" alt="STK 仿真图" style="width: 100%; height: 100%; object-fit: contain;">
-
-
-                    </div>
-                </div>
-            </div>
-
-        </main>
+        <div class="footer">
+            <p>OFFICIAL DOCUMENT - GENERATED FOR VERIFICATION PURPOSES.</p>
+            <p>Valid for 90 days from the date of issuance indicated above.</p>
+        </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const timeValueElement = document.querySelector('#simulation-time .value span');
-            let startTime = Date.now();
-
-            setInterval(() => {
-                const elapsedTime = (Date.now() - startTime) / 1000; // 单位：秒
-                timeValueElement.textContent = elapsedTime.toFixed(1); // 保留一位小数
-            }, 100); // 每100毫秒更新一次
-        });
+        // 自动设置今天的日期，确保每次打开都是最新的
+        const dateElement = document.getElementById('currentDate');
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        const today = new Date();
+        dateElement.innerText = today.toLocaleDateString('en-US', options);
     </script>
 
 </body>
