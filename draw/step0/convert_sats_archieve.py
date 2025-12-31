@@ -54,19 +54,10 @@ def convert_file(input_file, output_file):
             # 写入输出文件
             fout.write(f"{int(seconds_since_start)} {coords_str}\n")
 
-folder_path = "C:\\usrspace\\mywork\\data\\rawposition\\position"
-folder_path_out = "C:\\usrspace\\mywork\\data\\rawposition\\position\\modify"
+folder_path = "C:\\usrspace\\mywork\\data_paper2\\position_raw\\baseRaan_0"
+folder_path_out = "C:\\usrspace\\mywork\\data_paper2\\position_modify\\baseRaan_0"
 
-# 调用函数，输入和输出文件路径按需要修改
-#convert_file("chidao_fixed.txt", "chidao_fixed_modify.txt")
-# for filename in os.listdir(folder_path):
-#     if filename.endswith(".txt"):  # 确保处理的是文本文件
-#         print(f"filename is {filename}")
-#         input_file_path = os.path.join(folder_path, filename)
-#         output_file_path = os.path.join(folder_path_out, filename.replace(".txt", "_modify.txt"))
 
-#         # 对每个文件应用转换函数
-#         convert_file(input_file_path, output_file_path)
         
         
 # 获取文件夹中的所有文件

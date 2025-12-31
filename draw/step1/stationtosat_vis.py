@@ -38,7 +38,12 @@ def save_to_xml(output_file, station_visible_data):
 
 
 def main():
-    dirpath = r'C:\usrspace\mywork\data\sta20'  # raw string for file path
+   # dirpath = r'C:\usrspace\mywork\data\sta20'  # raw string for file path
+    dirpath = r'C:\usrspace\mywork\data_paper2\stations'  # raw string for file path
+
+
+
+
     stationangle = 20
     StationManager = readstation.readstation_path(dirpath, stationangle)
     stations =  StationManager.stations
@@ -51,7 +56,11 @@ def main():
     SatelliteManager = nodemanager.SatelliteManager()
 
    # sat_dir_path = r'C:\usrspace\mywork\generic\data\648qianfan1d'  # raw string for file path
-    sat_dir_path = r'C:\usrspace\mywork\data\648qianfan1d_xml'  # raw string for file path
+  #  sat_dir_path = r'C:\usrspace\mywork\data\648qianfan1d_xml'  # raw string for file path
+    sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\baseRaan_0_xml"  # raw string for file path
+
+
+    # sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\g60_xml"  # raw string for file path
 
     P = 18
     N = 36
@@ -62,9 +71,17 @@ def main():
     BaseRAAN_INCREMENT = 18
     lenthpropority = 20
     stationsnaplength = 20
-    simulatationtime = 22100
-    readsatellite.readsatellite(SatelliteManager,sat_dir_path, satangle, track_angle, P, N, BaseRAAN_INCREMENT)
-  #  print("finish")
+    simulatationtime = 86400
+
+
+    # simulatationtime = 5000
+
+
+
+
+    readsatellite.readsatellite(SatelliteManager,sat_dir_path, satangle, track_angle, P, N, BaseRAAN_INCREMENT,t_start=0, t_end=simulatationtime)
+
+    print("finish")
     _position_cache = {}
 
     db = snapshot.TimeDatabase()
@@ -77,21 +94,7 @@ def main():
         print(f"time is {sim_time_step}")
         #basicSa
         _position_cache.clear()
-        # for sat in SatelliteManager.satellites.values():
-        #     # 使用traj_idx替代内部变量i，避免名称冲突
-        #     idx = next(
-        #         (traj_idx for traj_idx, p in enumerate(sat.trajectory)
-        #          if p.time >= sim_time_step),  # 正确比较轨迹时间与仿真步长
-        #         0
-        #     )
-        #     # 确保idx+1不超过轨迹长度
-        #     next_idx = min(idx + 1, len(sat.trajectory) - 1)
-        #     _position_cache[sat.id] = (
-        #         sat.trajectory[idx],
-        #         sat.trajectory[next_idx]  # 安全访问下一时刻
-        #     )
-        # sv = SatelliteVector(P, N)
-        # sv.load_from_3dview(_position_cache)
+
         for sat in SatelliteManager.satellites.values():
             # 1) 取已排序的时间轴（可做一次缓存，避免每次都排序）
             if not hasattr(sat, "_sorted_times"):
@@ -193,8 +196,12 @@ def main():
 
     # 输出到XML
 
-    save_to_xml(r"C:\usrspace\mywork\generic\data\station_visible_satellites_648_1d_test.xml", station_visible_data)
+    #save_to_xml(r"C:\usrspace\mywork\generic\data\station_visible_satellites_648_1d_test.xml", station_visible_data)
+    save_to_xml(r"C:\usrspace\mywork\data_paper2\visibile_data\baseRaan_0\station_visible_satellites_baseRaan_0.xml", station_visible_data)
 
+
+    # save_to_xml(r"C:\usrspace\mywork\data_paper2\visibile_data\G60\g60.xml",
+    #             station_visible_data)
 
 #  save_to_xml("/home/yfh/Desktop/Data/station_visible_satellites_648.xml", station_visible_data)
 

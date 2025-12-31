@@ -46,17 +46,7 @@ def convert_txt_to_xml(txt_file_path, xml_file_path):
         print(f"转换文件 {txt_file_path} 时发生错误：{e}")
 
 
-# 批量转换所有 .txt 文件为 .xml
-# def convert_all_txt_to_xml(input_dir, output_dir):
-#     if not os.path.exists(output_dir):
-#         os.makedirs(output_dir)
-#
-#     for file_name in os.listdir(input_dir):
-#         if file_name.endswith(".txt"):
-#             txt_file_path = os.path.join(input_dir, file_name)
-#             xml_file_name = os.path.splitext(file_name)[0] + ".xml"
-#             xml_file_path = os.path.join(output_dir, xml_file_name)
-#             convert_txt_to_xml(txt_file_path, xml_file_path)
+
 
 
 def convert_all_txt_to_xml(input_dir, output_dir):
