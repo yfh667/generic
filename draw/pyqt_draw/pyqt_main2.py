@@ -9,6 +9,7 @@ import pyqtgraph as pg
 import draw.basic_functio.basic_motif_option as basic_motif_option
 # ====== 常量（与原始一致） ======
 N = 36   # 每轨道卫星数
+# P = 18   # 轨道平面数
 P = 18   # 轨道平面数
 TOTAL_SATS = N * P
 

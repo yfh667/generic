@@ -57,13 +57,10 @@ def main():
 
    # sat_dir_path = r'C:\usrspace\mywork\generic\data\648qianfan1d'  # raw string for file path
   #  sat_dir_path = r'C:\usrspace\mywork\data\648qianfan1d_xml'  # raw string for file path
-   # sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\baseRaan_0_7_8_xml"  # raw string for file path
-
-
-    #sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\baseRaan_0_1296_xml"  # raw string for file path
-
-
     sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\baseRaan_55_xml"  # raw string for file path
+
+
+   # sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\baseRaan_0_1296_xml"  # raw string for file path
 
 # we should next modify
     # 基础目录 (可以是你之前的 DATA_DIR)
@@ -83,7 +80,7 @@ def main():
 
     # sat_dir_path = r"C:\usrspace\mywork\data_paper2\position_modify\g60_xml"  # raw string for file path
 
-    P = 18
+    P = 36
 
     N = 36
     #sat_dir_path = '/home/yfh/Desktop/Data/onehun_ecef'
@@ -93,7 +90,7 @@ def main():
     BaseRAAN_INCREMENT = 18
     lenthpropority = 20
     stationsnaplength = 20
-    simulatationtime = 86400
+    simulatationtime = 3600
 
 
     # simulatationtime = 5000
@@ -219,7 +216,7 @@ def main():
     # 输出到XML
 
     #save_to_xml(r"C:\usrspace\mywork\generic\data\station_visible_satellites_648_1d_test.xml", station_visible_data)
-    save_to_xml(r"C:\usrspace\mywork\data_paper2\visibile_data\baseRaan_55\station_visible_satellites_baseRaan_0.xml", station_visible_data)
+    save_to_xml(r"C:\usrspace\mywork\data_paper2\visibile_data\baseRaan_0_time_1296\station_visible_satellites_baseRaan_0.xml", station_visible_data)
 
 
     # save_to_xml(r"C:\usrspace\mywork\data_paper2\visibile_data\G60\g60.xml",
