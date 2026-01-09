@@ -98,11 +98,30 @@ def _write_df_to_sheet(book_name: str, sheet_name: str, df, clear: bool):
 
     return ws
 
+def _ensure_workbook(book_name: str):
+    """
+    确保 Origin 里存在名为 book_name 的 Workbook。
+    不存在则 op.new_book(type='w') 创建，并重命名。
+    """
+    # 遍历当前所有 workbook（'w'）
+    for wb in op.pages('w'):
+        if wb.name == book_name:
+            return wb
 
+    # 不存在 -> 创建
+    wb = op.new_book(type='w')
+    wb.name = book_name
+    try:
+        wb.activate()
+    except Exception:
+        pass
+    return wb
 # === 统一的写入接口（都走 ensure_sheet + ws.from_df） ===
 
 def to_origin(df: pd.DataFrame, *, book: str = "Book1", sheet: str = "Ration", clear: bool = True):
     """把任意 DataFrame 写入 Origin 的指定工作表。"""
+    # ✅ 关键新增：先确保工作簿存在
+    _ensure_workbook(book)
     ws = write2origin.ensure_sheet(book_name=book, sheet_name=sheet,
                                    clear_existing=clear, activate=True)
     # 直接写 DataFrame（与你的习惯保持一致）
@@ -122,6 +141,12 @@ def to_origin(df: pd.DataFrame, *, book: str = "Book1", sheet: str = "Ration", c
             except TypeError:
                 ws.from_list(i, col_data, start=0)
     return ws
+
+
+
+
+
+
 
 def csv_to_origin(csv_path: Path, *, book: str = "Book1", sheet: str | None = None, clear: bool = True):
     """读取 CSV → DataFrame → 写入 Origin；sheet 为空则用文件名作为 sheet。"""

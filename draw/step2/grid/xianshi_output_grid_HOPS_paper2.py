@@ -28,7 +28,7 @@ P, N = 18, 36
 # ]
 START_TS, END_TS  =0,86400
 
-DEFAULT_TTB_VALUES = [1,2]
+DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 # SIMULATION_EDITION = 'motif2'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
@@ -50,7 +50,7 @@ def dirs_and_xmls(ttb: int):
     DATA_DIR = Path(r"C:\usrspace\mywork\data_paper2")
     BASEDIR = DATA_DIR / "visibile_data"
 
-    VERSION1 = 'satellites_pos'
+    VERSION1 = 'paper1_G60'
 
 
     # 基准日期：2025-01-06
