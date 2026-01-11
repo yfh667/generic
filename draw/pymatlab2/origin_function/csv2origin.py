@@ -64,7 +64,11 @@ def _ws_set_cols(ws, n):
         ws.cols(n)
     except Exception:
         pass
-
+def read_book_sheet(bookname,sheetname):
+    wb =  _ensure_workbook(bookname)
+    # duqu mouge biao
+    wks = wb[sheetname]
+    return wks
 def _write_df_to_sheet(book_name: str, sheet_name: str, df, clear: bool):
     """
     与你示例保持一致的写入方式：

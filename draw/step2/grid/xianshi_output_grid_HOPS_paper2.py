@@ -28,7 +28,11 @@ P, N = 18, 36
 # ]
 START_TS, END_TS  =0,86400
 
-DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+#DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+
+DEFAULT_TTB_VALUES = [15, 55, 95, 135, 175, 215, 255, 295, 325]
+
+# DEFAULT_TTB_VALUES = [0]
 # SIMULATION_EDITION = 'motif2'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
@@ -50,21 +54,26 @@ def dirs_and_xmls(ttb: int):
     DATA_DIR = Path(r"C:\usrspace\mywork\data_paper2")
     BASEDIR = DATA_DIR / "visibile_data"
 
-    VERSION1 = 'paper1_G60'
+    VERSION1 = 'differentraan'
 
 
     # 基准日期：2025-01-06
-    base_date = datetime.strptime("20250106", "%Y%m%d").date()
-    day_date = base_date + timedelta(days=ttb)
-
-    version2 = f"day_{day_date.strftime('%Y%m%d')}"
+    # base_date = datetime.strptime("20250106", "%Y%m%d").date()
+    #
+    # day_date = base_date + timedelta(days=ttb)
+    #
+    # version2 = f"day_{day_date.strftime('%Y%m%d')}"
+    # FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
+    version2 = f"baseRaan_{ttb}"
     FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
+
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)  # 不存在就创建（包含父目录）
 
 
 
-    xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
+   # xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
 
+    xml_file = BASEDIR / VERSION1  / version2/f"station_visible_satellites_baseRaan_{ ttb}.xml"
 
 
 
