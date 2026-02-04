@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html,
+        body,
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            max-width: 320px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #info h3 {
+            margin: 0 0 10px 0;
+            color: #007AFF;
+        }
+
+        #info p {
+            margin: 5px 0;
+        }
+
+        .param {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .formula {
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            background: #f0f0f0;
+            padding: 2px;
+            border-radius: 3px;
+            display: block;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="info">
+        <h3>蓝色区域可视化 (Updated)</h3>
+        <p><span class="param">α =</span> 10.0°</p>
+        <p><span class="param">ΔΩ =</span> 10.2°</p>
+        <p><span class="param">高度 =</span> 550 km</p>
+        <hr style="margin: 10px 0;">
+        <p style="font-size: 11px; color: #666;">
+            <span style="color:blue">■ B1:</span> sin(α) = sin(θ)sin(φ)<br>
+            <span style="color:green">■ B2:</span> sin(α) = sin(θ)sin(φ - ΔΩ)<br>
+            <span style="color:red">■ B3:</span> 赤道 (θ=90°)<br>
+            <span style="color:orange">■ B4:</span> 顶部 (θ=30°)
+        </p>
+    </div>
+    <script>
+        // 请确保 Token 正确
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            skyBox: false,
+            skyAtmosphere: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+            scene3DOnly: true
+        });
+
+        var scene = viewer.scene;
+        scene.backgroundColor = Cesium.Color.WHITE;
+
+        var globe = scene.globe;
+        globe.imageryLayers.removeAll();
+        globe.baseColor = Cesium.Color.WHITE;
+
+        var outlineLayer = globe.imageryLayers.addImageryProvider(
+            new Cesium.UrlTemplateImageryProvider({
+                url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+                credit: '© CartoDB'
+            })
+        );
+
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+
+        // ================== 参数配置 ==================
+        const P = 18;
+        const dOmega = 10.2;
+        const h = 550000.0; // 550 km
+        const alpha = 10.0;  // α in degrees
+        const delta_omega = 10.2; // ΔΩ in degrees
+
+        // ================== 辅助函数 (更新数学逻辑) ==================
+        function sphericalToLatLon(theta_deg, phi_deg) {
+            const latitude = 90.0 - theta_deg;
+            const longitude = phi_deg;
+            return [longitude, latitude];
+        }
+
+        /**
+         * B1: sin(alpha) = sin(theta) * sin(phi)
+         * => phi = asin( sin(alpha) / sin(theta) )
+         */
+        function calcPhiForB1(theta_deg) {
+            const sin_alpha = Math.sin(Cesium.Math.toRadians(alpha));
+            const sin_theta = Math.sin(Cesium.Math.toRadians(theta_deg));
+
+            // 避免除零
+            if (sin_theta === 0) return null;
+
+            const val = sin_alpha / sin_theta;
+            if (Math.abs(val) > 1) return null; // 无解
+
+            return Cesium.Math.toDegrees(Math.asin(val));
+        }
+
+        /**
+         * B2: sin(alpha) = sin(theta) * sin(phi - delta_omega)
+         * => phi - delta_omega = asin( sin(alpha) / sin(theta) )
+         * => phi = asin(...) + delta_omega
+         * 即: B2_phi = B1_phi + delta_omega
+         */
+        function calcPhiForB2(theta_deg) {
+            const phi1 = calcPhiForB1(theta_deg);
+            if (phi1 === null) return null;
+            return phi1 + delta_omega;
+        }
+
+        // ================== 绘制轨道经线 (保持原样) ==================
+        for (let i = 0; i < P; i++) {
+            let lon = i * dOmega;
+            viewer.entities.add({
+                name: 'Orbit ' + i,
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                        lon, -89.9, h,
+                        lon, 0.0, h,
+                        lon, 89.9, h
+                    ]),
+                    width: 1, // 稍微调细一点以便区分
+                    material: Cesium.Color.GRAY.withAlpha(0.3),
+                    arcType: Cesium.ArcType.GEODESIC
+                }
+            });
+        }
+
+        // ================== 绘制蓝色区域边界 ==================
+        const segments = 200;
+
+        // --- Boundary 1 (B1): 蓝色曲线 ---
+        let b1_positions = [];
+        for (let i = 0; i <= segments; i++) {
+            const theta = 30 + (90 - 30) * (i / segments); // θ: 30 -> 90
+            const phi = calcPhiForB1(theta);
+            if (phi !== null) {
+                const [lon, lat] = sphericalToLatLon(theta, phi);
+                b1_positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, h));
+            }
+        }
+        viewer.entities.add({
+            name: 'Boundary 1',
+            polyline: {
+                positions: b1_positions,
+                width: 3,
+                material: Cesium.Color.BLUE,
+                arcType: Cesium.ArcType.NONE
+            }
+        });
+
+        // --- Boundary 2 (B2): 绿色曲线 ---
+        let b2_positions = [];
+        for (let i = 0; i <= segments; i++) {
+            const theta = 30 + (90 - 30) * (i / segments); // θ: 30 -> 90
+            const phi = calcPhiForB2(theta);
+            if (phi !== null) {
+                const [lon, lat] = sphericalToLatLon(theta, phi);
+                b2_positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, h));
+            }
+        }
+        viewer.entities.add({
+            name: 'Boundary 2',
+            polyline: {
+                positions: b2_positions,
+                width: 3,
+                material: Cesium.Color.GREEN,
+                arcType: Cesium.ArcType.NONE
+            }
+        });
+
+        // --- Boundary 3 (B3): 红色 - 赤道弧 (θ=90°) ---
+        // 范围: 从 B1(90) 到 B2(90)
+        // calcPhiForB1(90) = alpha
+        // calcPhiForB2(90) = alpha + delta_omega
+        let b3_positions = [];
+        const theta_b3 = 90;
+        const phi_b3_start = calcPhiForB1(90);
+        const phi_b3_end = calcPhiForB2(90);
+
+        for (let i = 0; i <= segments/2; i++) {
+            const phi = phi_b3_start + (phi_b3_end - phi_b3_start) * (i / (segments/2));
+            const [lon, lat] = sphericalToLatLon(theta_b3, phi);
+            b3_positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, h));
+        }
+        viewer.entities.add({
+            name: 'Boundary 3 (Equator)',
+            polyline: {
+                positions: b3_positions,
+                width: 3,
+                material: Cesium.Color.RED,
+                arcType: Cesium.ArcType.NONE
+            }
+        });
+
+        // --- Boundary 4 (B4): 橙色 - θ=30° 纬线弧 ---
+        // 范围: 从 B1(30) 到 B2(30)
+        // calcPhiForB1(30) = asin(2sin(alpha))
+        let b4_positions = [];
+        const theta_b4 = 30;
+        const phi_b4_start = calcPhiForB1(30);
+        const phi_b4_end = calcPhiForB2(30);
+
+        if (phi_b4_start !== null && phi_b4_end !== null) {
+            for (let i = 0; i <= segments/2; i++) {
+                const phi = phi_b4_start + (phi_b4_end - phi_b4_start) * (i / (segments/2));
+                const [lon, lat] = sphericalToLatLon(theta_b4, phi);
+                b4_positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, h));
+            }
+            viewer.entities.add({
+                name: 'Boundary 4 (θ=30°)',
+                polyline: {
+                    positions: b4_positions,
+                    width: 3,
+                    material: Cesium.Color.ORANGE,
+                    arcType: Cesium.ArcType.NONE
+                }
+            });
+        }
+
+        // ================== 填充蓝色区域 ==================
+        // 顺序: B1(30->90) -> B3(左->右) -> B2(90->30逆序) -> B4(右->左逆序)
+        let polygon_flat_coords = [];
+
+        // 1. B1
+        for (let i = 0; i <= segments; i++) {
+            const theta = 30 + (90 - 30) * (i / segments);
+            const phi = calcPhiForB1(theta);
+            if(phi!==null){
+                const [lon, lat] = sphericalToLatLon(theta, phi);
+                polygon_flat_coords.push(lon, lat);
+            }
+        }
+
+        // 2. B3 (skip first point as it connects to B1 end)
+        for (let i = 1; i <= segments/4; i++) {
+            const phi = phi_b3_start + (phi_b3_end - phi_b3_start) * (i / (segments/4));
+            const [lon, lat] = sphericalToLatLon(theta_b3, phi);
+            polygon_flat_coords.push(lon, lat);
+        }
+
+        // 3. B2 Reverse
+        for (let i = segments; i >= 0; i--) {
+            const theta = 30 + (90 - 30) * (i / segments);
+            const phi = calcPhiForB2(theta);
+            if(phi!==null){
+                const [lon, lat] = sphericalToLatLon(theta, phi);
+                polygon_flat_coords.push(lon, lat);
+            }
+        }
+
+        // 4. B4 Reverse
+        if (phi_b4_start !== null && phi_b4_end !== null) {
+            for (let i = segments/4 - 1; i > 0; i--) {
+                const phi = phi_b4_start + (phi_b4_end - phi_b4_start) * (i / (segments/4));
+                const [lon, lat] = sphericalToLatLon(theta_b4, phi);
+                polygon_flat_coords.push(lon, lat);
+            }
+        }
+
+        viewer.entities.add({
+            name: 'Region Fill',
+            polygon: {
+                hierarchy: Cesium.Cartesian3.fromDegreesArray(polygon_flat_coords),
+                material: Cesium.Color.CYAN.withAlpha(0.3),
+                height: h,
+                outline: false
+            }
+        });
+
+        // ================== 设置视角 ==================
+        const center_theta = (30 + 90) / 2;
+        const center_phi = (phi_b3_start + phi_b3_end) / 2;
+        const [center_lon, center_lat] = sphericalToLatLon(center_theta, center_phi);
+
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(center_lon, center_lat, 8000000),
+            orientation: {
+                heading: 0.0,
+                pitch: Cesium.Math.toRadians(-90.0),
+                roll: 0.0
+            }
+        });
+
+        // ================== 角点标记 (更新Label数值) ==================
+        const val_asin_2sina = Cesium.Math.toDegrees(Math.asin(2 * Math.sin(Cesium.Math.toRadians(alpha)))).toFixed(1);
+
+        const corners = [
+            { theta: 90, phi: phi_b3_start, label: 'φ=α', color: Cesium.Color.RED },
+            { theta: 90, phi: phi_b3_end, label: 'φ=α+ΔΩ', color: Cesium.Color.RED },
+            { theta: 30, phi: phi_b4_start, label: `φ=asin(2sinα)`, color: Cesium.Color.ORANGE },
+            { theta: 30, phi: phi_b4_end, label: `φ=...+ΔΩ`, color: Cesium.Color.ORANGE }
+        ];
+
+        corners.forEach(corner => {
+            const [lon, lat] = sphericalToLatLon(corner.theta, corner.phi);
+            viewer.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, h + 50000),
+                point: { pixelSize: 8, color: corner.color, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 },
+                label: {
+                    text: corner.label,
+                    font: '12px monospace',
+                    fillColor: Cesium.Color.BLACK,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 3,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -10)
+                }
+            });
+        });
+
+        console.log('✓ 蓝色区域可视化完成 (Updated Math)');
+    </script>
+</body>
+
+</html>

@@ -24,9 +24,19 @@ from typing import Optional, Dict, Set, List, Tuple
 #     6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
 # }
 
+# STATION_GROUPS = {
+#     0: {"name": "Group 0", "stations": list(range(0, 12))},
+#     1: {"name": "Group 1", "stations": list(range(12, 21))},
+#     # 2: {"name": "Group 2", "stations": [9]},
+#     # 3: {"name": "Group 3", "stations": [10]},
+#     # 4: {"name": "Group 4", "stations": list(range(11, 15))},
+#     # 5: {"name": "Group 5", "stations": list(range(15, 17))},
+#     # 6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
+# }
+
 STATION_GROUPS = {
-    0: {"name": "Group 0", "stations": list(range(0, 12))},
-    1: {"name": "Group 1", "stations": list(range(12, 21))},
+    0: {"name": "Group 0", "stations": list(range(0, 1))},
+    1: {"name": "Group 1", "stations": list(range(1, 2))},
     # 2: {"name": "Group 2", "stations": [9]},
     # 3: {"name": "Group 3", "stations": [10]},
     # 4: {"name": "Group 4", "stations": list(range(11, 15))},

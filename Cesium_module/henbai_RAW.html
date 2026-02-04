@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        /* 确保容器占满全屏 */
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<script>
+    // 请确保你的 Token 有效
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        skyBox: false,              // 关闭星空背景
+        skyAtmosphere: false,       // 关闭大气层效果
+        baseLayerPicker: false,     // 关闭图层选择器
+        geocoder: false,            // 关闭搜索
+        homeButton: false,          // 关闭主页按钮
+        infoBox: false,             // 关闭信息框
+        sceneModePicker: false,     // 关闭 2D/3D 切换
+        navigationHelpButton: false,// 关闭帮助
+        animation: false,           // 关闭左下角动画控件
+        timeline: false,            // 关闭下方时间轴
+        fullscreenButton: false,    // 关闭全屏按钮
+        scene3DOnly: true           // 提升性能，只支持 3D
+    });
+
+    var scene = viewer.scene;
+    // 设置场景背景为纯白（与地球底色一致）
+    scene.backgroundColor = Cesium.Color.WHITE;
+
+    var globe = scene.globe;
+    // 移除所有默认图层（如自带的卫星图）
+    globe.imageryLayers.removeAll();
+    // 设置地球本身的底色
+    globe.baseColor = Cesium.Color.WHITE;
+
+    // 添加简洁的 CartoDB 图层（用于显示陆地轮廓）
+    var outlineLayer = globe.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+            credit: '© CartoDB'
+        })
+    );
+
+    // 设置初始视角：拉高相机看全景
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(105, 30, 20000000.0), // 视角中心对准中国附近
+    });
+
+    // 解决高分屏模糊问题
+    // viewer.resolutionScale = window.devicePixelRatio;
+
+
+
+
+
+
+
+</script>
+</body>
+</html>

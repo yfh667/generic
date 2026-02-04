@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<script>
+    // 请确保你的 Token 有效
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        skyBox: false,              // 关闭星空背景
+        skyAtmosphere: false,       // 关闭大气层效果
+        baseLayerPicker: false,     // 关闭图层选择器
+        geocoder: false,            // 关闭搜索
+        homeButton: false,          // 关闭主页按钮
+        infoBox: false,             // 关闭信息框
+        sceneModePicker: false,     // 关闭 2D/3D 切换
+        navigationHelpButton: false,// 关闭帮助
+        animation: false,           // 关闭左下角动画控件
+        timeline: false,            // 关闭下方时间轴
+        fullscreenButton: false,    // 关闭全屏按钮
+        scene3DOnly: true           // 提升性能，只支持 3D
+    });
+
+    var scene = viewer.scene;
+    // 设置场景背景为纯白（与地球底色一致）
+    scene.backgroundColor = Cesium.Color.WHITE;
+
+    var globe = scene.globe;
+    // 移除所有默认图层（如自带的卫星图）
+    globe.imageryLayers.removeAll();
+    // 设置地球本身的底色
+    globe.baseColor = Cesium.Color.WHITE;
+
+    // 添加简洁的 CartoDB 图层（用于显示陆地轮廓）
+    var outlineLayer = globe.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+            credit: '© CartoDB'
+        })
+    );
+
+    // 设置初始视角：拉高相机看全景
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(105, 30, 20000000.0), // 视角中心对准中国附近
+    });
+    // 绘制 18 条经线
+// 绘制 18 条经线（每条经线插入一个赤道点，避免近对跖导致 geodesic 失败）
+    viewer.scene.globe.depthTestAgainstTerrain = false;
+
+// --- 轨道配置 ---
+const P = 18;
+// 3. 绘制卫星 (红色点)
+    const N = 36;
+        const phaseShift = 4.5;
+//RAAN插值
+const dOmega = 10.2;
+
+// const h = 550000.0; // 550 km 转换为米
+// const alpha_deg = 10;
+
+const h = 1066000.0; // 550 km 转换为米
+const alpha_deg = 10;
+// const alpha_deg =10;
+
+//极点位置
+const theta0_deg = 35; // 赤道
+const phi0_deg = 15;
+
+const orbit_h = h;
+const Earth_R = 6371000.0;
+const total_R = Earth_R + orbit_h;
+
+
+
+
+
+
+for (let i = 0; i < P; i++) {
+    let lon = i * dOmega;
+
+    viewer.entities.add({
+        name: 'Orbit ' + i,
+        polyline: {
+            // 使用带高度的数组：[经度, 纬度, 高度, 经度, 纬度, 高度, ...]
+            positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                lon, -89.9, h,
+                lon,   0.0, h,
+                lon,  89.9, h
+            ]),
+            width: 2,
+            material: Cesium.Color.GRAY.withAlpha(0.7),
+            // 注意：当设置了高度后，必须将 arcType 设为 RHUMB 或 GEODESIC
+            // 才能确保在两点之间维持高度。
+            arcType: Cesium.ArcType.GEODESIC
+        }
+    });
+}
+    // 稳健的初始视角设置
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(45, 30, 20000000.0)
+    });
+
+
+
+
+/**
+ * 绘制轨道球面上的球冠边界
+ */
+function drawOrbitCap(lon, lat, alpha, radius) {
+    const segments = 120; // 圆环精细度
+    const positions = [];
+
+    // 1. 获取中心点的笛卡尔坐标 (法向量)
+    const center = Cesium.Cartesian3.fromDegrees(lon, lat, orbit_h);
+    const unitCenter = Cesium.Cartesian3.normalize(center, new Cesium.Cartesian3());
+
+    // 2. 找到两个垂直于中心向量的基向量，用于构建圆平面
+    let binormal = Cesium.Cartesian3.cross(unitCenter, Cesium.Cartesian3.UNIT_Z, new Cesium.Cartesian3());
+    if (Cesium.Cartesian3.magnitude(binormal) < 0.1) {
+        binormal = Cesium.Cartesian3.cross(unitCenter, Cesium.Cartesian3.UNIT_Y, new Cesium.Cartesian3());
+    }
+    Cesium.Cartesian3.normalize(binormal, binormal);
+    const tangent = Cesium.Cartesian3.cross(unitCenter, binormal, new Cesium.Cartesian3());
+
+    // 3. 计算圆环上的点
+    const radAlpha = Cesium.Math.toRadians(alpha);
+    const cosAlpha = Math.cos(radAlpha);
+    const sinAlpha = Math.sin(radAlpha);
+
+    for (let i = 0; i <= segments; i++) {
+        const phi = (i / segments) * Math.PI * 2;
+        const cosPhi = Math.cos(phi);
+        const sinPhi = Math.sin(phi);
+
+        // 数学公式：P = R * (cos(alpha)*n + sin(alpha)*(cos(phi)*b + sin(phi)*t))
+        let part1 = Cesium.Cartesian3.multiplyByScalar(unitCenter, cosAlpha, new Cesium.Cartesian3());
+        let part2 = Cesium.Cartesian3.multiplyByScalar(binormal, sinAlpha * cosPhi, new Cesium.Cartesian3());
+        let part3 = Cesium.Cartesian3.multiplyByScalar(tangent, sinAlpha * sinPhi, new Cesium.Cartesian3());
+
+        let point = Cesium.Cartesian3.add(part1, part2, new Cesium.Cartesian3());
+        Cesium.Cartesian3.add(point, part3, point);
+        Cesium.Cartesian3.multiplyByScalar(point, radius, point);
+
+        positions.push(point);
+    }
+
+    // 4. 添加到 Cesium 实体
+    viewer.entities.add({
+        name: 'Orbit Surface Cap',
+        polyline: {
+            positions: positions,
+            width: 3,
+            material: Cesium.Color.RED,
+            arcType: Cesium.ArcType.NONE // 已经是计算好的笛卡尔点，不需要再插值
+        }
+    });
+}
+
+// 调用绘图：在赤道 0 度处画出 550km 高度的边界圆
+drawOrbitCap(phi0_deg, 90 - theta0_deg, alpha_deg, total_R);
+
+
+
+// --- 6. 绘制卫星 (红色点) ---
+    for (let i = 0; i < P; i++) {
+        let lon = i * dOmega;
+        for (let j = 0; j < N; j++) {
+            let meanAnomaly = (j * (360 / N) + i * phaseShift) % 360;
+            let lat, finalLon;
+            if (meanAnomaly <= 180) {
+                lat = -90 + meanAnomaly;
+                finalLon = lon;
+            } else {
+                lat = 90 - (meanAnomaly - 180);
+                finalLon = (lon + 180) % 360;
+            }
+
+            viewer.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(finalLon, lat, h),
+                point: { pixelSize: 5, color: Cesium.Color.RED }
+            });
+        }
+    }
+
+    // 设置初始视角
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(phi0_deg, 90 - theta0_deg, 15000000.0)
+    });
+
+
+</script>
+</body>
+</html>

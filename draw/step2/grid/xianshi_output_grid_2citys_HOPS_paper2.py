@@ -7,7 +7,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime, timedelta
 import  draw.pymatlab2.chartalgorithm.plot_intergroup_avg_shortest_path as plot_intergroup_avg_shortest_path
-
+import  draw.pymatlab2.chartalgorithm.plot_2city_shortest_path as plot_2city_shortest_path
 # ===== 项目依赖 =====
 from config import DATA_DIR, INPUT_DIR
 import genaric2.tegnode as tegnode
@@ -28,11 +28,12 @@ P, N = 18, 36
 # ]
 START_TS, END_TS  =0,86400
 
-# DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+# DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+DEFAULT_TTB_VALUES = [0,1,2,3,4]
 
-# DEFAULT_TTB_VALUES = [0,1,2,3,4]
+
 # DEFAULT_TTB_VALUES = [15, 55, 95, 135, 175, 215, 255, 295, 325]
-DEFAULT_TTB_VALUES = [1]
+# DEFAULT_TTB_VALUES = [181]
 # SIMULATION_EDITION = 'motif2'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
@@ -54,29 +55,27 @@ def dirs_and_xmls(ttb: int):
     DATA_DIR = Path(r"C:\usrspace\mywork\data_paper2")
     BASEDIR = DATA_DIR / "visibile_data"
 
-    VERSION1 = 'oneperiod'
+    VERSION1 = 'Starlink_648_'
 
 
-    # # 基准日期：2025-01-06
-    # base_date = datetime.strptime("20250106", "%Y%m%d").date()
-    #
-    # day_date = base_date + timedelta(days=ttb)
-    #
-    # version2 = f"day_{day_date.strftime('%Y%m%d')}"
-    # FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
-    # xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
+    # 基准日期：2025-01-06
+    base_date = datetime.strptime("20250106", "%Y%m%d").date()
 
+    day_date = base_date + timedelta(days=ttb)
 
-    version2 = f"baseRaan_{ttb}"
-
-    xml_file = BASEDIR / VERSION1  / version2/f"station_visible_satellites_baseRaan_{ ttb}.xml"
-
+    version2 = f"day_{day_date.strftime('%Y%m%d')}"
     FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
+
+    #  version2 = f"baseRaan_{ttb}"
+    # FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
+
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)  # 不存在就创建（包含父目录）
 
 
 
+    xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
 
+    # xml_file = BASEDIR / VERSION1  / version2/f"station_visible_satellites_baseRaan_{ ttb}.xml"
 
 
 
@@ -152,6 +151,17 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
 
     # 读取公共 group_data（缓存）
     group_data = read_snap_xml.parse_xml_group_data(xml_file, START_TS, END_TS )
+
+
+    series = read_snap_xml.parse_station_timeseries(xml_file, [0, 1, 2, 11, 13, 14], START_TS, END_TS)
+    S6 = series[0]
+    S8 = series[1]
+    S10 = series[2]
+    S19 = series[3]
+    S16 = series[4]
+    S20 = series[5]
+
+
     base_groupid_now = 1
 
     rev_group_data, offset = read_snap_xml.modify_group_data(group_data, P, N, base_groupid=base_groupid_now)
@@ -222,58 +232,58 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
         # --- B. 切片 group_data ---
         sub_group_data = slice_group_data(group_data, batch_start, batch_end)
 
+
+
+
         # --- C. 导出 ---
         basename = f"avgspath_g0_4_baseline_{batch_start}_to_{batch_end}"
-        csv_path = plot_intergroup_avg_shortest_path.export_intergroup_avgspath_to_origin(
-            all_edges=sub_edges,
-            group_data=sub_group_data,
+        # csv_path = plot_intergroup_avg_shortest_path.export_intergroup_avgspath_to_origin(
+        #     all_edges=sub_edges,
+        #     group_data=sub_group_data,
+        #     out_dir=FIGURE_DIR,
+        #     basename=basename,
+        #     group_a=0,
+        #     group_b=1,
+        #     steps=(batch_start, batch_end),
+        #     undirected=True
+        # )
+        citys1name = f"city1_{batch_start}_to_{batch_end}"
+        csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+            sub_edges, S6, S19,
             out_dir=FIGURE_DIR,
-            basename=basename,
-            group_a=0,
-            group_b=1,
+            basename=citys1name,
             steps=(batch_start, batch_end),
-            undirected=True
+            undirected=True,
+            with_pair=True,
+            with_path=False
         )
+
+        citys2name = f"city2_{batch_start}_to_{batch_end}"
+        csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+            sub_edges, S8, S16,
+            out_dir=FIGURE_DIR,
+            basename=citys2name,
+            steps=(batch_start, batch_end),
+            undirected=True,
+            with_pair=True,
+            with_path=False
+        )
+        citys3name = f"city3_{batch_start}_to_{batch_end}"
+        csv_path = plot_2city_shortest_path.export_stationpair_min_hops_to_origin(
+            sub_edges, S10, S20,
+            out_dir=FIGURE_DIR,
+            basename=citys3name,
+            steps=(batch_start, batch_end),
+            undirected=True,
+            with_pair=True,
+            with_path=False
+        )
+
+
         print(f"   [成功] 文件已生成: {csv_path}")
 
     print("\n=== 测试运行结束 ===")
 
-    # # 双向化 inter
-    # for step in list(all_inter_edge.keys()):
-    #     all_inter_edge[step] = make_edges_bidirectional(all_inter_edge[step])
-
-
-
-    # —— 构造 all_edges（含 intra+inter）供 avgsp.compute 使用 ——
-    # 这里不生成巨大的 all_intra_edge；每步把环内边追加进去即可。
-    # all_edges = {}
-    # # 预计算 648 个节点的左右邻居
-    # base_neighbors = {
-    #     i * N + j: (i * N + ((j + 1) % N), i * N + ((j - 1) % N))
-    #     for i in range(P) for j in range(N)
-    # }
-    # for step in range(START_TS, END_TS):
-    #     adj = {}
-    #     # intra（左右邻居）
-    #     for node, (r, l) in base_neighbors.items():
-    #         adj.setdefault(node, set()).update((r, l))
-    #     # inter
-    #     inter = all_inter_edge.get(step, {})
-    #     for src, dsts in inter.items():
-    #         adj.setdefault(src, set()).update(dsts)
-    #     all_edges[step] = adj
-    #
-    # # 计算并导出 CSV
-    # csv_path = avgsp.export_intergroup_avgspath_to_origin(
-    #     all_edges, group_data,
-    #     out_dir=figure_dir,
-    #     basename=f"avgspath_{ttb}",
-    #     group_a=0, group_b=4,
-    #     steps=(START_TS, END_TS-1),
-    #     undirected=True
-    # )
-    # dt = time.time() - t0
-    # print(f"[TTB={ttb}] 完成，用时 {dt:.1f}s -> {csv_path}")
 
 
 

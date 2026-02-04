@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <script src="Cesium/Cesium.js"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html,
+        body,
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(4, 32, 53, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            max-width: 320px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 122, 255, 0.3);
+        }
+
+        #info h3 {
+            margin: 0 0 10px 0;
+            color: #00bfff;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+        }
+
+        .val {
+            font-weight: bold;
+            color: #00ff00;
+        }
+
+        .active-orbit {
+            color: #fff;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .orbit-container {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="info">
+        <h3>仿真实时监控</h3>
+        <div class="stat-row"><span>时间:</span> <span id="timeVal" class="val">--</span></div>
+        <div class="stat-row"><span>EC内卫星总数:</span> <span id="totalSatVal" class="val">--</span></div>
+        <div id="orbitStats" class="orbit-container">
+        </div>
+    </div>
+
+    <script>
+        // 【注意】请确保这里是有效的 Token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYzBmNjcwNi01ZTgwLTRmNjktOTZlYi1mNGJlOTBkMTI2NGEiLCJpZCI6MjAzMTkxLCJpYXQiOjE3MTA5MTU2MDB9.3DSkXgP45hF8LHvB5LTd6rujCAEluOegAg9D_NTHmI8';
+
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            skyBox: false,
+            skyAtmosphere: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: true,   // 开启控制盘
+            timeline: true,    // 开启时间轴
+            fullscreenButton: false,
+            scene3DOnly: true
+        });
+
+        // 设置白色背景
+        var scene = viewer.scene;
+        scene.backgroundColor = Cesium.Color.WHITE;
+        var globe = scene.globe;
+        globe.imageryLayers.removeAll();
+        globe.baseColor = Cesium.Color.WHITE;
+
+        // 添加浅色地图底图
+        globe.imageryLayers.addImageryProvider(
+            new Cesium.UrlTemplateImageryProvider({
+                url: 'https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+                credit: '© CartoDB'
+            })
+        );
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+
+
+
+        /**
+ * 在轨道高度绘制球冠（EC区域边界）
+ * @param {Cesium.Viewer} viewer - Cesium 视图对象
+ * @param {Number} lon - 中心点经度 (度)
+ * @param {Number} lat - 中心点纬度 (度)
+ * @param {Number} alpha - 半锥角 (度)
+ * @param {Number} radius - 轨道球面的总半径 (地球半径 + 轨道高度)
+ */
+        function drawOrbitCap(viewer, lon, lat, alpha, radius) {
+            const segments = 120; // 圆环精细度，越大越圆
+            const positions = [];
+
+            // 1. 获取中心点的笛卡尔坐标 (作为法向量)
+            // 注意：这里暂时用 radius 作为高度，稍后会归一化，所以高度值不影响方向
+            const center = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+            const unitCenter = Cesium.Cartesian3.normalize(center, new Cesium.Cartesian3());
+
+            // 2. 构建局部坐标系 (切线 Tangent 和 副法线 Binormal)
+            // 先找一个与法向量垂直的辅助向量 (Binormal)
+            let binormal = Cesium.Cartesian3.cross(unitCenter, Cesium.Cartesian3.UNIT_Z, new Cesium.Cartesian3());
+            // 如果中心点在极点附近，UNIT_Z 会导致叉乘为0，改用 UNIT_Y
+            if (Cesium.Cartesian3.magnitude(binormal) < 0.1) {
+                binormal = Cesium.Cartesian3.cross(unitCenter, Cesium.Cartesian3.UNIT_Y, new Cesium.Cartesian3());
+            }
+            Cesium.Cartesian3.normalize(binormal, binormal);
+
+            // 计算切线 (Tangent)
+            const tangent = Cesium.Cartesian3.cross(unitCenter, binormal, new Cesium.Cartesian3());
+
+            // 3. 计算圆环上的点 (参数方程)
+            const radAlpha = Cesium.Math.toRadians(alpha);
+            const cosAlpha = Math.cos(radAlpha);
+            const sinAlpha = Math.sin(radAlpha);
+
+            for (let i = 0; i <= segments; i++) {
+                const phi = (i / segments) * Math.PI * 2;
+                const cosPhi = Math.cos(phi);
+                const sinPhi = Math.sin(phi);
+
+                // 核心公式: P = R * [ cos(α)n + sin(α)(cos(φ)b + sin(φ)t) ]
+                // part1: 沿着法向量推出的距离 (圆心偏移量)
+                let part1 = Cesium.Cartesian3.multiplyByScalar(unitCenter, cosAlpha, new Cesium.Cartesian3());
+                // part2: 副法线分量
+                let part2 = Cesium.Cartesian3.multiplyByScalar(binormal, sinAlpha * cosPhi, new Cesium.Cartesian3());
+                // part3: 切线分量
+                let part3 = Cesium.Cartesian3.multiplyByScalar(tangent, sinAlpha * sinPhi, new Cesium.Cartesian3());
+
+                // 向量相加
+                let point = Cesium.Cartesian3.add(part1, part2, new Cesium.Cartesian3());
+                Cesium.Cartesian3.add(point, part3, point);
+
+                // 乘以总半径，得到最终坐标
+                Cesium.Cartesian3.multiplyByScalar(point, radius, point);
+
+                positions.push(point);
+            }
+
+            // 4. 添加到 Cesium 实体
+            viewer.entities.add({
+                name: 'Orbit EC Cap',
+                polyline: {
+                    positions: positions,
+                    width: 3,
+                    material: Cesium.Color.RED, // 线条颜色
+                    arcType: Cesium.ArcType.NONE // 关键：必须为 NONE，因为我们是自己计算的3D空间点，不需要Cesium插值
+                }
+            });
+        }
+
+        // ================== 参数定义 ==================
+        const P = 18;
+        const dOmega = 10.2;
+
+        const render_h = 1066000.0; // 蓝色区域高度
+        const h = render_h;     // 经线高度
+        const alpha = 10.0;
+        const delta_omega = 10.2;
+
+        // --- 调用函数进行绘制 ---
+        // 确保 viewer 变量已经存在
+        // --- 定义参数 (根据你的代码上下文) ---
+
+        const Earth_R = 6371000.0;  // 地球半径 (米)
+        const total_R = Earth_R + h; // 总半径
+
+        const alpha_deg = 10;       // EC 半锥角
+        const phi0_deg = 15;        // 经度
+        const lat_deg = 45;
+
+        const theta0_deg = 90 - lat_deg;      // 极角 (注意：你的代码里纬度是 90 - theta0_deg)
+        //  const lat_deg = 90 - theta0_deg; // 转换后的纬度
+
+        // --- 调用函数进行绘制 ---
+        // 确保 viewer 变量已经存在
+        drawOrbitCap(viewer, phi0_deg, lat_deg, alpha_deg, total_R);
+        // ================== 数学辅助函数 ==================
+        function sphericalToLatLon(theta_deg, phi_deg) {
+            return [phi_deg, 90.0 - theta_deg];
+        }
+
+        function calcPhiForB1(theta_deg) {
+            const sin_alpha = Math.sin(Cesium.Math.toRadians(alpha));
+            const sin_theta = Math.sin(Cesium.Math.toRadians(theta_deg));
+            if (sin_theta === 0) return null;
+            const val = sin_alpha / sin_theta;
+            if (Math.abs(val) > 1) return null;
+            return Cesium.Math.toDegrees(Math.asin(val));
+        }
+
+        function calcPhiForB2(theta_deg) {
+            const phi1 = calcPhiForB1(theta_deg);
+            if (phi1 === null) return null;
+            return phi1 + delta_omega;
+        }
+
+        // ================== 1. 绘制轨道经线 (灰色) ==================
+        for (let i = 0; i < P; i++) {
+            let lon = i * dOmega;
+            viewer.entities.add({
+                name: 'Orbit Meridian ' + i,
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                        lon, -89.9, h,
+                        lon, 0.0, h,
+                        lon, 89.9, h
+                    ]),
+                    width: 1,
+                    material: Cesium.Color.DARKGRAY.withAlpha(0.5),
+                    arcType: Cesium.ArcType.GEODESIC
+                }
+            });
+        }
+
+        // ================== 2. 绘制蓝色区域 (EC) ==================
+        const segments = 100;
+        let polygon_coords = [];
+
+        // B1: 30->90
+        for (let i = 0; i <= segments; i++) {
+            const theta = 30 + 60 * (i / segments);
+            const phi = calcPhiForB1(theta);
+            if (phi !== null) { const [lon, lat] = sphericalToLatLon(theta, phi); polygon_coords.push(lon, lat); }
+        }
+        // B3 (Eq)
+        const phi_b3_start = calcPhiForB1(90), phi_b3_end = calcPhiForB2(90);
+        for (let i = 1; i <= 20; i++) {
+            const phi = phi_b3_start + (phi_b3_end - phi_b3_start) * (i / 20);
+            const [lon, lat] = sphericalToLatLon(90, phi); polygon_coords.push(lon, lat);
+        }
+        // B2 Rev: 90->30
+        for (let i = segments; i >= 0; i--) {
+            const theta = 30 + 60 * (i / segments);
+            const phi = calcPhiForB2(theta);
+            if (phi !== null) { const [lon, lat] = sphericalToLatLon(theta, phi); polygon_coords.push(lon, lat); }
+        }
+        // B4 Rev: B2(30)->B1(30)
+        const phi_b4_start = calcPhiForB1(30), phi_b4_end = calcPhiForB2(30);
+        for (let i = 19; i > 0; i--) {
+            const phi = phi_b4_start + (phi_b4_end - phi_b4_start) * (i / 20);
+            const [lon, lat] = sphericalToLatLon(30, phi); polygon_coords.push(lon, lat);
+        }
+
+        viewer.entities.add({
+            name: 'EC Region',
+            polygon: {
+                hierarchy: Cesium.Cartesian3.fromDegreesArray(polygon_coords),
+                material: Cesium.Color.CYAN.withAlpha(0.2),
+                height: render_h,
+                outline: true,
+                outlineColor: Cesium.Color.CYAN
+            }
+        });
+
+        // ================== 3. 加载 CZML 并开启统计 ==================
+        console.log("正在加载 CZML...");
+
+        Cesium.CzmlDataSource.load('simulation.czml').then(function (dataSource) {
+            console.log("CZML 加载成功！卫星数量: " + dataSource.entities.values.length);
+
+            viewer.dataSources.add(dataSource);
+            viewer.clock.multiplier = 10;
+            viewer.clock.shouldAnimate = true; // 强制开启动画
+
+            // 设置固定视角
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(20, 45, 10000000)
+            });
+
+            // --- 实时统计逻辑 ---
+
+
+
+            const ec_theta_rad = Cesium.Math.toRadians(theta0_deg); // theta=60 (Lat=30)
+            const ec_phi_rad = Cesium.Math.toRadians(phi0_deg);   // phi=15 (Lon=15)
+            const alpha_rad = Cesium.Math.toRadians(alpha_deg);
+            const cos_alpha = Math.cos(alpha_rad);
+
+            viewer.clock.onTick.addEventListener(function (clock) {
+                const time = clock.currentTime;
+                let totalInside = 0;
+                let orbitCounts = {};
+
+                // 遍历卫星
+                dataSource.entities.values.forEach(entity => {
+                    // 安全检查：如果实体没有位置或者是文档实体，跳过
+                    if (!entity.position) return;
+
+                    const pos = entity.position.getValue(time);
+                    if (pos) {
+                        const carto = Cesium.Cartographic.fromCartesian(pos);
+                        const sat_theta = Math.PI / 2 - carto.latitude;
+                        const sat_phi = carto.longitude;
+
+                        // 计算是否在区域内 (使用余弦相似度)
+                        const cos_val = Math.sin(sat_theta) * Math.sin(ec_theta_rad) * Math.cos(sat_phi - ec_phi_rad) +
+                            Math.cos(sat_theta) * Math.cos(ec_theta_rad);
+
+                        const isInside = cos_val >= cos_alpha;
+                        // 确保这个实体有点图形对象 (防止报错)
+                        if (!entity.point) {
+                            entity.point = new Cesium.PointGraphics();
+                        }
+
+
+
+                        if (isInside) {
+                            // ====================================================
+                            // 1. 进入 EC 区域内部：放大、变色
+                            // ====================================================
+
+                            // 【修改这里】颜色改为显眼的亮绿色
+                            entity.point.color = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString('#00FF00'));
+
+                            // 【修改这里】大小改为 15 (原先是8)，实现“放大”效果
+                            entity.point.pixelSize = new Cesium.ConstantProperty(15);
+
+                            // 可选：加个发光轮廓让它更明显
+                            entity.point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.WHITE);
+                            entity.point.outlineWidth = new Cesium.ConstantProperty(2);
+
+                            totalInside++;
+
+                            // 统计轨道 ID ... (保持你原来的代码)
+                            if (entity.id && typeof entity.id === 'string') {
+                                const parts = entity.id.split('_');
+                                if (parts.length > 1) {
+                                    const orbitId = parts[1];
+                                    orbitCounts[orbitId] = (orbitCounts[orbitId] || 0) + 1;
+                                }
+                            }
+                        } else {
+                            // ====================================================
+                            // 2. 在区域外部：恢复默认状态
+                            // ====================================================
+
+                            // 颜色改为暗淡的灰色或黄色
+                            entity.point.color = new Cesium.ConstantProperty(Cesium.Color.YELLOW.withAlpha(0.4));
+
+                            // 【修改这里】大小恢复为小点 (例如 4)
+                            entity.point.pixelSize = new Cesium.ConstantProperty(4);
+
+                            // 去掉轮廓
+                            entity.point.outlineWidth = new Cesium.ConstantProperty(0);
+                        }
+                    }
+                });
+
+                // --- 更新 UI ---
+                try {
+                    const timeStr = Cesium.JulianDate.toIso8601(time).split('T')[1].substring(0, 8);
+                    document.getElementById('timeVal').innerText = timeStr;
+                    document.getElementById('totalSatVal').innerText = totalInside;
+
+                    let statsHtml = "";
+                    // 排序并显示
+                    Object.keys(orbitCounts).sort((a, b) => parseInt(a) - parseInt(b)).forEach(oid => {
+                        statsHtml += `<div class='stat-row active-orbit'><span>Orbit ${oid}:</span> <span>${orbitCounts[oid]}</span></div>`;
+                    });
+                    document.getElementById('orbitStats').innerHTML = statsHtml;
+                } catch (e) {
+                    // 防止 UI 更新报错卡死 loop
+                }
+            });
+
+        }).catch(function (error) {
+            // 错误捕获：如果 CZML 加载失败，这里会打印
+            console.error("CZML 加载失败:", error);
+            alert("CZML 加载失败，请按 F12 查看控制台错误信息。\n可能原因：文件路径错误 或 跨域问题。");
+        });
+
+    </script>
+</body>
+
+</html>
