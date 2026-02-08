@@ -2,7 +2,7 @@
 import  draw.read_snap_xml as read_snap_xml
 
 
-def revedge2rawedge(edge_by_step,off_sets):
+def revedge2rawedge(edge_by_step,off_sets,N):
     modify_edge_by_step = {}
     for step, src_to_dsts in edge_by_step.items():
         for src, dsts in src_to_dsts.items():  # dsts是个集合
@@ -10,8 +10,8 @@ def revedge2rawedge(edge_by_step,off_sets):
 
             dst = next(iter(dsts))
 
-            modify_src = read_snap_xml.rev_modify_data(step, src, off_sets)
-            modify_dst = read_snap_xml.rev_modify_data(step, dst, off_sets)
+            modify_src = read_snap_xml.rev_modify_data(step, src, off_sets,N)
+            modify_dst = read_snap_xml.rev_modify_data(step, dst, off_sets,N)
 
             # 先初始化
             if step not in modify_edge_by_step:
