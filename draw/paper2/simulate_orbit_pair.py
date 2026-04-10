@@ -162,7 +162,7 @@ def simulate_orbit_pair(alpha_1_deg, alpha_2_deg, Delta_x=10, theta_diff_deg=10,
 
         try:
             with open(out_path, 'w', encoding='utf-8') as f:
-                f.write(f"# 仿真参数: alpha1={alpha_1:.3f}, alpha2={alpha_2:.3f}, Dx={Delta_x}\n")
+                f.write(f"# 仿真参数: alpha1={alpha_1:.3f}, alpha2={alpha_2:.3f}, Dx={Delta_x},Dtheta={theta_diff_deg}\n")
                 f.write("Time_s,Hop_Count,EC1_Sats,EC2_Sats\n")
                 for i in range(len(time_steps)):
                     h_val = f"{hop_counts[i]:.4f}" if not np.isnan(hop_counts[i]) else "nan"

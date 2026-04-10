@@ -20,7 +20,9 @@ import draw.basic_functio.topology_config as topology_config
 # 注意上述我们是在同构拓扑序列上进行的，因此，我们还要将同构拓扑序列进行还原，同时，我们还要考虑到建链时间约束
 import draw.basic_functio.revdata2rawdata as revdata2rawdata
 # ===== 星座 & 时间段 =====
-P, N = 18, 36
+
+
+
 # RANGES = [
 #     (0,1204),(1204,3669),(3669,4094),(4094,6814),(6814,8485),(8485,11640),
 #     (11640,13057),(13057,14065),(14065,16604),(16604,18396),
@@ -28,11 +30,21 @@ P, N = 18, 36
 # ]
 START_TS, END_TS  =0,86400
 
-# DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+
+# NEED CHANGE PAPRAMETER
+
+#G60
+P, N = 18, 36
+
+#GW
+# P, N = 18, 48
+
+
+DEFAULT_TTB_VALUES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,23]
 
 # DEFAULT_TTB_VALUES = [0,1,2,3,4]
 # DEFAULT_TTB_VALUES = [15, 55, 95, 135, 175, 215, 255, 295, 325]
-DEFAULT_TTB_VALUES = [1]
+# DEFAULT_TTB_VALUES = [1]
 # SIMULATION_EDITION = 'motif2'
 # DEFAULT_TTB_VALUES = [60]
 # ===== 路径 & 公共数据缓存 =====
@@ -51,25 +63,36 @@ def dirs_and_xmls(ttb: int):
     # figure_dir.mkdir(parents=True, exist_ok=True)
     # xml_paths = [modify_dir / f"interplane_links_{s}_{e}.xml" for (s, e) in RANGES]
 
+#OLD VERSION
+    # DATA_DIR = Path(r"C:\usrspace\mywork\data_paper2")
+    # BASEDIR = DATA_DIR / "visibile_data"
+    #
+    # VERSION1 = 'oneperiod'
+
     DATA_DIR = Path(r"C:\usrspace\mywork\data_paper2")
-    BASEDIR = DATA_DIR / "visibile_data"
+    BASEDIR = DATA_DIR / "paper_need_data"/"24_T_data"
 
-    VERSION1 = 'oneperiod'
+    VERSION1 = 'G60_24'
 
 
-    # # 基准日期：2025-01-06
-    # base_date = datetime.strptime("20250106", "%Y%m%d").date()
+    #TEST1
+    # 基准日期：2025-01-06
+    base_date = datetime.strptime("20250106", "%Y%m%d").date()
+
+    day_date = base_date + timedelta(days=ttb)
+
+    version2 = f"day_{day_date.strftime('%Y%m%d')}"
+
+    xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
+
+    # TEST2
+    # PIANYI DE
+    # version2 = f"baseRaan_{ttb}"
     #
-    # day_date = base_date + timedelta(days=ttb)
-    #
-    # version2 = f"day_{day_date.strftime('%Y%m%d')}"
-    # FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
-    # xml_file = BASEDIR / VERSION1 / version2 / f"station_visible_satellites_{day_date.strftime('%Y%m%d')}.xml"
+    # xml_file = BASEDIR / VERSION1  / version2/f"station_visible_satellites_baseRaan_{ ttb}.xml"
 
 
-    version2 = f"baseRaan_{ttb}"
 
-    xml_file = BASEDIR / VERSION1  / version2/f"station_visible_satellites_baseRaan_{ ttb}.xml"
 
     FIGURE_DIR = BASEDIR / VERSION1 / version2/"path"
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)  # 不存在就创建（包含父目录）
@@ -152,7 +175,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
 
     # 读取公共 group_data（缓存）
     group_data = read_snap_xml.parse_xml_group_data(xml_file, START_TS, END_TS )
-    base_groupid_now = 1
+    base_groupid_now = 0
 
     rev_group_data, offset = read_snap_xml.modify_group_data(group_data, P, N, base_groupid=base_groupid_now)
 
@@ -161,7 +184,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
 
     nodes = {}
 
-    rec.write_distinct_motif(0, 17, 0, 35, nodes, option=0)
+    rec.write_distinct_motif(0, 17, 0, N-1, nodes, option=0)
     env = {
         "start_ts": START_TS,
         "end_ts": END_TS,
@@ -171,7 +194,7 @@ def run_one_ttb(ttb: int) -> tuple[int, list[str]]:
     all_rev_inter_edge = rec.render_adj_range(START_TS, END_TS, eval_env=env)
 
 
-    raw_inter_edge = revdata2rawdata.revedge2rawedge(all_rev_inter_edge, offset)
+    raw_inter_edge = revdata2rawdata.revedge2rawedge(all_rev_inter_edge, offset,N)
 
     # 双向化 inter
     for step in list(raw_inter_edge.keys()):
