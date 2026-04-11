@@ -4,10 +4,9 @@ from typing import Dict, List
 @dataclass(frozen=True)
 class ConstellationConfig:
     name: str
-    N: 36
-    P: 18
-    station_groups: Dict[int, dict]
-    group_colors: List[str]
+    N: int
+    P: int
+
 
     @property
     def total_sats(self) -> int:

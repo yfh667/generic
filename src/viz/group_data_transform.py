@@ -85,7 +85,7 @@ def modify_group_data(group_data: dict,config,  base_groupid: int = 4):
     选点数最多的“主簇”，在其 y 上找最大环形间隙确定 offset，
     再用统一 offset 对所有组做 y 平移： y_new = (y - offset + N - 1) % N
     """
-    P,N= N = config.P,config.N
+    P, N = config.P, config.N
     min_keep = 0.6
     new_group_data = {}
     off_sets = {}
@@ -97,7 +97,7 @@ def modify_group_data(group_data: dict,config,  base_groupid: int = 4):
         new_group_data[step] = {'groups': {}, 'all_mentioned': set()}
 
         base_sats = raw_groups.get(base_groupid, set())
-        comps = _find_components_by_neighbors(base_sats, P, N)
+        comps = _find_components_by_neighbors(base_sats, config)
 
         # if step ==13605:
         #     print(1)
@@ -119,11 +119,11 @@ def modify_group_data(group_data: dict,config,  base_groupid: int = 4):
             else:
                 chosen_comp = cand[0]
 
-            chosen_offset = _offset_from_component_y(chosen_comp, N)
+            chosen_offset = _offset_from_component_y(chosen_comp, config)
             prev_comp = chosen_comp  # 只记蔟，不记 offset
         else:
             # 本帧无蔟：沿用“上一次蔟”计算的 offset；若还没有任何蔟，置 0
-            chosen_offset = _offset_from_component_y(prev_comp, N) if prev_comp else 0
+            chosen_offset = _offset_from_component_y(prev_comp, config) if prev_comp else 0
 
         off_sets[step] = chosen_offset
 
