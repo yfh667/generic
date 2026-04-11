@@ -1,0 +1,68 @@
+repo/
+├─ README.md
+├─ pyproject.toml
+├─ src/
+│  └─ satnetsim/
+│     ├─ config/
+│     │  ├─ schema.py
+│     │  ├─ paths.py
+│     │  └─ defaults.yaml
+│     ├─ io/
+│     │  ├─ satellite_reader.py
+│     │  ├─ station_reader.py
+│     │  ├─ xml_group_parser.py
+│     │  ├─ xml_writer.py
+│     │  └─ link_json.py
+│     ├─ models/
+│     │  ├─ graph_node.py
+│     │  ├─ satellite.py
+│     │  ├─ station.py
+│     │  └─ snapshot.py
+│     ├─ simulation/
+│     │  ├─ visibility.py
+│     │  ├─ neighbor.py
+│     │  ├─ topology_builder.py
+│     │  └─ pipeline.py
+│     ├─ topology/
+│     │  ├─ transform.py
+│     │  ├─ motif.py
+│     │  ├─ conflict.py
+│     │  └─ routing.py
+│     ├─ analysis/
+│     │  ├─ shortest_path.py
+│     │  ├─ metrics.py
+│     │  └─ grid2d.py
+│     ├─ viz/
+│     │  ├─ viewer3d.py
+│     │  ├─ plot2d.py
+│     │  └─ figures.py
+│     └─ pipelines/
+│        ├─ build_station_visibility.py
+│        ├─ build_topology.py
+│        ├─ export_grid_snapshot.py
+│        └─ render_figures.py
+├─ configs/
+│  ├─ motif1.yaml
+│  ├─ motif2.yaml
+│  └─ motif3.yaml
+├─ data/
+│  ├─ raw/
+│  ├─ interim/
+│  ├─ processed/
+│  └─ samples/
+├─ outputs/
+│  ├─ figures/
+│  ├─ logs/
+│  └─ runs/
+├─ notebooks/
+│  ├─ demos/
+│  └─ archive/
+├─ tests/
+├─ docs/
+│  ├─ architecture.md
+│  ├─ data_contracts.md
+│  ├─ module_index.md
+│  └─ runbook.md
+└─ legacy/
+   ├─ ga_experiments/
+   └─ notebook_archive/
