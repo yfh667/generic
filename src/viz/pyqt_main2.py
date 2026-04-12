@@ -237,8 +237,8 @@ class SatelliteViewer(QtWidgets.QWidget):
 
     def _node_xy(self, node_id: int):
         """把节点 id 转成当前画布坐标（列=plane=x，行=in-plane=y）"""
-        x = int(node_id) // self.N if hasattr(self, 'N') else (int(node_id) // N)
-        y = int(node_id) % (self.N if hasattr(self, 'N') else N)
+        x = int(node_id) // self.N if hasattr(self, 'N') else (int(node_id) // self.N)
+        y = int(node_id) % (self.N if hasattr(self, 'N') else self.N)
         return float(x), float(y)
 
     def update_src_dst_marker(self, step: int, *, radius=0.48):
@@ -430,7 +430,7 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.label = QtWidgets.QLabel("Waiting for paper_dataresult..." if not self.steps else "")
         self.layout.addWidget(self.label)
 
-        self.plot_widget.setRange(xRange=[-0.5, P-0.5], yRange=[-0.5, N-0.5])
+        self.plot_widget.setRange(xRange=[-0.5, self.P-0.5], yRange=[-0.5, self.N-0.5])
         self.plot_widget.setLabel('bottom', "Orbit Plane Index (P)")
         self.plot_widget.setLabel('left', "Satellite Index in Plane (N)")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
@@ -598,7 +598,7 @@ class SatelliteViewer(QtWidgets.QWidget):
             for dst in dsts:
 
                 opt = getoption(self._all_cols[src], self._all_rows[src],
-                                self._all_cols[dst], self._all_rows[dst], N)
+                                self._all_cols[dst], self._all_rows[dst], self.N)
                 if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],
@@ -643,7 +643,7 @@ class SatelliteViewer(QtWidgets.QWidget):
                 #         dash=True
                 #     )
                 opt = getoption(self._all_cols[src], self._all_rows[src],
-                                self._all_cols[dst], self._all_rows[dst], N)
+                                self._all_cols[dst], self._all_rows[dst], self.N)
                 if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],
@@ -675,7 +675,7 @@ class SatelliteViewer(QtWidgets.QWidget):
                 #         dash=True, color='#1E88E5'
                 #     )
                 opt = getoption(self._all_cols[src], self._all_rows[src],
-                                self._all_cols[dst], self._all_rows[dst], N)
+                                self._all_cols[dst], self._all_rows[dst], self.N)
                 if opt == 2:
                     item = self.draw_curved_edge(
                         self._all_cols[src], self._all_rows[src],

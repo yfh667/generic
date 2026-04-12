@@ -24,15 +24,15 @@ from typing import Optional, Dict, Set, List, Tuple
 #     6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
 # }
 
-STATION_GROUPS = {
-    0: {"name": "Group 0", "stations": list(range(0, 12))},
-    1: {"name": "Group 1", "stations": list(range(12, 21))},
-    # 2: {"name": "Group 2", "stations": [9]},
-    # 3: {"name": "Group 3", "stations": [10]},
-    # 4: {"name": "Group 4", "stations": list(range(11, 15))},
-    # 5: {"name": "Group 5", "stations": list(range(15, 17))},
-    # 6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
-}
+# STATION_GROUPS = {
+#     0: {"name": "Group 0", "stations": list(range(0, 12))},
+#     1: {"name": "Group 1", "stations": list(range(12, 21))},
+#     # 2: {"name": "Group 2", "stations": [9]},
+#     # 3: {"name": "Group 3", "stations": [10]},
+#     # 4: {"name": "Group 4", "stations": list(range(11, 15))},
+#     # 5: {"name": "Group 5", "stations": list(range(15, 17))},
+#     # 6: {"name": "Group 6", "stations": list(range(17, 20))},  # 修正这里的缩进
+# }
 
 # STATION_GROUPS = {
 #     0: {"name": "Group 0", "stations": list(range(0, 1))},
@@ -59,16 +59,16 @@ STATION_GROUPS = {
 
 # 高对比度颜色（每组唯一）
 # 颜色索引与STATION_GROUPS的键对应
-GROUP_COLORS = [
-    '#FF0000',  # 红 (Group 0)
-    '#00FF00',  # 绿 (Group 1)
-    '#0000FF',  # 蓝 (Group 2)
-    '#FFA500',  # 橙 (Group 3)
-    '#800080',  # 紫 (Group 4)
-    '#00FFFF',  # 青 (Group 5)
-'#FFFF00',  # 黄   (Group 6)
-]
-
+# GROUP_COLORS = [
+#     '#FF0000',  # 红 (Group 0)
+#     '#00FF00',  # 绿 (Group 1)
+#     '#0000FF',  # 蓝 (Group 2)
+#     '#FFA500',  # 橙 (Group 3)
+#     '#800080',  # 紫 (Group 4)
+#     '#00FFFF',  # 青 (Group 5)
+# '#FFFF00',  # 黄   (Group 6)
+# ]
+#
 
 
 
