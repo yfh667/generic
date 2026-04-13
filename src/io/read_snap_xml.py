@@ -186,6 +186,86 @@ config,
 
     return group_data
 
+def parse_all_station_timeseries_array(
+    xml_file: str | Path,
+    start_step: Optional[int] = None,
+    end_step: Optional[int] = None,   # 含 end_step
+):
+    """
+    返回数组，每个元素对应一个地面站：
+    [
+      {
+        "station_id": int,
+        "series": { step:int -> set(sat_id:int) },
+        "all_sats": [sat_id, ...]   # 该站在窗口内出现过的卫星并集（可选辅助）
+      },
+      ...
+    ]
+    station_id 按升序排列。
+    """
+    xml_file = str(xml_file)
+
+    # 1) 先扫描窗口内出现过的全部 station id
+    station_ids: Set[int] = set()
+    context = ET.iterparse(xml_file, events=("end",))
+    for _, elem in context:
+        if elem.tag != "time":
+            continue
+
+        step_attr = elem.get("step")
+        if step_attr is None:
+            elem.clear()
+            continue
+        try:
+            step = int(step_attr)
+        except ValueError:
+            elem.clear()
+            continue
+
+        if start_step is not None and step < start_step:
+            elem.clear()
+            continue
+        if end_step is not None and step > end_step:
+            elem.clear()
+            continue
+
+        stations_elem = elem.find("stations")
+        if stations_elem is not None:
+            for st in stations_elem.findall("station"):
+                sid_attr = st.get("id")
+                if sid_attr is None:
+                    continue
+                try:
+                    sid = int(sid_attr)
+                except ValueError:
+                    try:
+                        sid = int(float(sid_attr))
+                    except ValueError:
+                        continue
+                station_ids.add(sid)
+
+        elem.clear()
+
+    ordered_station_ids = sorted(station_ids)
+
+    # 2) 复用现有函数，拿每个站的时序
+    series_list = parse_station_timeseries(
+        xml_file=xml_file,
+        station_ids=ordered_station_ids,
+        start_step=start_step,
+        end_step=end_step,
+    )
+
+    # 3) 组装成你要的“数组”
+    out = []
+    for sid, ts in zip(ordered_station_ids, series_list):
+        all_sats = sorted(set().union(*ts.values())) if ts else []
+        out.append({
+            "station_id": sid,
+            "series": ts,
+            "all_sats": all_sats,
+        })
+    return out
 
 
 #

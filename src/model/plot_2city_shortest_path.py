@@ -396,7 +396,7 @@ def export_stationpair_min_hops_to_origin(
     df = compute_stationpair_min_hops_over_time(
         all_edges, paris, chongqin,
         steps=steps, undirected=undirected,
-        return_pair=False, return_path=False,
+        return_pair=with_pair, return_path=with_path,
         static_topology=static_topology,              # ← 加
         precompute_all_pairs=precompute_all_pairs,    # ← 加
     )
