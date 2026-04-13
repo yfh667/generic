@@ -45,6 +45,8 @@ def log(msg):
 #0. 最初要改变的变量
 Topology_Version = 'gridx'
 
+
+
 # ====================================================================
 # 1) 基础参数（对标 notebook 前几个 cell）
 # ====================================================================
@@ -75,7 +77,7 @@ RAW_END   = 86164        # 一个恒星日
 
 # 处理窗口
 WIN_START = 0
-WIN_END   = 100           # 含端点，共 100 个 step
+WIN_END   = RAW_END           # 含端点，共 100 个 step
 
 # 输出目录
 FIGURE_DIR = BASEDIR / Topology_DIR / Topology_Version/"path"
