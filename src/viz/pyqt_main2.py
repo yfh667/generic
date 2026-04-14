@@ -84,6 +84,11 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.station_groups = config.station_groups
         self.group_colors = config.group_colors
 
+        # 静态配置两
+        self.static_edges = None
+        self.static_topology = False
+        self._static_edges_drawn = False
+
 
         self.group_data = group_data or {}
         self.steps = sorted(self.group_data.keys())
@@ -563,10 +568,23 @@ class SatelliteViewer(QtWidgets.QWidget):
         self.scatter.setData(fg_spots)
 
         # 连线
-        if hasattr(self, "edges_by_step") and step in self.edges_by_step:
-            self.draw_edges(step, self.edges_by_step[step])
+        # if hasattr(self, "edges_by_step") and step in self.edges_by_step:
+        #     self.draw_edges(step, self.edges_by_step[step])
+        # else:
+        #     self.draw_edges(step, {})
+
+# 如果是静态的，卫星之间的连线不需要变化
+        if getattr(self, "static_topology", False) and self.static_edges is not None:
+            if not self._static_edges_drawn:
+                self.draw_edges(step, self.static_edges)
+                self._static_edges_drawn = True
         else:
-            self.draw_edges(step, {})
+            if hasattr(self, "edges_by_step") and step in self.edges_by_step:
+                self.draw_edges(step, self.edges_by_step[step])
+            else:
+                self.draw_edges(step, {})
+
+
 
         self.label.setText(f'Grouped Satellite Visibility (Step {step})')
 
