@@ -11,37 +11,31 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QSlider, QLabel
 )
-from shapely.ops import unary_union
-import geopandas as gpd
-import numpy as np
-import pyvista as pv
 
 EARTH_R_KM = 6371.0
 SAT_ALT_KM = 550.0
 INC_DEG = 53.0
 
-# 建议放一张“浅色、无标注”的地球纹理；
-# 没有就走纯色球 + 大陆轮廓，整体观感也会接近 Cesium 那套白底风格
+# 可选：如果你后面准备了“浅色无标注”的等经纬度纹理，直接填这里
 EARTH_TEXTURE_PATH = None
+# 例如：
+# EARTH_TEXTURE_PATH = r"D:\paper3\data\textures\earth_light_nolabels.jpg"
 
-# ===== Cesium / Positron 风格配色 =====
-BG_COLOR = "#ffffff"       # 纯白背景
-EARTH_COLOR = "#eef2f5"    # 极浅灰白地球
-COAST_COLOR = "#c9d1d9"    # 大陆轮廓线
-ORBIT_COLOR = "#d7dee5"    # 轨道参考线
-SAT_COLOR = "#3b82f6"   # 蓝色
-     # 卫星点
-LINK_COLOR = "#b8c3ce"     # 常规链路
-PATH_COLOR = "#4f8fc4"     # 高亮路径
-STATION_COLOR = "#7c8794"  # 地面站
+# ===== 按 Cesium 这份配色来 =====
+BG_COLOR = "#ffffff"             # scene.backgroundColor = WHITE
+EARTH_BASE_COLOR = "#ffffff"     # globe.baseColor = WHITE
 
-UI_BG = "#ffffff"
-UI_PANEL = "#f8fafc"
-UI_BORDER = "#d9e1e8"
-TEXT_COLOR = "#5f6b78"
+# 用很淡的灰模拟 CartoDB light_nolabels 的地表层次
+LAND_FILL_COLOR = "#eef2f5"
+COAST_COLOR = "#cfd6de"
 
-# pip install geopandas pyogrio shapely
-import geopandas as gpd
+# 其余元素也压成更接近 Cesium 的冷灰蓝
+SAT_COLOR = "#6f7b87"
+LINK_COLOR = "#bcc8d4"
+PATH_COLOR = "#4f8fc4"
+ORBIT_COLOR = "#d3dae2"
+STATION_COLOR = "#7e8996"
+
 
 def rot_x(a):
     c, s = np.cos(a), np.sin(a)
@@ -87,53 +81,12 @@ class GlobeSatDemo(QWidget):
         return p * self.N + s
 
     def _build_ui(self):
-        self.setStyleSheet(f"""
-        QWidget {{
-            background: {UI_BG};
-            color: {TEXT_COLOR};
-            font-size: 13px;
-        }}
-        QPushButton {{
-            background: {UI_PANEL};
-            border: 1px solid {UI_BORDER};
-            border-radius: 5px;
-            padding: 6px 12px;
-            min-height: 28px;
-        }}
-        QPushButton:hover {{
-            background: #f1f5f9;
-        }}
-        QLabel {{
-            color: {TEXT_COLOR};
-        }}
-        QSlider::groove:horizontal {{
-            border: 0;
-            height: 4px;
-            background: #dce3ea;
-            border-radius: 2px;
-        }}
-        QSlider::handle:horizontal {{
-            background: #8c98a5;
-            border: 0;
-            width: 14px;
-            margin: -5px 0;
-            border-radius: 7px;
-        }}
-        """)
-
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
 
         bar = QHBoxLayout()
-        bar.setSpacing(8)
-
         self.btn = QPushButton("Pause")
         self.btn.clicked.connect(self._toggle_play)
-
         self.lbl = QLabel("step=0")
-        self.lbl.setFixedWidth(90)
-
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 5000)
         self.slider.setValue(0)
@@ -148,11 +101,60 @@ class GlobeSatDemo(QWidget):
         root.addLayout(bar)
         root.addWidget(self.plotter.interactor)
 
+    def _earth_source(self, outline=False, radius_scale=1.001):
+        """
+        用 vtkEarthSource 生成一层非常轻的陆地/海岸线，
+        去模拟 Cesium 里的 light_nolabels 地表细节。
+        """
+        src = vtk.vtkEarthSource()
+
+        if outline:
+            src.OutlineOn()
+        else:
+            src.OutlineOff()
+
+        if hasattr(src, "SetOnRatio"):
+            src.SetOnRatio(1)
+
+        radius = EARTH_R_KM * radius_scale
+        if hasattr(src, "SetRadius"):
+            src.SetRadius(radius)
+
+        src.Update()
+        mesh = pv.wrap(src.GetOutput())
+
+        # 兼容少数旧版 VTK：没有 SetRadius 时，手动缩放
+        if not hasattr(src, "SetRadius"):
+            mesh.points = mesh.points * radius
+
+        return mesh
+
+    def _add_cesium_surface_details(self):
+        # 陆地填充：极淡灰
+        land = self._earth_source(outline=False, radius_scale=1.0008)
+        self.plotter.add_mesh(
+            land,
+            color=LAND_FILL_COLOR,
+            opacity=1.0,
+            lighting=False,
+        )
+
+        # 海岸线：略深一层灰
+        coast = self._earth_source(outline=True, radius_scale=1.0015)
+        self.plotter.add_mesh(
+            coast,
+            color=COAST_COLOR,
+            line_width=1.0,
+            opacity=1.0,
+            lighting=False,
+        )
+
     def _build_scene(self):
-        # 白底，和 Cesium 示例一致
+        # 对齐 Cesium：纯白背景
         self.plotter.set_background(BG_COLOR)
         self.plotter.enable_anti_aliasing()
 
+        # 去掉 show_axes()，Cesium 里没有这套彩色坐标轴
         earth = pv.Sphere(radius=EARTH_R_KM, theta_resolution=220, phi_resolution=220)
 
         if EARTH_TEXTURE_PATH:
@@ -161,23 +163,25 @@ class GlobeSatDemo(QWidget):
                 earth,
                 texture=tex,
                 smooth_shading=True,
-                ambient=0.28,
-                diffuse=0.72,
+                ambient=0.18,
+                diffuse=0.82,
                 specular=0.0,
             )
         else:
-            # 没有浅色纹理时，用浅灰白球体 + 大陆轮廓，整体气质接近 Cesium Positron
+            # base sphere 必须回到纯白，对齐 globe.baseColor = WHITE
             self.plotter.add_mesh(
                 earth,
-                color=EARTH_COLOR,
+                color=EARTH_BASE_COLOR,
                 smooth_shading=True,
-                ambient=0.35,
-                diffuse=0.65,
+                ambient=0.16,
+                diffuse=0.84,
                 specular=0.0,
             )
-            #self._add_continent_outlines()
+            # 地表可见性不靠 baseColor，而靠这层浅灰陆地细节
+            self._add_cesium_surface_details()
 
-            self.add_country_outlines_from_polygons(r"D:\paper3\data\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp")
+        # 不加蓝色大气层：Cesium 这份配置里 skyAtmosphere 是关掉的
+        # 不加 skyBox：背景就是纯白
 
         # 卫星点云（动态）
         self.sat_poly = pv.PolyData(np.zeros((self.total, 3), dtype=float))
@@ -186,190 +190,22 @@ class GlobeSatDemo(QWidget):
             render_points_as_spheres=True,
             point_size=8,
             color=SAT_COLOR,
-            ambient=0.5,
+            ambient=0.25,
         )
 
         self.link_actor = None
         self.path_actor = None
 
-        # 改成更接近 Cesium 的明亮背景下观察角度
+        # 相机初始视角也尽量贴近你那份 Cesium：非洲方向
+        cam = ll_to_xyz(10.32, 19.57, EARTH_R_KM + 20000.0)  # lat=10.32, lon=19.57, h=20000km
         self.plotter.camera_position = [
-            (18000, -15000, 11000),
-            (0, 0, 0),
-            (0, 0, 1),
+            tuple(cam),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0),
         ]
 
-    # def _add_continent_outlines(self):
-    #     """
-    #     用 VTK 自带的地球大陆轮廓，模拟 Cesium 里的浅色无标注底图。
-    #     这样即使没有纹理，也不会只剩一个纯色球。
-    #     """
-    #     earth_src = vtk.vtkEarthSource()
-    #     earth_src.OutlineOn()
-    #
-    #     if hasattr(earth_src, "SetOnRatio"):
-    #         earth_src.SetOnRatio(1)
-    #
-    #     if hasattr(earth_src, "SetRadius"):
-    #         earth_src.SetRadius(EARTH_R_KM * 1.0015)
-    #
-    #     earth_src.Update()
-    #     coast = pv.wrap(earth_src.GetOutput())
-    #
-    #     # 老版本 vtkEarthSource 可能没有 SetRadius
-    #     if not hasattr(earth_src, "SetRadius"):
-    #         coast.points = coast.points * (EARTH_R_KM * 1.0015)
-    #
-    #     self.plotter.add_mesh(
-    #         coast,
-    #         color=COAST_COLOR,
-    #         line_width=1.0,
-    #         opacity=0.95,
-    #         lighting=False,
-    #     )
-    def _iter_lines(self, geom):
-        if geom is None or geom.is_empty:
-            return
-
-        gt = geom.geom_type
-        if gt == "LineString":
-            yield geom
-        elif gt == "MultiLineString":
-            for g in geom.geoms:
-                yield from self._iter_lines(g)
-        elif gt == "GeometryCollection":
-            for g in geom.geoms:
-                yield from self._iter_lines(g)
-
-    def add_country_outlines_from_polygons(self, shp_path):
-        import geopandas as gpd
-        from shapely.ops import unary_union
-
-        gdf = gpd.read_file(shp_path)
-
-        # 关键：合并“边界线”，不是合并“国家面”
-        boundary = unary_union(gdf.geometry.boundary)
-
-        r = EARTH_R_KM * 1.004
-        segments = []
-
-        for line in self._iter_lines(boundary):
-            xyz = np.array(
-                [ll_to_xyz(lat, lon, r) for lon, lat in line.coords],
-                dtype=float
-            )
-            if len(xyz) >= 2:
-                segments.append(xyz)
-
-        if not segments:
-            return
-
-        mesh = self._segments_to_polydata(segments)
-
-        self.plotter.add_mesh(
-            mesh.copy(),
-            color="#ffffff",
-            line_width=3.0,
-            opacity=0.95,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-        self.plotter.add_mesh(
-            mesh,
-            color="#d7dde4",
-            line_width=1.2,
-            opacity=1.0,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-
-    def _segments_to_polydata(self, segments):
-        pts = np.vstack(segments)
-        cells = []
-        offset = 0
-
-        for seg in segments:
-            cells.extend([len(seg), *range(offset, offset + len(seg))])
-            offset += len(seg)
-
-        mesh = pv.PolyData(pts)
-        mesh.lines = np.array(cells, dtype=np.int64)
-        return mesh
-
-    def add_country_borders(self, shp_path):
-        gdf = gpd.read_file(shp_path)
-        r = EARTH_R_KM * 1.004
-        segments = []
-
-        for geom in gdf.geometry:
-            if geom is None:
-                continue
-            geoms = geom.geoms if geom.geom_type == "MultiLineString" else [geom]
-            for line in geoms:
-                xyz = np.array(
-                    [ll_to_xyz(lat, lon, r) for lon, lat in line.coords],
-                    dtype=float
-                )
-                if len(xyz) >= 2:
-                    segments.append(xyz)
-
-        border_mesh = self._segments_to_polydata(segments)
-
-
-        self.plotter.add_mesh(
-            border_mesh.copy(),
-            color="#ffffff",
-            line_width=3.0,
-            opacity=0.9,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-        self.plotter.add_mesh(
-            border_mesh,
-            color="#6f7c89",
-            line_width=1.2,
-            opacity=1.0,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-
-    def _add_continent_outlines(self):
-        earth_src = vtk.vtkEarthSource()
-        earth_src.OutlineOn()
-        earth_src.SetOnRatio(1)
-
-        outline_r = EARTH_R_KM * 1.005
-        if hasattr(earth_src, "SetRadius"):
-            earth_src.SetRadius(outline_r)
-
-        earth_src.Update()
-        coast = pv.wrap(earth_src.GetOutput())
-
-        if not hasattr(earth_src, "SetRadius"):
-            coast.points = coast.points * outline_r
-
-        # 白色底描边，制造“发亮边”
-        self.plotter.add_mesh(
-            coast.copy(),
-            color="#ffffff",
-            line_width=3.6,
-            opacity=0.95,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-
-        # 主轮廓线
-        self.plotter.add_mesh(
-            coast,
-            color="#7f8a96",
-            line_width=1.6,
-            opacity=1.0,
-            lighting=False,
-            render_lines_as_tubes=True,
-        )
-
     def _build_static_layers(self):
-        # 示例地面站：配色压暗，避免在白底上太炸
+        # 几个示例地面站
         stations_ll = [
             (-15.7939, -47.8828),   # Brazil
             (12.1140, -86.2362),    # Nicaragua
@@ -421,7 +257,7 @@ class GlobeSatDemo(QWidget):
                 vec_orb = np.array([r * np.cos(u), r * np.sin(u), 0.0], dtype=float)
                 pts[self.sid(p, s)] = R @ vec_orb
 
-        # 地球坐标系有一点自转视觉
+        # 让地球坐标系有一点自转视觉
         earth_spin = -0.08 * t
         pts = (rot_z(earth_spin) @ pts.T).T
         return pts
@@ -433,6 +269,7 @@ class GlobeSatDemo(QWidget):
 
         seg_pts = np.empty((2 * len(edges), 3), dtype=float)
         line_cells = np.empty((len(edges), 3), dtype=np.int64)
+
         for k, (i, j) in enumerate(edges):
             seg_pts[2 * k] = points[i]
             seg_pts[2 * k + 1] = points[j]
@@ -489,7 +326,7 @@ class GlobeSatDemo(QWidget):
             edge_mesh,
             color=LINK_COLOR,
             line_width=1,
-            opacity=0.42,
+            opacity=0.38,
             lighting=False,
         )
 
@@ -531,6 +368,6 @@ class GlobeSatDemo(QWidget):
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
-    w = GlobeSatDemo(P=18, N=36)  # 可以先改成 P=12, N=24 看性能
+    w = GlobeSatDemo(P=18, N=36)  # 你可以先改成 P=12,N=24 看性能
     w.show()
     sys.exit(app.exec_())
