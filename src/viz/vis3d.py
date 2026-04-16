@@ -601,6 +601,7 @@ class GlobeSatDemo(QWidget):
         initial_step=0,
     ):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
 
         self.resize(1400, 900)
 
@@ -1179,7 +1180,12 @@ class GlobeSatDemo(QWidget):
         timeline_layout.addLayout(axis_row)
         timeline_layout.addLayout(jump_row)
 
-        self.plotter = QtInteractor(self)
+       # self.plotter = QtInteractor(self)
+        self.plotter = QtInteractor(
+            self,
+            auto_update=False,
+            multi_samples=0,
+        )
 
         root.addLayout(top_bar)
         root.addWidget(timeline_panel)
@@ -1324,7 +1330,7 @@ class GlobeSatDemo(QWidget):
     #     ]
     def _build_scene(self):
         self.plotter.set_background(BG_COLOR)
-        self.plotter.enable_anti_aliasing()
+    #    self.plotter.enable_anti_aliasing()
 
         earth = pv.Sphere(radius=EARTH_R_KM, theta_resolution=220, phi_resolution=220)
 
@@ -2039,7 +2045,64 @@ class GlobeSatDemo(QWidget):
 
     def _toggle_play(self):
         self.set_playing(not self.playing)
+    def shutdown(self):
+        self.playing = False
 
+        try:
+            if hasattr(self, "timer") and self.timer is not None:
+                self.timer.stop()
+        except Exception:
+            pass
+
+        for fn_name in ("_remove_sat_label", "_remove_path_overlay"):
+            try:
+                fn = getattr(self, fn_name, None)
+                if fn is not None:
+                    fn()
+            except Exception:
+                pass
+
+        try:
+            if hasattr(self, "plotter") and self.plotter is not None:
+                # 先尽量关掉交互/渲染
+                try:
+                    self.plotter.close()
+                except Exception:
+                    pass
+
+                # 再尝试 finalize VTK render window
+                ren_win = getattr(self.plotter, "ren_win", None)
+                if ren_win is None:
+                    ren_win = getattr(self.plotter, "render_window", None)
+
+                if ren_win is not None:
+                    try:
+                        ren_win.Finalize()
+                    except Exception:
+                        pass
+
+                # 如果 interactor 是单独对象，也一并关掉
+                interactor = getattr(self.plotter, "interactor", None)
+                if interactor is not None and interactor is not self.plotter:
+                    try:
+                        interactor.close()
+                    except Exception:
+                        pass
+                    try:
+                        interactor.deleteLater()
+                    except Exception:
+                        pass
+
+                try:
+                    self.plotter.deleteLater()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        self.shutdown()
+        super().closeEvent(event)
 
 def get_or_create_qapp():
     app = QApplication.instance()
@@ -2105,17 +2168,54 @@ def show_globe_demo(
 
 
 def close_globe_demo(window=None):
+    app = QApplication.instance()
+
     if window is not None:
-        window.close()
+        try:
+            window.shutdown()
+        except Exception:
+            pass
+
+        try:
+            window.close()
+        except Exception:
+            pass
+
+        try:
+            window.deleteLater()
+        except Exception:
+            pass
+
+        if app is not None:
+            try:
+                app.processEvents()
+            except Exception:
+                pass
         return
 
-    app = QApplication.instance()
     if app is None:
         return
 
     for w in list(app.topLevelWidgets()):
         if isinstance(w, GlobeSatDemo):
-            w.close()
+            try:
+                w.shutdown()
+            except Exception:
+                pass
+            try:
+                w.close()
+            except Exception:
+                pass
+            try:
+                w.deleteLater()
+            except Exception:
+                pass
+
+    try:
+        app.processEvents()
+    except Exception:
+        pass
+
 
 
 def run_globe_demo(

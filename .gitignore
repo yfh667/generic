@@ -2,3 +2,7 @@ data/
 dataresult/
 paper3py/sim_output/cache_*/
 paper3py/**/_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
