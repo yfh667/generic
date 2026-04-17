@@ -44,7 +44,7 @@ def log(msg):
 
 
 #0. 最初要改变的变量
-Topology_Version = 'grid_plane_alternating'
+Topology_Version = 'grid_four'
 
 
 
