@@ -1388,6 +1388,11 @@ class GlobeSatDemo(QWidget):
             (0, 0, 0),
             (0, 0, 1),
         ]
+        try:
+            if hasattr(self.plotter, "iren") and self.plotter.iren is not None:
+                self.plotter.iren.add_observer("EndInteractionEvent", self._on_camera_interaction_end)
+        except Exception:
+            pass
 
     # def _add_continent_outlines(self):
     #     """
@@ -1951,6 +1956,14 @@ class GlobeSatDemo(QWidget):
             reset_camera=False,
             render=False,
         )
+
+    def _on_camera_interaction_end(self, *args):
+        if self.selected_sat_idxs:
+            self._refresh_selected_sat_label()
+        else:
+            self._remove_sat_label()
+
+        self.plotter.render()
 
     # def _update_frame(self, step):
     #     self.step = max(0, min(int(step), len(self.ephem_times_s) - 1))

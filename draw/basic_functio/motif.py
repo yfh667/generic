@@ -17,8 +17,6 @@ def muban_define(x,y,  P,N, nodes,x_min, x_max, y_min, y_max,option=0):
     # 1 2 3
     # 4 5 6
     # 7 8 9
-
-
     # 4-5
     if option == 0:
         nextnode_x = x+1

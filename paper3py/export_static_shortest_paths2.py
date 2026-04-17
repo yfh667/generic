@@ -14,6 +14,7 @@
 #   "static_hop_table" + "compute_region_pair_timeseries" 那一整段
 # ====================================================================
 
+
 import sys
 import time
 import numpy as np
@@ -31,7 +32,7 @@ import src.model.static_hop_table as static_hop_table
 from draw.basic_functio.topology_config import TopologyRecorder
 from draw.basic_functio import motif as motif_mod
 from draw.basic_functio.topology_config import load_config
-
+from src.paper3_postprocess.static_hop_table_fast_patch import export_pair_csvs_streaming
 # ====================================================================
 # 0) 日志
 # ====================================================================
@@ -93,8 +94,8 @@ log("Step 1: 构建 × grid motif 静态拓扑")
 # ====================================================================
 
 
-rec = TopologyRecorder(P, N)
-nodes = {}
+# rec = TopologyRecorder(P, N)
+# nodes = {}
 
 # × grid: 每对相邻行交叉连接
 # for y in range(0, N, 2):
@@ -117,7 +118,8 @@ cfg = load_config(BASEDIR / Topology_DIR / Topology_Version/"config" / "motif.js
 # 重建 recorder，把 motif 列表灌进去
 rec = TopologyRecorder(cfg.P, cfg.N)
 rec._motifs = cfg.motifs
-inter_adj = rec.render_adj_at(t=0, eval_env={"start_ts": 0, "end_ts": 1})
+
+# inter_adj = rec.render_adj_at(t=0, eval_env={"start_ts": 0, "end_ts": 1})
 
 # render 一次静态 inter 拓扑
 inter_once = rec.render_adj_at(
@@ -196,42 +198,63 @@ log("Step 4: 构造 station pairs")
 
 region_ids = sorted(all_regions.keys())
 pairs = []
+
+
 for ra, rb in combinations(region_ids, 2):
     for sa in all_regions[ra]:
         for sb in all_regions[rb]:
             pairs.append((sa, sb))
 log(f"  区域对={len(list(combinations(region_ids, 2)))}, 站对={len(pairs)}")
 
-
+steps = sorted({int(t) for ts in series_by_station.values() for t in ts.keys()})
+log(f"  actual_steps={len(steps)}")
+log(f"  expected_rows={len(steps) * len(pairs):,}")
 # ====================================================================
 # 6) 批量查表（对标 notebook "compute_region_pair_timeseries" cell）
 # ====================================================================
-log("Step 5: 批量查表计算最短路径")
+# log("Step 5: 批量查表计算最短路径")
+#
+# df_all = static_hop_table.compute_region_pair_timeseries(
+#     dist=dist,
+#     next_hop=next_hop,
+#     series_by_station=series_by_station,
+#     station_pairs=pairs,
+#     steps=range(WIN_START, WIN_END + 1),
+#     left="region1",
+#     right="region2",
+# )
+# log(f"  结果行数={len(df_all)}")
+#
+#
+#
+# # ====================================================================
+# # 8) 导出 CSV（对标 notebook "export_pair_csvs" cell）
+# # ====================================================================
+# log("Step 7: 导出 CSV")
+#
+# out_dir = FIGURE_DIR / f"region_pairs_{WIN_START}_{WIN_END}"
+# csv_paths = static_hop_table.export_pair_csvs(
+#     df_all, out_dir, left="region1", right="region2"
+# )
+# log(f"  导出 {len(csv_paths)} 个 CSV 到 {out_dir}")
 
-df_all = static_hop_table.compute_region_pair_timeseries(
+log("Step 5: 流式导出最短路径 CSV")
+
+out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}"
+csv_paths = export_pair_csvs_streaming(
     dist=dist,
     next_hop=next_hop,
     series_by_station=series_by_station,
     station_pairs=pairs,
-    steps=range(WIN_START, WIN_END + 1),
+    steps=steps,
+    out_dir=out_dir,
     left="region1",
     right="region2",
+    include_path=True,
+    include_path_indexed=False,
 )
-log(f"  结果行数={len(df_all)}")
 
-
-
-# ====================================================================
-# 8) 导出 CSV（对标 notebook "export_pair_csvs" cell）
-# ====================================================================
-log("Step 7: 导出 CSV")
-
-out_dir = FIGURE_DIR / f"region_pairs_{WIN_START}_{WIN_END}"
-csv_paths = static_hop_table.export_pair_csvs(
-    df_all, out_dir, left="region1", right="region2"
-)
 log(f"  导出 {len(csv_paths)} 个 CSV 到 {out_dir}")
-
 
 # ====================================================================
 # 9) 打印摘要
