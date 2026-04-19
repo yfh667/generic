@@ -22,7 +22,7 @@ from draw.basic_functio.topology_config import TopologyRecorder, load_config
 # ============================================================
 # 0) 参数区（后续统一改这里）
 # ============================================================
-TOPOLOGY_VERSION = "gridx"
+TOPOLOGY_VERSION = "grid_four"
 
 CSV_DIR = "region_pairs_0_86164"
 PAIR_CSV_NAME = "region1--station2-region2--station8.csv"

@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas as pd
 
 import src.model.get_intra_inter_link as get_intra_inter_link
 import src.paper3_postprocess.read_path_csv as read_path_csv
@@ -10,6 +11,35 @@ from draw.basic_functio.topology_config import load_config
 DATA_DIR = Path(r"D:\paper3")
 BASEDIR = DATA_DIR / "data"
 TOPOLOGY_DIR = "topology_design"
+def _numeric_stats_with_prefix(series, prefix: str) -> pd.Series:
+    x = pd.to_numeric(series, errors="coerce").dropna()
+
+    if x.empty:
+        return pd.Series({
+            f"{prefix}_count": 0,
+            f"{prefix}_mean": float("nan"),
+            f"{prefix}_median": float("nan"),
+            f"{prefix}_std": float("nan"),
+            f"{prefix}_min": float("nan"),
+            f"{prefix}_p05": float("nan"),
+            f"{prefix}_p10": float("nan"),
+            f"{prefix}_p90": float("nan"),
+            f"{prefix}_p95": float("nan"),
+            f"{prefix}_max": float("nan"),
+        })
+
+    return pd.Series({
+        f"{prefix}_count": int(x.size),
+        f"{prefix}_mean": float(x.mean()),
+        f"{prefix}_median": float(x.median()),
+        f"{prefix}_std": float(x.std(ddof=1)),
+        f"{prefix}_min": float(x.min()),
+        f"{prefix}_p05": float(x.quantile(0.05)),
+        f"{prefix}_p10": float(x.quantile(0.10)),
+        f"{prefix}_p90": float(x.quantile(0.90)),
+        f"{prefix}_p95": float(x.quantile(0.95)),
+        f"{prefix}_max": float(x.max()),
+    })
 
 
 def compute_pair_global_stat(
@@ -58,7 +88,22 @@ def compute_pair_global_stat(
         name=rel_col,
     )
 
-    global_stat = route_statistic.reliability_global_stats(df, rel_col=rel_col)
+  #  global_stat = route_statistic.reliability_global_stats(df, rel_col=rel_col)
+    df["total_hops"] = df["intra_hops"] + df["inter_hops"]
+
+    rel_stat = route_statistic.reliability_global_stats(df, rel_col=rel_col)
+    hop_stat = pd.concat(
+        [
+            _numeric_stats_with_prefix(df["total_hops"], "hop"),
+            _numeric_stats_with_prefix(df["intra_hops"], "intra_hop"),
+            _numeric_stats_with_prefix(df["inter_hops"], "inter_hop"),
+        ],
+        axis=0,
+    )
+
+    global_stat = pd.concat([rel_stat, hop_stat], axis=0)
+    return global_stat
+
     return global_stat
 
 

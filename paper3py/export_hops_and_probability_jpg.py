@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 
 ## 参数区
 
-Topology_Version = 'grid_two_zone_rowband'
+Topology_Version = 'grid_x_sparse'
 P_INTRA = 0.999
 P_INTER = 0.99
 P = 18

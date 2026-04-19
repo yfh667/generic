@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import src.paper3_postprocess.export_onepair_linkmetric as export_onepair_linkmetric
 
 
-TOPOLOGY_VERSION = "gridx"
+TOPOLOGY_VERSION = "grid_four"
 CSV_DIR = "region_pairs_0_86164"
 P_INTRA = 0.999
 P_INTER = 0.99
