@@ -3,8 +3,8 @@ import json
 import re
 import numpy as np
 import pandas as pd
+import src.model.route_policy_probability as route_policy_probability
 
-import src.model.get_intra_inter_link as get_intra_inter_link
 from src.config.viewer_config import G60_CONFIG
 
 
@@ -32,8 +32,16 @@ def _load_n(data_root: Path, topology_version: str) -> int:
     p = data_root / "topology_design" / topology_version / "config" / "motif.json"
     return int(json.loads(p.read_text(encoding="utf-8"))["N"])
 
-
-def _compute_rel_from_paths(path_series: pd.Series, n: int, p_intra: float, p_inter: float, cache: dict) -> np.ndarray:
+def _compute_rel_from_paths(
+    path_series: pd.Series,
+    *,
+    n: int,
+    p_intra: float,
+    default_p_inter: float,
+    option_p_inter: dict,
+    delta2option: dict,
+    cache: dict,
+) -> np.ndarray:
     arr = path_series.fillna("").astype(str).to_numpy()
     out = np.zeros(len(arr), dtype=np.float64)
 
@@ -45,11 +53,16 @@ def _compute_rel_from_paths(path_series: pd.Series, n: int, p_intra: float, p_in
 
         v = cache.get(path_str)
         if v is None:
-            try:
-                intra_links, inter_links = get_intra_inter_link.parse_path_links(path_str, N=n)
-                v = float((p_intra ** len(intra_links)) * (p_inter ** len(inter_links)))
-            except Exception:
-                v = 0.0
+            rel, _, _, _, _ = route_policy_probability.compute_path_reliability_and_hops(
+                path_str,
+                n=n,
+                p_intra=p_intra,
+                default_p_inter=default_p_inter,
+                option_p_inter=option_p_inter,
+                delta2option=delta2option,
+                unknown_option_action="use_default",
+            )
+            v = float(rel)
             cache[path_str] = v
 
         out[i] = v
@@ -57,22 +70,46 @@ def _compute_rel_from_paths(path_series: pd.Series, n: int, p_intra: float, p_in
     return out
 
 
+
 def export_region_pair_prob_timeseries_grid_four(
     *,
     data_root=r"D:\paper3\data",
     topology_version="grid_four",
     csv_dir_name="region_pairs_0_86164",
-    p_intra=0.999,
-    p_inter=0.99,
+    # p_intra=0.999,
+    # p_inter=0.99,
 ):
     data_root = Path(data_root)
     pair_dir = data_root / "topology_design" / topology_version / "path" / csv_dir_name
-    out_root = data_root / "topology_design" / topology_version / "analysis_link" / f"region_pair_prob_timeseries_simple_pi{p_intra}_pe{p_inter}"
+    station2region = _build_station_to_region(G60_CONFIG)
+    n = _load_n(data_root, topology_version)
+
+    policy_path = data_root / "topology_design" / topology_version / "config" / "route_policy.json"
+    if not policy_path.exists():
+        raise FileNotFoundError(f"缺少策略文件: {policy_path}")
+
+    policy = route_policy_probability.load_route_policy(
+        policy_path,
+        n=n,
+        fallback_p_intra=1.0,
+        fallback_p_inter=1.0,
+    )
+
+    p_intra_used = float(policy["p_intra"])
+    default_p_inter_used = policy["default_p_inter"]
+    option_p_inter = dict(policy["option_p_inter"])
+    delta2option = dict(policy["delta2option"])
+    policy_name = str(policy["policy_name"]).replace(" ", "_")
+
+
+   # out_root = data_root / "topology_design" / topology_version / "analysis_link" / f"region_pair_prob_timeseries_simple_pi{p_intra}_pe{p_inter}"
+    out_root = data_root / "topology_design" / topology_version / "analysis_link" / f"region_pair_prob_timeseries_policy_{policy_name}"
+
     out_dir = out_root / "timeseries"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    station2region = _build_station_to_region(G60_CONFIG)
-    n = _load_n(data_root, topology_version)
+
+
 
     files = sorted(pair_dir.glob("*.csv"))
     if not files:
@@ -105,7 +142,16 @@ def export_region_pair_prob_timeseries_grid_four(
             continue
 
         t = t[keep].astype(np.int64).to_numpy()
-        rel = _compute_rel_from_paths(d.loc[keep, "path"], n=n, p_intra=p_intra, p_inter=p_inter, cache=rel_cache)
+      #  rel = _compute_rel_from_paths(d.loc[keep, "path"], n=n, p_intra=p_intra, p_inter=p_inter, cache=rel_cache)
+        rel = _compute_rel_from_paths(
+            d.loc[keep, "path"],
+            n=n,
+            p_intra=p_intra_used,
+            default_p_inter=default_p_inter_used,
+            option_p_inter=option_p_inter,
+            delta2option=delta2option,
+            cache=rel_cache,
+        )
 
         tmp = pd.DataFrame({"time": t, "rel": rel}).groupby("time", as_index=False)["rel"].mean()
         t = tmp["time"].to_numpy(dtype=np.int64)
@@ -200,3 +246,45 @@ def export_region_pair_prob_timeseries_grid_four(
 #     p_intra=0.999,
 #     p_inter=0.99,
 # )
+
+# 文件末尾新增
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    # 默认配置：直接点运行就用这组
+    DEFAULT_DATA_ROOT = r"D:\paper3\data"
+    DEFAULT_TOPOLOGY_VERSION = "grid_four"
+    DEFAULT_CSV_DIR_NAME = "region_pairs_0_86164_minhop_v1"
+
+    # 无参数：直接跑默认配置
+    if len(sys.argv) == 1:
+        export_region_pair_prob_timeseries_grid_four(
+            data_root=DEFAULT_DATA_ROOT,
+            topology_version=DEFAULT_TOPOLOGY_VERSION,
+            csv_dir_name=DEFAULT_CSV_DIR_NAME,
+        )
+    else:
+        # 有参数：可覆盖默认配置
+        ap = argparse.ArgumentParser()
+        ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
+        ap.add_argument("--topology-version", default=DEFAULT_TOPOLOGY_VERSION)
+        ap.add_argument("--csv-dir-name", default=DEFAULT_CSV_DIR_NAME)
+        args = ap.parse_args()
+
+        export_region_pair_prob_timeseries_grid_four(
+            data_root=args.data_root,
+            topology_version=args.topology_version,
+            csv_dir_name=args.csv_dir_name,
+        )
+
+
+
+
+
+
+
+# python C:\user\generic\paper3py\export_region_comminication2.py `
+#   --data-root D:\paper3\data `
+#   --topology-version grid_four `
+#   --csv-dir-name region_pairs_0_86164_maxrel_option_weighted_v1

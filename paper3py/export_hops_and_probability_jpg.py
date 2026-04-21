@@ -6,10 +6,13 @@ import traceback
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+import  json
 
 import numpy as np
 import pandas as pd
 import matplotlib
+
+from src.model import route_policy_probability
 
 matplotlib.use("Agg")
 
@@ -36,16 +39,45 @@ Topology_DIR = 'topology_design'
 # OUT_DIR = Path(r"D:\paper3\data\topology_design\gridx\path\jpg")
 
 
+def _load_n_from_motif(topology_version: str) -> int:
+    motif_json = BASEDIR / Topology_DIR / topology_version / "config" / "motif.json"
+    return int(json.loads(motif_json.read_text(encoding="utf-8"))["N"])
 
 
+N = _load_n_from_motif(Topology_Version)
 
-CSV_DIR = BASEDIR / Topology_DIR / Topology_Version / "path" / "region_pairs_0_86164"
+ROUTE_POLICY_JSON = BASEDIR / Topology_DIR / Topology_Version / "config" / "route_policy.json"
+ROUTE_POLICY = route_policy_probability.load_route_policy(
+    ROUTE_POLICY_JSON,
+    n=N,
+    fallback_p_intra=P_INTRA,
+    fallback_p_inter=P_INTER,
+)
+POLICY_NAME = str(ROUTE_POLICY["policy_name"]).replace(" ", "_")
 
-OUT_DIR = BASEDIR / Topology_DIR / Topology_Version / "path" / "jpg"
+
+STRICT_POLICY_CSV_DIR = True
+
+def _resolve_csv_dir() -> Path:
+    base = BASEDIR / Topology_DIR / Topology_Version / "path"
+    policy_dir = base / f"region_pairs_0_86164_{POLICY_NAME}"
+    legacy_dir = base / "region_pairs_0_86164"
+
+    if policy_dir.exists():
+        return policy_dir
+
+    if (not STRICT_POLICY_CSV_DIR) and legacy_dir.exists():
+        return legacy_dir
+
+    raise FileNotFoundError(
+        f"policy-specific path dir not found: {policy_dir}; "
+        f"set STRICT_POLICY_CSV_DIR=False to allow fallback to {legacy_dir}"
+    )
 
 
+CSV_DIR = _resolve_csv_dir()
+OUT_DIR = BASEDIR / Topology_DIR / Topology_Version / "path" / f"jpg_{POLICY_NAME}"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-
 
 METRICS_DIR = OUT_DIR / "_metrics"
 SUMMARY_CSV = OUT_DIR / "_summary.csv"
@@ -55,13 +87,9 @@ FAILED_CSV = OUT_DIR / "_failed.csv"
 
 
 
+
+
 MAX_WORKERS = min(8, max(1, (os.cpu_count() or 4) - 1))
-
-
-# =========================
-# 依赖模块
-# =========================
-import src.model.get_intra_inter_link as get_intra_inter_link
 
 
 # =========================
@@ -102,8 +130,7 @@ def enrich_hops_and_reliability(
     df: pd.DataFrame,
     *,
     n: int,
-    p_intra: float,
-    p_inter: float,
+    policy: dict,
     path_col: str = "path",
 ) -> tuple[pd.DataFrame, str]:
     if path_col not in df.columns:
@@ -111,42 +138,78 @@ def enrich_hops_and_reliability(
 
     df = df.copy()
 
-    all_intra = []
-    all_inter = []
+    p_intra = float(policy["p_intra"])
+    default_p_inter = policy["default_p_inter"]
+    option_p_inter = dict(policy["option_p_inter"])
+    delta2option = dict(policy["delta2option"])
+    policy_name = str(policy["policy_name"]).replace(" ", "_")
+
+    option_keys = sorted(int(k) for k in option_p_inter.keys())
+    option_edge_cols = {op: f"option{op}_edges" for op in option_keys}
+    option_edge_values = {op: [] for op in option_keys}
+
+    rel_list = []
+    intra_hops_list = []
+    inter_hops_list = []
+    total_hops_list = []
+    unknown_edges_list = []
     has_path = []
 
-    for i, path_str in enumerate(df[path_col]):
-        if isinstance(path_str, str) and path_str.strip():
-            try:
-                intra, inter = get_intra_inter_link.parse_path_links(path_str, N=n)
-            except Exception as exc:
-                raise ValueError(f"parse_path_links failed at row {i}, path={path_str!r}") from exc
-            has = True
-        else:
-            intra, inter = [], []
-            has = False
+    path_cache = {}
 
-        all_intra.append(intra)
-        all_inter.append(inter)
-        has_path.append(has)
+    for raw_path in df[path_col].to_numpy(dtype=object):
+        if pd.isna(raw_path):
+            path_str = ""
+        else:
+            path_str = str(raw_path).strip()
+
+        if (not path_str) or (path_str.lower() in {"nan", "none"}):
+            has_path.append(False)
+            rel_list.append(0.0)
+            intra_hops_list.append(0)
+            inter_hops_list.append(0)
+            total_hops_list.append(0)
+            unknown_edges_list.append(0)
+            for op in option_keys:
+                option_edge_values[op].append(0)
+            continue
+
+        cached = path_cache.get(path_str)
+        if cached is None:
+            cached = route_policy_probability.compute_path_reliability_and_hops(
+                path_str,
+                n=n,
+                p_intra=p_intra,
+                default_p_inter=default_p_inter,
+                option_p_inter=option_p_inter,
+                delta2option=delta2option,
+                unknown_option_action="use_default",
+            )
+            path_cache[path_str] = cached
+
+        rel, intra_hops, inter_hops, unknown_edges, option_counter = cached
+
+        has_path.append(True)
+        rel_list.append(float(rel))
+        intra_hops_list.append(int(intra_hops))
+        inter_hops_list.append(int(inter_hops))
+        total_hops_list.append(int(intra_hops + inter_hops))
+        unknown_edges_list.append(int(unknown_edges))
+
+        for op in option_keys:
+            option_edge_values[op].append(int(option_counter.get(op, 0)))
 
     df["has_path"] = has_path
-    df["intra_links"] = all_intra
-    df["inter_links"] = all_inter
-    df["intra_hops"] = df["intra_links"].apply(len)
-    df["inter_hops"] = df["inter_links"].apply(len)
-    df["total_hops"] = df["intra_hops"] + df["inter_hops"]
+    df["intra_hops"] = intra_hops_list
+    df["inter_hops"] = inter_hops_list
+    df["total_hops"] = total_hops_list
+    df["unknown_option_edges"] = unknown_edges_list
 
-    rel_name = f"reliability_pi{p_intra}_pe{p_inter}"
+    for op in option_keys:
+        df[option_edge_cols[op]] = option_edge_values[op]
 
-    rel = (
-        (float(p_intra) ** df["intra_hops"].astype(float))
-        * (float(p_inter) ** df["inter_hops"].astype(float))
-    )
-
-    # 无路径时，可靠性记为 0，更符合语义
-    rel = np.where(df["has_path"].to_numpy(), rel.to_numpy(), 0.0)
-    df[rel_name] = rel
+    rel_name = f"reliability_{policy_name}"
+    df[rel_name] = rel_list
 
     return df, rel_name
 
@@ -284,8 +347,7 @@ def process_one_csv(csv_path: str) -> dict:
         df_plot, rel_name = enrich_hops_and_reliability(
             df,
             n=N,
-            p_intra=P_INTRA,
-            p_inter=P_INTER,
+            policy=ROUTE_POLICY,
             path_col="path",
         )
 
@@ -318,6 +380,9 @@ def process_one_csv(csv_path: str) -> dict:
             "mean_inter_hops": float(df_plot["inter_hops"].mean()),
             "mean_total_hops": float(df_plot["total_hops"].mean()),
             "mean_reliability": float(df_plot[rel_name].mean()),
+            "policy_name": POLICY_NAME,
+            "unknown_option_edge_total": int(df_plot["unknown_option_edges"].sum()),
+
         }
 
     except Exception as exc:
@@ -337,6 +402,8 @@ def main():
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in: {CSV_DIR}")
 
+    print(f"[batch] topology={Topology_Version}")
+    print(f"[batch] policy={POLICY_NAME}")
     print(f"[batch] csv_dir={CSV_DIR}")
     print(f"[batch] out_dir={OUT_DIR}")
     print(f"[batch] metrics_dir={METRICS_DIR}")

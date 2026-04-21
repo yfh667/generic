@@ -125,6 +125,16 @@ def export_per_topology_csv(df_all: pd.DataFrame):
         out_csv_path = get_out_csv_path(topology_version)
         sub = sub.sort_values("PAIR_CSV_NAME").reset_index(drop=True)
         sub.to_csv(out_csv_path, index=False, encoding="utf-8-sig")
+        debug_cols = [
+            c for c in sub.columns
+            if c in {"policy_name", "p_intra_used", "default_p_inter_used", "unknown_option_edge_total"}
+            or c.startswith("option")
+        ]
+        if debug_cols:
+            debug_csv = out_csv_path.with_name(out_csv_path.stem + "_option_debug.csv")
+            sub[["PAIR_CSV_NAME"] + debug_cols].to_csv(debug_csv, index=False, encoding="utf-8-sig")
+            print(f"[export] {topology_version} option-debug -> {debug_csv}")
+
         print(f"[export] {topology_version} -> {out_csv_path}")
 
 def run_one_topology(topology_version: str):

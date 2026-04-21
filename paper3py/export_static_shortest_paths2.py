@@ -57,7 +57,7 @@ def load_route_policy_json(path: Path):
 #0. 最初要改变的变量
 # Topology_Version = 'grid_four'
 
-DEFAULT_TOPOLOGY_VERSION = "grid_four"
+DEFAULT_TOPOLOGY_VERSION = "grid_x_sparse"
 DEFAULT_ROUTE_MODE = "max_reliability"   # min_hop | max_reliability
 DEFAULT_ROUTE_P_INTRA = 0.995
 DEFAULT_ROUTE_P_INTER = 0.99
