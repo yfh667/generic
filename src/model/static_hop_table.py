@@ -250,6 +250,72 @@ def precompute_weighted_cost_and_next_hop(G, total_sats, *, weight="cost"):
 
     return dist, next_hop
 
+def assign_option_probability_cost_to_graph_edges(
+    G,
+    option_edge_keys_map,
+    *,
+    p_intra: float,
+    option_p_inter: dict,
+    default_p_inter: float = None,
+    conflict_policy: str = "max_probability",
+    cost_attr: str = "cost",
+):
+    """
+    按 option 概率给边赋 cost=-log(p)。
+    非 inter-option 边按 p_intra。
+    """
+    if not (0 < p_intra <= 1):
+        raise ValueError("p_intra must be in (0,1]")
+
+    # 统一 option 键为 int
+    op_map = {}
+    for k, v in (option_p_inter or {}).items():
+        op = int(k)
+        pv = float(v)
+        if not (0 < pv <= 1):
+            raise ValueError(f"option {op} prob invalid: {pv}")
+        op_map[op] = pv
+
+    if default_p_inter is not None and not (0 < float(default_p_inter) <= 1):
+        raise ValueError("default_p_inter must be in (0,1]")
+
+    edge_prob = {}  # (u,v)->p_inter
+
+    for op, edge_keys in (option_edge_keys_map or {}).items():
+        op = int(op)
+        p = op_map.get(op, default_p_inter)
+        if p is None:
+            raise ValueError(f"missing probability for option={op}")
+
+        for e in edge_keys:
+            old = edge_prob.get(e)
+            if old is None:
+                edge_prob[e] = float(p)
+            else:
+                if conflict_policy == "max_probability":
+                    edge_prob[e] = max(old, float(p))
+                elif conflict_policy == "min_probability":
+                    edge_prob[e] = min(old, float(p))
+                else:
+                    raise ValueError(f"edge {e} has multiple options with different p: {old} vs {p}")
+
+    cost_intra = float(-np.log(float(p_intra)))
+
+    for u, v in G.edges():
+        a, b = (int(u), int(v))
+        if a > b:
+            a, b = b, a
+        p = edge_prob.get((a, b))
+        if p is None:
+            G[u][v][cost_attr] = cost_intra
+        else:
+            G[u][v][cost_attr] = float(-np.log(float(p)))
+
+    return {
+        "num_option_edges": len(edge_prob),
+        "num_graph_edges": G.number_of_edges(),
+        "p_intra": float(p_intra),
+    }
 
 def reconstruct_path(next_hop, s, d):
     n = next_hop.shape[0]

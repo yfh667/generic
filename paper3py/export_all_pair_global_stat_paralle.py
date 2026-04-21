@@ -19,13 +19,11 @@ P_INTRA = 0.999
 P_INTER = 0.99
 
 TOPOLOGY_VERSIONS = [
-    #"grid_four",
-    "gridx",
-    "grid_plane_alternating",
-    "grid_x_sparse",
-    "grid+",
-
-
+    "grid_four",
+    # "gridx",
+    # "grid_plane_alternating",
+    # "grid_x_sparse",
+    # "grid+",
 ]
 
 MAX_WORKERS = min(8, os.cpu_count() or 1)

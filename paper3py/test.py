@@ -202,17 +202,22 @@ def plot_one(ax, mat, title, fmt, vmin=None, vmax=None):
     return im
 
 
-fig, axes = plt.subplots(3, 2, figsize=(16, 12))
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 axes = axes.ravel()
 
 im0 = plot_one(axes[0], m_rel, "Mean Reliability", ".4f")
 im1 = plot_one(axes[1], m_ht, "Mean Total Hops (reachable)", ".2f")
-im2 = plot_one(axes[2], m_hi, "Mean Inter Hops (reachable)", ".2f")
-im3 = plot_one(axes[3], m_ha, "Mean Intra Hops (reachable)", ".2f")
-im4 = plot_one(axes[4], m_ir, "Inter-Hop Ratio", ".3f", vmin=0.0, vmax=1.0)
-im5 = plot_one(axes[5], m_rh, "Reliability per Hop", ".4f")
+# im2 = plot_one(axes[2], m_hi, "Mean Inter Hops (reachable)", ".2f")
+# im3 = plot_one(axes[3], m_ha, "Mean Intra Hops (reachable)", ".2f")
+im4 = plot_one(axes[2], m_ir, "Inter-Hop Ratio", ".3f", vmin=0.0, vmax=1.0)
+im5 = plot_one(axes[3], m_rh, "Reliability per Hop", ".4f")
 
-for ax, im in zip(axes, [im0, im1, im2, im3, im4, im5]):
+# 删除不用的两个空白子图
+# fig.delaxes(axes[2])
+# fig.delaxes(axes[3])
+
+
+for ax, im in zip(axes, [im0, im1,  im4, im5]):
     cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02)
     cb.ax.tick_params(labelsize=8)
 

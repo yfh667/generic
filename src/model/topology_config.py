@@ -11,6 +11,17 @@ import ast
 from draw.basic_functio import motif as motif_mod
 import draw.read_snap_xml as read_snap_xml
 
+def _adj_to_undirected_edge_keys(adj: Dict[int, set]) -> set:
+    keys = set()
+    for u, vs in (adj or {}).items():
+        uu = int(u)
+        for v in (vs or []):
+            vv = int(v)
+            if uu == vv:
+                continue
+            a, b = (uu, vv) if uu < vv else (vv, uu)
+            keys.add((a, b))
+    return keys
 
 # ---------- 1) 安全表达式求值（只允许 + - * // % () 和变量名） ----------
 class _SafeEval(ast.NodeVisitor):
@@ -156,6 +167,24 @@ class TopologyRecorder:
         self.N = int(N)
         self.base_groupid: Optional[int] = None
         self._motifs: List[MotifSpec] = []
+
+    def render_option_edge_keys_at(self, t: int, eval_env: Optional[Dict[str, int]] = None) -> Dict[int, set]:
+        """
+        返回: { option: {(u,v), ...}, ... }，(u,v) 为无向边键(min,max)
+        """
+        out: Dict[int, set] = {}
+
+        for m in self._motifs_active_at(t, eval_env):
+            nodes: Dict = {}
+            motif_mod.write_distinct_motif(
+                m.p_start, m.p_end, m.y_start, m.y_end,
+                self.P, self.N, nodes, option=m.option
+            )
+            adj = motif_mod.transform_nodes_2_adjacent(nodes, self.P, self.N)
+            edge_keys = _adj_to_undirected_edge_keys(adj)
+            out.setdefault(int(m.option), set()).update(edge_keys)
+
+        return out
 
     # 保持老用法：对齐基准组
     def modify_group_data(self, group_data: Dict, base_groupid: int):

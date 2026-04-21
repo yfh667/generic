@@ -172,31 +172,31 @@ def export_region_pair_prob_timeseries_grid_four(
 #     p_intra=0.999,
 #     p_inter=0.99,
 # )
-export_region_pair_prob_timeseries_grid_four(
-    data_root=r"D:\paper3\data",
-    topology_version="gridx",
-    csv_dir_name="region_pairs_0_86164",
-    p_intra=0.999,
-    p_inter=0.99,
-)
-export_region_pair_prob_timeseries_grid_four(
-    data_root=r"D:\paper3\data",
-    topology_version="grid_plane_alternating",
-    csv_dir_name="region_pairs_0_86164",
-    p_intra=0.999,
-    p_inter=0.99,
-)
-export_region_pair_prob_timeseries_grid_four(
-    data_root=r"D:\paper3\data",
-    topology_version="grid_x_sparse",
-    csv_dir_name="region_pairs_0_86164",
-    p_intra=0.999,
-    p_inter=0.99,
-)
-export_region_pair_prob_timeseries_grid_four(
-    data_root=r"D:\paper3\data",
-    topology_version="grid+",
-    csv_dir_name="region_pairs_0_86164",
-    p_intra=0.999,
-    p_inter=0.99,
-)
+# export_region_pair_prob_timeseries_grid_four(
+#     data_root=r"D:\paper3\data",
+#     topology_version="gridx",
+#     csv_dir_name="region_pairs_0_86164",
+#     p_intra=0.999,
+#     p_inter=0.99,
+# )
+# export_region_pair_prob_timeseries_grid_four(
+#     data_root=r"D:\paper3\data",
+#     topology_version="grid_plane_alternating",
+#     csv_dir_name="region_pairs_0_86164",
+#     p_intra=0.999,
+#     p_inter=0.99,
+# )
+# export_region_pair_prob_timeseries_grid_four(
+#     data_root=r"D:\paper3\data",
+#     topology_version="grid_x_sparse",
+#     csv_dir_name="region_pairs_0_86164",
+#     p_intra=0.999,
+#     p_inter=0.99,
+# )
+# export_region_pair_prob_timeseries_grid_four(
+#     data_root=r"D:\paper3\data",
+#     topology_version="grid+",
+#     csv_dir_name="region_pairs_0_86164",
+#     p_intra=0.999,
+#     p_inter=0.99,
+# )

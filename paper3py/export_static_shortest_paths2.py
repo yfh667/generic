@@ -14,6 +14,7 @@
 #   "static_hop_table" + "compute_region_pair_timeseries" 那一整段
 # ====================================================================
 
+import json
 
 import argparse
 
@@ -45,6 +46,13 @@ def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')} | +{elapsed:8.2f}s] {msg}")
 
 
+import json
+
+def load_route_policy_json(path: Path):
+    with path.open("r", encoding="utf-8") as f:
+        p = json.load(f)
+    return p
+
 
 #0. 最初要改变的变量
 # Topology_Version = 'grid_four'
@@ -72,19 +80,59 @@ ROUTE_P_INTER = _args.route_p_inter
 SKIP_IF_EXISTS = _args.skip_if_exists
 
 
+def load_route_policy_json(policy_path: Path, *, fallback_mode: str, fallback_p_intra: float, fallback_p_inter: float):
+    if not policy_path.exists():
+        # 兼容：没有 json 时走旧参数
+        return {
+            "policy_name": f"{fallback_mode}_from_cli",
+            "route_mode": fallback_mode,
+            "p_intra": float(fallback_p_intra),
+            "default_p_inter": float(fallback_p_inter),
+            "option_p_inter": {},
+            "conflict_policy": "max_probability",
+        }
+
+    with policy_path.open("r", encoding="utf-8") as f:
+        p = json.load(f)
+
+    return {
+        "policy_name": str(p.get("policy_name", "route_policy")),
+        "route_mode": str(p.get("route_mode", fallback_mode)),
+        "p_intra": float(p.get("p_intra", fallback_p_intra)),
+        "default_p_inter": (None if p.get("default_p_inter", None) is None else float(p.get("default_p_inter"))),
+        "option_p_inter": dict(p.get("option_p_inter", {})),
+        "conflict_policy": str(p.get("conflict_policy", "max_probability")),
+    }
+
+
+def build_option_edge_keys_map(cfg, *, t: int, eval_env: dict):
+    """
+    返回 {option: {(u,v),...}}，(u,v) 为无向边键(min,max)
+    """
+    rec_tmp = TopologyRecorder(cfg.P, cfg.N)
+    rec_tmp._motifs = cfg.motifs
+
+    out = {}
+    # 用现有时窗逻辑筛 active motif
+    for m in rec_tmp._motifs_active_at(t, eval_env):
+        nodes = {}
+        motif_mod.write_distinct_motif(
+            m.p_start, m.p_end, m.y_start, m.y_end,
+            cfg.P, cfg.N, nodes, option=m.option
+        )
+        adj = motif_mod.transform_nodes_2_adjacent(nodes, cfg.P, cfg.N)
+        keys = static_hop_table.build_undirected_edge_keyset(adj)
+        out.setdefault(int(m.option), set()).update(keys)
+
+    return out
+
+
 
 # 路由策略:
 # - "min_hop": 最短跳数
 
 
 
-
-# - "max_reliability": 最稳链路（最大化路径可靠性乘积）
-ROUTE_MODE = "max_reliability"
-
-# ROUTE_MODE = "max_reliability" 时生效
-ROUTE_P_INTRA = 0.995
-ROUTE_P_INTER = 0.99
 
 
 
@@ -157,6 +205,17 @@ log("Step 1: 构建 × grid motif 静态拓扑")
 # 导入juptyer里已经弄好的motif configuration
 cfg = load_config(BASEDIR / Topology_DIR / Topology_Version/"config" / "motif.json")
 # 重建 recorder，把 motif 列表灌进去
+
+policy_path = BASEDIR / Topology_DIR / Topology_Version / "config" / "route_policy.json"
+route_policy = load_route_policy_json(
+    policy_path,
+    fallback_mode=ROUTE_MODE,
+    fallback_p_intra=ROUTE_P_INTRA,
+    fallback_p_inter=ROUTE_P_INTER,
+)
+ROUTE_MODE = route_policy["route_mode"]
+
+
 rec = TopologyRecorder(cfg.P, cfg.N)
 rec._motifs = cfg.motifs
 
@@ -209,20 +268,49 @@ log(f"  G: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
 if ROUTE_MODE == "max_reliability":
     inter_edge_keys = static_hop_table.build_undirected_edge_keyset(raw_inter_once)
-    cost_intra, cost_inter = static_hop_table.assign_reliability_cost_to_graph_edges(
-        G,
-        inter_edge_keys,
-        p_intra=ROUTE_P_INTRA,
-        p_inter=ROUTE_P_INTER,
-        cost_attr="cost",
-    )
+
+
+    # cost_intra, cost_inter = static_hop_table.assign_reliability_cost_to_graph_edges(
+    #     G,
+    #     inter_edge_keys,
+    #     p_intra=ROUTE_P_INTRA,
+    #     p_inter=ROUTE_P_INTER,
+    #     cost_attr="cost",
+    # )
+
+    if ROUTE_MODE == "max_reliability":
+        option_edge_keys_map = build_option_edge_keys_map(
+            cfg,
+            t=WIN_START,
+            eval_env={"start_ts": WIN_START, "end_ts": WIN_END},
+        )
+
+        summary = static_hop_table.assign_option_probability_cost_to_graph_edges(
+            G,
+            option_edge_keys_map,
+            p_intra=route_policy["p_intra"],
+            option_p_inter=route_policy.get("option_p_inter", {}),
+            default_p_inter=route_policy.get("default_p_inter", None),
+            conflict_policy=route_policy.get("conflict_policy", "max_probability"),
+            cost_attr="cost",
+        )
+
+        dist, next_hop = static_hop_table.precompute_weighted_cost_and_next_hop(
+            G, TOTAL_SATS, weight="cost"
+        )
+        log(f"  route_mode=max_reliability, policy={route_policy['policy_name']}, summary={summary}")
+
+    else:
+        dist, next_hop = static_hop_table.precompute_hop_and_next_hop(G, TOTAL_SATS)
+        log("  route_mode=min_hop")
+
     dist, next_hop = static_hop_table.precompute_weighted_cost_and_next_hop(
         G, TOTAL_SATS, weight="cost"
     )
-    log(
-        f"  route_mode=max_reliability, p_intra={ROUTE_P_INTRA}, p_inter={ROUTE_P_INTER}, "
-        f"cost_intra={cost_intra:.8f}, cost_inter={cost_inter:.8f}"
-    )
+    # log(
+    #     f"  route_mode=max_reliability, p_intra={ROUTE_P_INTRA}, p_inter={ROUTE_P_INTER}, "
+    #     f"cost_intra={cost_intra:.8f}, cost_inter={cost_inter:.8f}"
+    # )
 else:
     dist, next_hop = static_hop_table.precompute_hop_and_next_hop(G, TOTAL_SATS)
     log("  route_mode=min_hop")
@@ -306,9 +394,13 @@ log("Step 5: 流式导出最短路径 CSV")
 # out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}"
 
 if ROUTE_MODE == "max_reliability":
-    route_tag = f"maxrel_pi{ROUTE_P_INTRA}_pe{ROUTE_P_INTER}"
+    route_tag = route_policy.get("policy_name", "maxrel_option")
 else:
-    route_tag = "minhop"
+    route_tag = route_policy.get("policy_name", "minhop")
+
+route_tag = str(route_tag).replace(" ", "_")
+out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}_{route_tag}"
+
 
 out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}_{route_tag}"
 
