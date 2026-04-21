@@ -42,10 +42,10 @@ G60_CONFIG = ViewerConfig(
     P=18,
     # 这里就要根据实际进行修改
     station_groups={
-        0: {"name": "Group 0", "stations": list(range(0, 5))},
-        1: {"name": "Group 1", "stations": list(range(5, 11))},
-        2: {"name": "Group 2", "stations": list(range(11, 23))},
-        3: {"name": "Group 3", "stations": list(range(23, 31))},
+        0: {"name": "America", "stations": list(range(0, 5))},
+        1: {"name": "Africa", "stations": list(range(5, 11))},
+        2: {"name": "China", "stations": list(range(11, 23))},
+        3: {"name": "Europe", "stations": list(range(23, 31))},
 
     },
     group_colors=[

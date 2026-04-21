@@ -6,6 +6,54 @@ def _to_i(x):
     try: return int(x)
     except: return None
 
+
+def build_undirected_edge_keyset(adj_dict):
+    """
+    把 {u: [v1, v2, ...]} 形式的邻接表转成无向边键集合 {(min(u,v), max(u,v)), ...}
+    """
+    keys = set()
+    for u, vs in (adj_dict or {}).items():
+        uu = _to_i(u)
+        if uu is None or not vs:
+            continue
+        for v in vs:
+            vv = _to_i(v)
+            if vv is None or vv == uu:
+                continue
+            a, b = (uu, vv) if uu < vv else (vv, uu)
+            keys.add((a, b))
+    return keys
+
+
+def assign_reliability_cost_to_graph_edges(
+    G,
+    inter_edge_keys,
+    *,
+    p_intra: float,
+    p_inter: float,
+    cost_attr: str = "cost",
+):
+    """
+    给图边打 cost：
+      同轨边 cost = -log(p_intra)
+      异轨边 cost = -log(p_inter)
+    """
+    if not (0 < p_intra <= 1 and 0 < p_inter <= 1):
+        raise ValueError("p_intra / p_inter 必须在 (0, 1]")
+
+    cost_intra = float(-np.log(float(p_intra)))
+    cost_inter = float(-np.log(float(p_inter)))
+
+    for u, v in G.edges():
+        a, b = (int(u), int(v))
+        if a > b:
+            a, b = b, a
+        G[u][v][cost_attr] = cost_inter if (a, b) in inter_edge_keys else cost_intra
+
+    return cost_intra, cost_inter
+
+
+
 def build_static_graph(all_edges, total_sats, ref_step=None, undirected=True):
     steps = sorted(s for s in (_to_i(k) for k in all_edges.keys()) if s is not None)
     if not steps: raise ValueError("all_edges is empty")
@@ -167,6 +215,42 @@ def precompute_hop_and_next_hop(G, total_sats):
             next_hop[s, d] = s if h == 0 else int(p[1])
 
     return dist, next_hop
+
+
+
+def precompute_weighted_cost_and_next_hop(G, total_sats, *, weight="cost"):
+    """
+    对带权图预计算:
+      dist[s, d] = 从 s 到 d 的最小累计 cost
+      next_hop[s, d] = s 到 d 的下一跳节点
+    """
+    n = int(total_sats)
+    dist = np.full((n, n), np.inf, dtype=np.float32)
+    next_hop = np.full((n, n), -1, dtype=np.int32)
+
+    for i in range(n):
+        dist[i, i] = 0.0
+        next_hop[i, i] = i
+
+    for s in range(n):
+        if s not in G:
+            continue
+
+        lengths, paths = nx.single_source_dijkstra(G, source=s, weight=weight)
+
+        for d, c in lengths.items():
+            if not (0 <= d < n):
+                continue
+            dist[s, d] = float(c)
+
+            p = paths.get(d, [])
+            if not p:
+                continue
+            next_hop[s, d] = s if len(p) == 1 else int(p[1])
+
+    return dist, next_hop
+
+
 def reconstruct_path(next_hop, s, d):
     n = next_hop.shape[0]
     s = int(s); d = int(d)

@@ -15,6 +15,9 @@
 # ====================================================================
 
 
+import argparse
+
+
 import sys
 import time
 import numpy as np
@@ -44,7 +47,45 @@ def log(msg):
 
 
 #0. 最初要改变的变量
-Topology_Version = 'grid_four'
+# Topology_Version = 'grid_four'
+
+DEFAULT_TOPOLOGY_VERSION = "grid_four"
+DEFAULT_ROUTE_MODE = "max_reliability"   # min_hop | max_reliability
+DEFAULT_ROUTE_P_INTRA = 0.995
+DEFAULT_ROUTE_P_INTER = 0.99
+
+def _parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--topology-version", default=DEFAULT_TOPOLOGY_VERSION)
+    p.add_argument("--route-mode", choices=["min_hop", "max_reliability"], default=DEFAULT_ROUTE_MODE)
+    p.add_argument("--route-p-intra", type=float, default=DEFAULT_ROUTE_P_INTRA)
+    p.add_argument("--route-p-inter", type=float, default=DEFAULT_ROUTE_P_INTER)
+    p.add_argument("--skip-if-exists", action="store_true")
+    return p.parse_args()
+
+_args = _parse_args()
+
+Topology_Version = _args.topology_version
+ROUTE_MODE = _args.route_mode
+ROUTE_P_INTRA = _args.route_p_intra
+ROUTE_P_INTER = _args.route_p_inter
+SKIP_IF_EXISTS = _args.skip_if_exists
+
+
+
+# 路由策略:
+# - "min_hop": 最短跳数
+
+
+
+
+# - "max_reliability": 最稳链路（最大化路径可靠性乘积）
+ROUTE_MODE = "max_reliability"
+
+# ROUTE_MODE = "max_reliability" 时生效
+ROUTE_P_INTRA = 0.995
+ROUTE_P_INTER = 0.99
+
 
 
 
@@ -164,7 +205,29 @@ G = static_hop_table.build_static_graph(
 
 log(f"  G: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
-dist, next_hop = static_hop_table.precompute_hop_and_next_hop(G, TOTAL_SATS)
+# dist, next_hop = static_hop_table.precompute_hop_and_next_hop(G, TOTAL_SATS)
+
+if ROUTE_MODE == "max_reliability":
+    inter_edge_keys = static_hop_table.build_undirected_edge_keyset(raw_inter_once)
+    cost_intra, cost_inter = static_hop_table.assign_reliability_cost_to_graph_edges(
+        G,
+        inter_edge_keys,
+        p_intra=ROUTE_P_INTRA,
+        p_inter=ROUTE_P_INTER,
+        cost_attr="cost",
+    )
+    dist, next_hop = static_hop_table.precompute_weighted_cost_and_next_hop(
+        G, TOTAL_SATS, weight="cost"
+    )
+    log(
+        f"  route_mode=max_reliability, p_intra={ROUTE_P_INTRA}, p_inter={ROUTE_P_INTER}, "
+        f"cost_intra={cost_intra:.8f}, cost_inter={cost_inter:.8f}"
+    )
+else:
+    dist, next_hop = static_hop_table.precompute_hop_and_next_hop(G, TOTAL_SATS)
+    log("  route_mode=min_hop")
+
+
 log(f"  dist matrix shape={dist.shape}")
 
 
@@ -240,7 +303,17 @@ log(f"  expected_rows={len(steps) * len(pairs):,}")
 
 log("Step 5: 流式导出最短路径 CSV")
 
-out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}"
+# out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}"
+
+if ROUTE_MODE == "max_reliability":
+    route_tag = f"maxrel_pi{ROUTE_P_INTRA}_pe{ROUTE_P_INTER}"
+else:
+    route_tag = "minhop"
+
+out_dir = FIGURE_DIR / f"region_pairs_{steps[0]}_{steps[-1]}_{route_tag}"
+
+
+
 csv_paths = export_pair_csvs_streaming(
     dist=dist,
     next_hop=next_hop,

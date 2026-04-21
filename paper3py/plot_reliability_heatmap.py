@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from matplotlib.colors import Normalize, LinearSegmentedColormap
 
 def _region_pair_sort_key(s: str):
     m = re.match(r"region(\d+)_to_region(\d+)", str(s))
@@ -11,6 +12,27 @@ def _region_pair_sort_key(s: str):
         return (int(m.group(1)), int(m.group(2)))
     return (999, 999)
 
+REGION_NAME_MAP = {
+    "region1": "America",
+    "region2": "Africa",
+    "region3": "China",
+    "region4": "Europe",
+}
+
+def pretty_region_pair_label(region_pair: str) -> str:
+    m = re.match(r"^(region\d+)_to_(region\d+)$", str(region_pair))
+    if not m:
+        return str(region_pair)
+    a, b = m.group(1), m.group(2)
+    a_name = REGION_NAME_MAP.get(a, a)
+    b_name = REGION_NAME_MAP.get(b, b)
+    return f"{a_name}-{b_name}对"
+def _truncate_cmap(cmap_name="RdYlGn", minval=0.12, maxval=0.85, n=256):
+    base = plt.get_cmap(cmap_name)
+    return LinearSegmentedColormap.from_list(
+        f"{cmap_name}_trunc",
+        base(np.linspace(minval, maxval, n))
+    )
 
 def _find_best_timeseries_dir(motif_dir: Path):
     analysis = motif_dir / "analysis_link"
@@ -33,15 +55,22 @@ def _find_best_timeseries_dir(motif_dir: Path):
 
 
 def plot_cross_motif_regionpair_heatmap(
-    topology_root,
-    *,
-    motifs=None,
-    out_dir=None,
-    metric_col="mean_reliability",
-    annotate=True,
-    cmap="YlGnBu",
-    figsize=(11, 5),
-    dpi=300,
+        topology_root,
+        *,
+        motifs=None,
+        out_dir=None,
+        metric_col="mean_reliability",
+        annotate=True,
+        cmap="RdYlGn",  # 原来是 YlGnBu
+        cmap_min=0.12,  # 避开最浅端
+        cmap_max=0.85,  # 避开最深端
+        vmin=None,
+        vmax=None,
+        robust=True,
+        q_low=0.02,
+        q_high=0.98,
+        figsize=(11, 5),
+        dpi=300,
 ):
     topology_root = Path(topology_root)
     if motifs is None:
@@ -109,18 +138,45 @@ def plot_cross_motif_regionpair_heatmap(
     mat = mat.reindex(columns=motifs)
     mat.to_csv(out_dir / "02_heatmap_matrix.csv", encoding="utf-8-sig")
 
+
+
     # 03) 热力图
     data = mat.to_numpy(dtype=float)
-    cmap_obj = plt.get_cmap(cmap).copy()
-    cmap_obj.set_bad("white")
+    valid = data[~np.isnan(data)]
+    if valid.size == 0:
+        raise ValueError("heatmap matrix 全是 NaN，无法绘图")
+
+    if vmin is None or vmax is None:
+        if robust:
+            lo, hi = np.quantile(valid, [q_low, q_high])
+        else:
+            lo, hi = float(valid.min()), float(valid.max())
+        if vmin is None:
+            vmin = float(lo)
+        if vmax is None:
+            vmax = float(hi)
+
+    if vmax <= vmin:
+        vmax = vmin + 1e-9
+
+    cmap_obj = _truncate_cmap(cmap_name=cmap, minval=cmap_min, maxval=cmap_max)
+    cmap_obj.set_bad("#f5f5f5")
+    norm = Normalize(vmin=vmin, vmax=vmax)
 
     fig, ax = plt.subplots(figsize=figsize)
-    im = ax.imshow(data, aspect="auto", interpolation="nearest", cmap=cmap_obj)
+    im = ax.imshow(
+        data,
+        aspect="auto",
+        interpolation="nearest",
+        cmap=cmap_obj,
+        norm=norm,
+    )
 
     ax.set_xticks(np.arange(len(mat.columns)))
     ax.set_xticklabels(mat.columns.tolist(), rotation=45, ha="right")
     ax.set_yticks(np.arange(len(mat.index)))
-    ax.set_yticklabels(mat.index.tolist())
+  #  ax.set_yticklabels(mat.index.tolist())
+    ax.set_yticklabels([pretty_region_pair_label(x) for x in mat.index.tolist()])
 
     ax.set_xlabel("motif")
     ax.set_ylabel("region_pair")
@@ -130,8 +186,18 @@ def plot_cross_motif_regionpair_heatmap(
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
                 val = data[i, j]
-                if not np.isnan(val):
-                    ax.text(j, i, f"{val:.4f}", ha="center", va="center", fontsize=8)
+                if np.isnan(val):
+                    continue
+
+                r, g, b, _ = cmap_obj(norm(val))
+                luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                txt_color = "black" if luma > 0.58 else "white"
+
+                ax.text(
+                    j, i, f"{val:.4f}",
+                    ha="center", va="center",
+                    fontsize=8, color=txt_color, fontweight="bold"
+                )
 
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label("mean probability")
@@ -153,4 +219,14 @@ if not root.exists():
     root = Path(r"C:\user\data\topology_design")
 
 motif_order = ["grid_four", "gridx", "grid_plane_alternating", "grid_x_sparse", "grid+"]
-plot_cross_motif_regionpair_heatmap(root, motifs=motif_order)
+plot_cross_motif_regionpair_heatmap(
+    root,
+    motifs=motif_order,
+    cmap="RdYlGn",
+    cmap_min=0.12,
+    cmap_max=0.85,
+    robust=True,
+    q_low=0.01,
+    q_high=0.99,
+)
+
