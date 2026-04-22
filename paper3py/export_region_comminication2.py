@@ -246,45 +246,123 @@ def export_region_pair_prob_timeseries_grid_four(
 #     p_intra=0.999,
 #     p_inter=0.99,
 # )
+def _parse_csv_dir_map(topology_versions, csv_dir_name: str, csv_dir_list: str):
+    """
+    返回 dict: {topology_version: csv_dir_name}
+    规则：
+    - 只给 csv_dir_name：所有 motif 共用一个目录名
+    - 给 csv_dir_list：
+      1 个值 -> 广播给所有 motif
+      N 个值 -> 必须和 topology_versions 等长，一一对应
+    """
+    topology_versions = list(topology_versions)
 
-# 文件末尾新增
+    if not csv_dir_list:
+        return {tv: csv_dir_name for tv in topology_versions}
+
+    dirs = [x.strip() for x in csv_dir_list.split(",") if x.strip()]
+    if len(dirs) == 1:
+        return {tv: dirs[0] for tv in topology_versions}
+    if len(dirs) != len(topology_versions):
+        raise ValueError(
+            f"--csv-dir-list 数量({len(dirs)}) 必须是 1 或与 --topology-list 数量({len(topology_versions)})相同"
+        )
+    return {tv: d for tv, d in zip(topology_versions, dirs)}
+
+
+def export_region_pair_prob_timeseries_batch(
+    *,
+    data_root: str,
+    topology_versions: list[str],
+    csv_dir_map: dict[str, str],
+    fail_fast: bool = False,
+):
+    data_root_p = Path(data_root)
+    run_rows = []
+
+    for idx, tv in enumerate(topology_versions, start=1):
+        cur_csv_dir = csv_dir_map[tv]
+        print(f"[batch] ({idx}/{len(topology_versions)}) motif={tv}, csv_dir={cur_csv_dir}")
+        try:
+            export_region_pair_prob_timeseries_grid_four(
+                data_root=str(data_root_p),
+                topology_version=tv,
+                csv_dir_name=cur_csv_dir,
+            )
+            run_rows.append(
+                {"topology_version": tv, "csv_dir_name": cur_csv_dir, "status": "ok", "error": ""}
+            )
+        except Exception as e:
+            run_rows.append(
+                {"topology_version": tv, "csv_dir_name": cur_csv_dir, "status": "failed", "error": str(e)}
+            )
+            print(f"[batch] failed: motif={tv} -> {e}")
+            if fail_fast:
+                break
+
+    batch_out = data_root_p / "topology_design" / "_batch_region_pair_prob_timeseries"
+    batch_out.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(run_rows).to_csv(batch_out / "batch_summary.csv", index=False, encoding="utf-8-sig")
+    print(f"[batch] summary -> {batch_out / 'batch_summary.csv'}")
 if __name__ == "__main__":
     import argparse
     import sys
 
-    # 默认配置：直接点运行就用这组
     DEFAULT_DATA_ROOT = r"D:\paper3\data"
-    DEFAULT_TOPOLOGY_VERSION = "grid_four"
+
+    # 无参数时默认串行跑这几个
+    DEFAULT_TOPOLOGY_LIST = [
+        "grid_four",
+        "gridx",
+        "grid_plane_alternating",
+        "grid_x_sparse",
+        "grid+",
+    ]
+
+    # 默认所有 motif 使用同一个 csv dir 名（你可改成你的 policy 目录名）
     DEFAULT_CSV_DIR_NAME = "region_pairs_0_86164_minhop_v1"
 
-    # 无参数：直接跑默认配置
     if len(sys.argv) == 1:
-        export_region_pair_prob_timeseries_grid_four(
+        csv_dir_map = {tv: DEFAULT_CSV_DIR_NAME for tv in DEFAULT_TOPOLOGY_LIST}
+        export_region_pair_prob_timeseries_batch(
             data_root=DEFAULT_DATA_ROOT,
-            topology_version=DEFAULT_TOPOLOGY_VERSION,
-            csv_dir_name=DEFAULT_CSV_DIR_NAME,
+            topology_versions=DEFAULT_TOPOLOGY_LIST,
+            csv_dir_map=csv_dir_map,
+            fail_fast=False,
         )
     else:
-        # 有参数：可覆盖默认配置
         ap = argparse.ArgumentParser()
         ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
-        ap.add_argument("--topology-version", default=DEFAULT_TOPOLOGY_VERSION)
+
+        # 单 motif（兼容旧用法）
+        ap.add_argument("--topology-version", default="grid_four")
+
+        # 多 motif（新用法，逗号分隔）
+        ap.add_argument("--topology-list", default="")
+
+        # 目录名：单值
         ap.add_argument("--csv-dir-name", default=DEFAULT_CSV_DIR_NAME)
+
+        # 目录名：多值（逗号分隔），可 1 个或与 topology-list 等长
+        ap.add_argument("--csv-dir-list", default="")
+
+        ap.add_argument("--fail-fast", action="store_true")
         args = ap.parse_args()
 
-        export_region_pair_prob_timeseries_grid_four(
-            data_root=args.data_root,
-            topology_version=args.topology_version,
+        if args.topology_list.strip():
+            topology_versions = [x.strip() for x in args.topology_list.split(",") if x.strip()]
+        else:
+            topology_versions = [args.topology_version]
+
+        csv_dir_map = _parse_csv_dir_map(
+            topology_versions=topology_versions,
             csv_dir_name=args.csv_dir_name,
+            csv_dir_list=args.csv_dir_list,
         )
 
-
-
-
-
-
-
-# python C:\user\generic\paper3py\export_region_comminication2.py `
-#   --data-root D:\paper3\data `
-#   --topology-version grid_four `
-#   --csv-dir-name region_pairs_0_86164_maxrel_option_weighted_v1
+        export_region_pair_prob_timeseries_batch(
+            data_root=args.data_root,
+            topology_versions=topology_versions,
+            csv_dir_map=csv_dir_map,
+            fail_fast=args.fail_fast,
+        )

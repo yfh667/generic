@@ -1,9 +1,9 @@
 # =====================================================================
-# export_all_pair_global_stat_paralle.py
+# export_region_comminication2.py
 #
-# Read route path CSVs produced by export_static_shortest_paths2.py,
-# generate per-pair reliability time-series CSVs, and write one global
-# station-pair statistics CSV per motif.
+# Read route/probability CSVs and generate region-pair communication
+# probability statistics. The file name keeps the original spelling used
+# by the project for compatibility.
 # =====================================================================
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from src.paper3_route.parallel import run_motifs_parallel, print_motif_results
 from src.paper3_route.route_policy import load_route_policy, normalize_motif_names
-from src.paper3_route.probability import export_global_probability_stats_for_motif
+from src.paper3_route.region_communication import export_region_communication_for_motif
 
 
 DATA_ROOT_DEFAULT = Path(r"D:\paper3\data")
@@ -26,21 +26,19 @@ def _worker(
     *,
     data_root: str,
     route_policy_path: str,
-    save_timeseries: bool,
-    pair_workers: int | None,
+    prefer_probability_timeseries: bool,
 ) -> dict:
-    return export_global_probability_stats_for_motif(
+    return export_region_communication_for_motif(
         motif_name,
         data_root=data_root,
         route_policy_path=route_policy_path,
-        save_timeseries=save_timeseries,
-        pair_workers=pair_workers,
+        prefer_probability_timeseries=prefer_probability_timeseries,
     )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate all station-pair reliability statistics from route path CSVs."
+        description="Generate region-pair communication reliability CSVs."
     )
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT_DEFAULT)
     parser.add_argument("--route-policy", type=Path, default=ROUTE_POLICY_DEFAULT)
@@ -57,15 +55,9 @@ def parse_args() -> argparse.Namespace:
         help="Number of motif-level worker processes. Defaults to route JSON parallel.motif_workers.",
     )
     parser.add_argument(
-        "--pair-workers",
-        type=int,
-        default=None,
-        help="Thread workers inside each motif for reading/writing pair CSVs. Defaults to route JSON parallel.pair_workers.",
-    )
-    parser.add_argument(
-        "--no-save-timeseries",
+        "--from-path-csv",
         action="store_true",
-        help="Only write all_pair_global_stat.csv; do not save reliability time-series copies.",
+        help="Ignore probability/pair_timeseries and recompute reliability directly from path CSVs.",
     )
     return parser.parse_args()
 
@@ -80,14 +72,12 @@ def main() -> None:
         fallback=MOTIFS_DEFAULT,
     )
     workers = max(1, int(args.workers or policy.motif_workers))
-    pair_workers = args.pair_workers if args.pair_workers is not None else policy.pair_workers
 
     print(f"route_policy = {args.route_policy}")
     print(f"route_name   = {policy.route_name}")
     print(f"data_root    = {args.data_root}")
     print(f"motifs       = {motifs}")
     print(f"workers      = {workers}")
-    print(f"pair_workers = {pair_workers}")
 
     results = run_motifs_parallel(
         motifs,
@@ -96,8 +86,7 @@ def main() -> None:
         worker_kwargs={
             "data_root": str(args.data_root),
             "route_policy_path": str(args.route_policy),
-            "save_timeseries": not args.no_save_timeseries,
-            "pair_workers": pair_workers,
+            "prefer_probability_timeseries": not args.from_path_csv,
         },
     )
     print_motif_results(results)

@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 
 ## 参数区
 
-Topology_Version = 'grid_x_sparse'
+Topology_Version = 'grid_four'
 P_INTRA = 0.999
 P_INTER = 0.99
 P = 18
@@ -56,7 +56,7 @@ ROUTE_POLICY = route_policy_probability.load_route_policy(
 POLICY_NAME = str(ROUTE_POLICY["policy_name"]).replace(" ", "_")
 
 
-STRICT_POLICY_CSV_DIR = True
+STRICT_POLICY_CSV_DIR = False
 
 def _resolve_csv_dir() -> Path:
     base = BASEDIR / Topology_DIR / Topology_Version / "path"
