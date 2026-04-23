@@ -290,20 +290,20 @@ def path_output_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str)
     tag = _safe_fs_tag(raw_tag)
     return base / f"{prefix}_{tag}"
 
-
+def station_pair_reliability_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
+    return route_output_root(data_root, policy, motif_name) / policy.output_subdir(
+        "station_pair_reliability_subdir",
+        "station_pair_reliability",
+    )
 
 def probability_pair_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
-    return (
-        route_output_root(data_root, policy, motif_name)
-        / policy.output_subdir("probability_subdir", "probability")
-        / "pair_timeseries"
-    )
+    return station_pair_reliability_dir(data_root, policy, motif_name) / "pair_timeseries"
 
 
 def global_stat_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
-    return route_output_root(data_root, policy, motif_name) / policy.output_subdir(
-        "global_stat_subdir", "global_stat"
-    )
+    return station_pair_reliability_dir(data_root, policy, motif_name)
+
+
 
 
 def region_communication_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:

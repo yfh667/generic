@@ -56,34 +56,108 @@ def _truncate_cmap(cmap_name="Blues", minval=0.12, maxval=0.95, n=256):
     )
 
 
-def _resolve_timeseries_dir(meta_path: Path) -> Path:
-    # already timeseries dir
-    if meta_path.is_dir() and list(meta_path.glob("*_timeseries.csv")):
-        return meta_path
+def _resolve_timeseries_dir(meta_path: Path, *, kind: str | None = None) -> Path:
+    """
+    Resolve a directory containing *_timeseries.csv.
+
+    kind:
+      "probability" -> prefer region_pair_probability_timeseries
+      "hops"        -> prefer region_pair_hops_timeseries
+      None          -> accept any compatible timeseries directory
+
+    Supports both old layout:
+      analysis_link/region_pair_prob_timeseries.../timeseries
+
+    and new layout:
+      region_communication/region_pair_probability_timeseries
+      region_communication/region_pair_hops_timeseries
+    """
+    meta_path = Path(meta_path)
 
     if not meta_path.exists():
         raise FileNotFoundError(f"meta_path not found: {meta_path}")
 
-    if meta_path.is_dir():
-        d1 = meta_path / "timeseries"
-        d2 = meta_path / "04_region_pair_timeseries"
-        if d1.exists() and list(d1.glob("*_timeseries.csv")):
-            return d1
-        if d2.exists() and list(d2.glob("*_timeseries.csv")):
-            return d2
+    def has_timeseries_csv(p: Path) -> bool:
+        return p.is_dir() and any(p.glob("*_timeseries.csv"))
 
-        cands = []
-        for p in meta_path.glob("region_pair_*timeseries*"):
-            t1 = p / "timeseries"
-            t2 = p / "04_region_pair_timeseries"
-            if t1.exists() and list(t1.glob("*_timeseries.csv")):
-                cands.append(t1)
-            if t2.exists() and list(t2.glob("*_timeseries.csv")):
-                cands.append(t2)
-        if cands:
-            return sorted(cands, key=lambda x: x.stat().st_mtime, reverse=True)[0]
+    if has_timeseries_csv(meta_path):
+        return meta_path
+
+    preferred_names: list[str] = []
+    if kind == "probability":
+        preferred_names = [
+            "region_pair_probability_timeseries",
+            "timeseries",
+            "04_region_pair_timeseries",
+        ]
+    elif kind == "hops":
+        preferred_names = [
+            "region_pair_hops_timeseries",
+            "timeseries",
+            "04_region_pair_timeseries",
+        ]
+    else:
+        preferred_names = [
+            "region_pair_probability_timeseries",
+            "region_pair_hops_timeseries",
+            "timeseries",
+            "04_region_pair_timeseries",
+        ]
+
+    for name in preferred_names:
+        p = meta_path / name
+        if has_timeseries_csv(p):
+            return p
+
+    cands: list[Path] = []
+
+    # New route-policy layout.
+    new_patterns = [
+        "region_communication/region_pair_probability_timeseries",
+        "region_communication/region_pair_hops_timeseries",
+        "route_policy/*/region_communication/region_pair_probability_timeseries",
+        "route_policy/*/region_communication/region_pair_hops_timeseries",
+    ]
+
+    # Old analysis_link layout.
+    old_patterns = [
+        "analysis_link/region_pair_prob_timeseries*/timeseries",
+        "analysis_link/region_pair_prob_timeseries*/04_region_pair_timeseries",
+        "analysis_link/region_pair_hop_timeseries*/timeseries",
+        "analysis_link/region_pair_hop_timeseries*/04_region_pair_timeseries",
+        "analysis_link/region_pair_prob_timeseries_pi*_pe*/04_region_pair_timeseries",
+        "analysis_link/region_pair_prob_timeseries_simple*/timeseries",
+    ]
+
+    if kind == "probability":
+        patterns = [
+            "region_communication/region_pair_probability_timeseries",
+            "route_policy/*/region_communication/region_pair_probability_timeseries",
+            "analysis_link/region_pair_prob_timeseries*/timeseries",
+            "analysis_link/region_pair_prob_timeseries*/04_region_pair_timeseries",
+            "analysis_link/region_pair_prob_timeseries_pi*_pe*/04_region_pair_timeseries",
+            "analysis_link/region_pair_prob_timeseries_simple*/timeseries",
+        ]
+    elif kind == "hops":
+        patterns = [
+            "region_communication/region_pair_hops_timeseries",
+            "route_policy/*/region_communication/region_pair_hops_timeseries",
+            "analysis_link/region_pair_hop_timeseries*/timeseries",
+            "analysis_link/region_pair_hop_timeseries*/04_region_pair_timeseries",
+        ]
+    else:
+        patterns = new_patterns + old_patterns
+
+    for pat in patterns:
+        for p in meta_path.glob(pat):
+            if has_timeseries_csv(p):
+                cands.append(p)
+
+    if cands:
+        return sorted(cands, key=lambda x: x.stat().st_mtime, reverse=True)[0]
 
     raise FileNotFoundError(f"cannot resolve timeseries dir from meta_path: {meta_path}")
+
 
 
 def _find_latest_dir(motif_dir: Path, patterns: list[str]) -> Path | None:
@@ -118,11 +192,11 @@ def collect_long_metrics(cfg: dict, out_dir: Path):
         motif_order.append(motif)
 
         rel_metric_col = str(it.get("reliability_metric_col", "mean_reliability"))
-        rel_dir = _resolve_timeseries_dir(Path(it["reliability_meta_path"]))
+        rel_dir = _resolve_timeseries_dir(Path(it["reliability_meta_path"]), kind="probability")
 
         hop_dir = None
         if it.get("hop_meta_path"):
-            hop_dir = _resolve_timeseries_dir(Path(it["hop_meta_path"]))
+            hop_dir = _resolve_timeseries_dir(Path(it["hop_meta_path"]), kind="hops")
 
         rel_files = sorted(rel_dir.glob("*_timeseries.csv"))
 
@@ -323,17 +397,49 @@ def _default_config_path() -> Path:
 
 
 def auto_build_config(topology_root: Path, motifs: list[str] | None = None, output_dir: Path | None = None) -> dict:
+    """
+    Auto-build config from current topology_design layout.
+
+    Supports new layout:
+      <topology_root>/<motif>/region_communication/
+        region_pair_probability_timeseries/
+        region_pair_hops_timeseries/
+
+    Also supports by-route layout:
+      <topology_root>/<motif>/route_policy/<route_name>/region_communication/
+        region_pair_probability_timeseries/
+        region_pair_hops_timeseries/
+
+    Keeps old analysis_link discovery as fallback.
+    """
     topology_root = Path(topology_root)
+
     if motifs is None:
-        motifs = sorted([p.name for p in topology_root.iterdir() if p.is_dir() and not p.name.startswith("_")])
+        motifs = sorted(
+            [
+                p.name
+                for p in topology_root.iterdir()
+                if p.is_dir() and not p.name.startswith("_")
+            ]
+        )
 
     items = []
+
     for motif in motifs:
         motif_dir = topology_root / motif
+        if not motif_dir.exists():
+            continue
 
         rel_dir = _find_latest_dir(
             motif_dir,
             [
+                # New by_motif layout.
+                "region_communication/region_pair_probability_timeseries",
+
+                # New by_route layout.
+                "route_policy/*/region_communication/region_pair_probability_timeseries",
+
+                # Old layout fallback.
                 "analysis_link/region_pair_prob_timeseries_policy*/timeseries",
                 "analysis_link/region_pair_prob_timeseries_policy*/04_region_pair_timeseries",
                 "analysis_link/region_pair_prob_timeseries_simple*/timeseries",
@@ -344,7 +450,15 @@ def auto_build_config(topology_root: Path, motifs: list[str] | None = None, outp
         hop_dir = _find_latest_dir(
             motif_dir,
             [
+                # New by_motif layout.
+                "region_communication/region_pair_hops_timeseries",
+
+                # New by_route layout.
+                "route_policy/*/region_communication/region_pair_hops_timeseries",
+
+                # Old layout fallback.
                 "analysis_link/region_pair_hop_timeseries*/timeseries",
+                "analysis_link/region_pair_hop_timeseries*/04_region_pair_timeseries",
             ],
         )
 
@@ -361,7 +475,10 @@ def auto_build_config(topology_root: Path, motifs: list[str] | None = None, outp
         )
 
     if not items:
-        raise ValueError("auto_build_config found no usable motif directories")
+        raise ValueError(
+            "auto_build_config found no usable motif directories. "
+            "Expected region_communication/region_pair_probability_timeseries under each motif."
+        )
 
     if output_dir is None:
         output_dir = topology_root / "_cross_motif_regionpair_panels"
@@ -372,7 +489,7 @@ def auto_build_config(topology_root: Path, motifs: list[str] | None = None, outp
             "region1": "America",
             "region2": "Africa",
             "region3": "China",
-            "region4": "Europe"
+            "region4": "Europe",
         },
         "items": items,
         "panel": {
@@ -382,11 +499,10 @@ def auto_build_config(topology_root: Path, motifs: list[str] | None = None, outp
             "q_low": 0.02,
             "q_high": 0.98,
             "dpi": 300,
-            "figsize": [16, 12],
-            "title": "Region-Pair Metrics Across Motifs"
-        }
+            "figsize": [16, 10],
+            "title": "Region-Pair Reliability and Hops Across Motifs",
+        },
     }
-
 
 def main():
     ap = argparse.ArgumentParser()

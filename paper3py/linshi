@@ -1,0 +1,1 @@
+python -m paper3py.test2 --config D:\paper3\data\postprocess\test.config.json
