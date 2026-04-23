@@ -290,11 +290,54 @@ def path_output_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str)
     tag = _safe_fs_tag(raw_tag)
     return base / f"{prefix}_{tag}"
 
+# def station_pair_reliability_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
+#     return route_output_root(data_root, policy, motif_name) / policy.output_subdir(
+#         "station_pair_reliability_subdir",
+#         "station_pair_reliability",
+#     )
+#
+# def probability_pair_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
+#     return station_pair_reliability_dir(data_root, policy, motif_name) / "pair_timeseries"
+#
+#
+# def global_stat_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
+#     return station_pair_reliability_dir(data_root, policy, motif_name)
+#
+
+def _route_tag(policy: RoutePolicy) -> str:
+    """
+    Stable short route tag for output folders.
+
+    Default:
+      route1.json -> route1
+
+    Fallback:
+      route_name -> safe fs tag
+    """
+    tag_source = str(policy.get("outputs.route_tag_source", "policy_file")).strip().lower()
+
+    if tag_source == "policy_file" and policy.path is not None:
+        raw_tag = policy.path.stem
+    elif tag_source == "route_name":
+        raw_tag = policy.route_name
+    else:
+        raw_tag = policy.route_name
+
+    return _safe_fs_tag(raw_tag)
+
+
 def station_pair_reliability_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
-    return route_output_root(data_root, policy, motif_name) / policy.output_subdir(
+    base_name = policy.output_subdir(
         "station_pair_reliability_subdir",
         "station_pair_reliability",
     )
+
+    append_tag = bool(policy.get("outputs.station_pair_reliability_append_route_tag", True))
+    if append_tag:
+        base_name = f"{base_name}_{_route_tag(policy)}"
+
+    return route_output_root(data_root, policy, motif_name) / base_name
+
 
 def probability_pair_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
     return station_pair_reliability_dir(data_root, policy, motif_name) / "pair_timeseries"
@@ -302,8 +345,6 @@ def probability_pair_dir(data_root: str | Path, policy: RoutePolicy, motif_name:
 
 def global_stat_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:
     return station_pair_reliability_dir(data_root, policy, motif_name)
-
-
 
 
 def region_communication_dir(data_root: str | Path, policy: RoutePolicy, motif_name: str) -> Path:

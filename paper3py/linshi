@@ -1,1 +1,1 @@
-python -m paper3py.test2 --config D:\paper3\data\postprocess\test.config.json
+python -m paper3py.plot_region_prbability_hops --config D:\paper3\data\postprocess\test.config.json

@@ -61,6 +61,24 @@ def first_existing_path(*paths):
         if p.exists():
             return p
     return Path(paths[0])
+def first_ephemeris_dir(*paths):
+    """
+    Select the first ephemeris directory that actually contains .e files.
+
+    first_existing_path() is not enough here because an old empty directory may
+    still exist and would be selected before the real migrated data directory.
+    """
+    checked = [Path(raw) for raw in paths]
+
+    for p in checked:
+        if p.exists() and p.is_dir() and any(p.glob("*.e")):
+            return p
+
+    for p in checked:
+        if p.exists() and p.is_dir():
+            return p
+
+    return checked[0]
 
 
 COUNTRY_SHP_PATH = first_existing_path(
@@ -69,11 +87,23 @@ COUNTRY_SHP_PATH = first_existing_path(
     r"C:\user\data\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp",
 )
 
-EPHEM_DIR = first_existing_path(
+# EPHEM_DIR = first_existing_path(
+#     PROJECT_DIR / "data" / "satellitesposition" / "satellite_pos",
+#     r"D:\paper3\data\satellitesposition\satellite_pos",
+#     r"C:\user\data\satellitesposition\satellite_pos",
+# )
+EPHEM_DIR = first_ephemeris_dir(
+    # New data layout.
+    PROJECT_DIR / "data" / "basic_file" / "satellitesposition" / "satellite_pos",
+    r"D:\paper3\data\basic_file\satellitesposition\satellite_pos",
+    r"C:\user\data\basic_file\satellitesposition\satellite_pos",
+
+    # Old data layout fallback.
     PROJECT_DIR / "data" / "satellitesposition" / "satellite_pos",
     r"D:\paper3\data\satellitesposition\satellite_pos",
     r"C:\user\data\satellitesposition\satellite_pos",
 )
+
 
 EXTERNAL_CACHE_ROOT = EPHEM_DIR / "_cache"
 CACHE_DIR = EXTERNAL_CACHE_ROOT / "cache_86164s_1s"
@@ -599,7 +629,9 @@ class GlobeSatDemo(QWidget):
         auto_play=False,
         timer_interval_ms=200,
         initial_step=0,
+        ephem_dir=None,
     ):
+
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
@@ -612,8 +644,16 @@ class GlobeSatDemo(QWidget):
         self.step_s = int(step_s)
         self.timer_interval_ms = max(1, int(timer_interval_ms))
 
+        # self.preview_meta, self.ephem_times_s, self.ephem_positions, self.sat_ids = load_all_ephemerides(
+        #     EPHEM_DIR,
+        #     self.start_s,
+        #     self.end_s,
+        #     step_s=self.step_s,
+        # )
+        self.ephem_dir = Path(ephem_dir) if ephem_dir is not None else EPHEM_DIR
+
         self.preview_meta, self.ephem_times_s, self.ephem_positions, self.sat_ids = load_all_ephemerides(
-            EPHEM_DIR,
+            self.ephem_dir,
             self.start_s,
             self.end_s,
             step_s=self.step_s,
@@ -2133,7 +2173,9 @@ def create_globe_demo(
     auto_play=False,
     timer_interval_ms=200,
     initial_step=0,
+    ephem_dir=None,
 ):
+
     app = get_or_create_qapp()
     window = GlobeSatDemo(
         P=P,
@@ -2144,7 +2186,9 @@ def create_globe_demo(
         auto_play=auto_play,
         timer_interval_ms=timer_interval_ms,
         initial_step=initial_step,
+        ephem_dir=ephem_dir,
     )
+
     return app, window
 
 
@@ -2157,6 +2201,7 @@ def show_globe_demo(
     auto_play=False,
     timer_interval_ms=200,
     initial_step=0,
+    ephem_dir=None,
 ):
     app, window = create_globe_demo(
         P=P,
@@ -2167,6 +2212,7 @@ def show_globe_demo(
         auto_play=auto_play,
         timer_interval_ms=timer_interval_ms,
         initial_step=initial_step,
+        ephem_dir=ephem_dir,
     )
 
     window.show()
