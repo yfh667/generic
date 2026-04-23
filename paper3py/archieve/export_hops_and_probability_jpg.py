@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 
 ## 参数区
 
-Topology_Version = 'grid+'
+Topology_Version = 'grid_four'
 P_INTRA = 0.999
 P_INTER = 0.99
 P = 18
