@@ -82,10 +82,17 @@ def first_ephemeris_dir(*paths):
 
 
 COUNTRY_SHP_PATH = first_existing_path(
+    # New data layout.
+    PROJECT_DIR / "data" / "basic_file" / "ne_50m_admin_0_countries" / "ne_50m_admin_0_countries.shp",
+    r"D:\paper3\data\basic_file\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp",
+    r"C:\user\data\basic_file\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp",
+
+    # Old data layout fallback.
     PROJECT_DIR / "data" / "ne_50m_admin_0_countries" / "ne_50m_admin_0_countries.shp",
     r"D:\paper3\data\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp",
     r"C:\user\data\ne_50m_admin_0_countries\ne_50m_admin_0_countries.shp",
 )
+
 
 # EPHEM_DIR = first_existing_path(
 #     PROJECT_DIR / "data" / "satellitesposition" / "satellite_pos",
@@ -326,20 +333,21 @@ def list_ephemeris_files(ephem_dir):
     return files
 
 
-def get_cache_dir(start_s, end_s, step_s=EPHEM_STEP_S):
+def get_cache_dir(start_s, end_s, step_s=EPHEM_STEP_S, cache_root=None):
     start_i = int(0 if start_s is None else start_s)
     end_i = int(end_s)
     step_i = int(step_s)
 
+    root = Path(cache_root) if cache_root is not None else EXTERNAL_CACHE_ROOT
+
     if start_i == 0 and end_i == 86164 and step_i == 1:
-        return CACHE_DIR
-    return EXTERNAL_CACHE_ROOT / f"cache_{start_i}_{end_i}_{step_i}s"
+        return root / "cache_86164s_1s"
 
-    #return SIM_OUTPUT_DIR / f"cache_{start_i}_{end_i}_{step_i}s"
+    return root / f"cache_{start_i}_{end_i}_{step_i}s"
 
 
-def get_cache_paths(start_s, end_s, step_s=EPHEM_STEP_S):
-    cache_dir = get_cache_dir(start_s, end_s, step_s)
+def get_cache_paths(start_s, end_s, step_s=EPHEM_STEP_S, cache_root=None):
+    cache_dir = get_cache_dir(start_s, end_s, step_s, cache_root=cache_root)
     return {
         "dir": cache_dir,
         "times": cache_dir / "times_s.npy",
@@ -349,6 +357,7 @@ def get_cache_paths(start_s, end_s, step_s=EPHEM_STEP_S):
         "report": cache_dir / "build_report.json",
         "progress": cache_dir / "parse_progress.jsonl",
     }
+
 
 
 def write_json(path, payload):
@@ -398,19 +407,22 @@ def build_expected_meta(ephem_dir, files, start_s, end_s, step_s):
     }
 
 
-def cache_meta_matches(cached_meta, expected_meta):
+def cache_meta_matches(cached_meta, expected_meta, *, ignore_source_dir=False):
     if not isinstance(cached_meta, dict):
         return False
 
     for key, value in expected_meta.items():
+        if ignore_source_dir and key == "source_dir":
+            continue
         if cached_meta.get(key) != value:
             return False
 
     return True
 
 
-def open_cached_ephemerides(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
-    paths = get_cache_paths(start_s, end_s, step_s)
+def open_cached_ephemerides(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S, cache_root=None):
+    paths = get_cache_paths(start_s, end_s, step_s, cache_root=cache_root)
+
 
    # required = ("times", "positions", "sat_ids", "meta", "report", "progress")
     required = ("times", "positions", "sat_ids", "meta")
@@ -427,10 +439,13 @@ def open_cached_ephemerides(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
     return cache_meta, times_s, positions_km, sat_ids
 
 
-def build_full_day_cache(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
+def build_full_day_cache(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S, cache_root=None):
     ephem_dir = Path(ephem_dir)
     files = list_ephemeris_files(ephem_dir)
-    paths = get_cache_paths(start_s, end_s, step_s)
+    paths = get_cache_paths(start_s, end_s, step_s, cache_root=cache_root)
+
+
+
     expected_meta = build_expected_meta(ephem_dir, files, start_s, end_s, step_s)
 
     paths["dir"].mkdir(parents=True, exist_ok=True)
@@ -594,15 +609,24 @@ def build_full_day_cache(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
         report["error"] = str(exc)
         write_json(paths["report"], report)
         raise
+    return open_cached_ephemerides(ephem_dir, start_s, end_s, step_s, cache_root=cache_root)
 
-    return open_cached_ephemerides(ephem_dir, start_s, end_s, step_s)
+    #return open_cached_ephemerides(ephem_dir, start_s, end_s, step_s)
 
 
-def load_all_ephemerides(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
+def load_all_ephemerides(
+    ephem_dir,
+    start_s,
+    end_s,
+    step_s=EPHEM_STEP_S,
+    cache_root=None,
+    ignore_cache_source_dir=False,
+):
     ephem_dir = Path(ephem_dir)
     files = list_ephemeris_files(ephem_dir)
-    paths = get_cache_paths(start_s, end_s, step_s)
+    paths = get_cache_paths(start_s, end_s, step_s, cache_root=cache_root)
     expected_meta = build_expected_meta(ephem_dir, files, start_s, end_s, step_s)
+
 
     #required = ("times", "positions", "sat_ids", "meta", "report", "progress"
     required = ("times", "positions", "sat_ids", "meta")
@@ -610,11 +634,28 @@ def load_all_ephemerides(ephem_dir, start_s, end_s, step_s=EPHEM_STEP_S):
     cache_ready = all(paths[key].exists() for key in required)
     cached_meta = read_json(paths["meta"]) if cache_ready else None
 
-    if cache_ready and cache_meta_matches(cached_meta, expected_meta):
+    if cache_ready and cache_meta_matches(
+            cached_meta,
+            expected_meta,
+            ignore_source_dir=ignore_cache_source_dir,
+    ):
         print(f"[cache] reusing cache from {paths['dir']}")
-        return open_cached_ephemerides(ephem_dir, start_s, end_s, step_s)
+        return open_cached_ephemerides(
+            ephem_dir,
+            start_s,
+            end_s,
+            step_s,
+            cache_root=cache_root,
+        )
+    return build_full_day_cache(
+        ephem_dir,
+        start_s,
+        end_s,
+        step_s,
+        cache_root=cache_root,
+    )
 
-    return build_full_day_cache(ephem_dir, start_s, end_s, step_s)
+   # return build_full_day_cache(ephem_dir, start_s, end_s, step_s)
 
 
 class GlobeSatDemo(QWidget):
@@ -630,7 +671,10 @@ class GlobeSatDemo(QWidget):
         timer_interval_ms=200,
         initial_step=0,
         ephem_dir=None,
+        cache_root=None,
+        ignore_cache_source_dir=False,
     ):
+
 
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
@@ -650,13 +694,19 @@ class GlobeSatDemo(QWidget):
         #     self.end_s,
         #     step_s=self.step_s,
         # )
+    #    self.ephem_dir = Path(ephem_dir) if ephem_dir is not None else EPHEM_DIR
+
         self.ephem_dir = Path(ephem_dir) if ephem_dir is not None else EPHEM_DIR
+        self.cache_root = Path(cache_root) if cache_root is not None else EXTERNAL_CACHE_ROOT
+        self.ignore_cache_source_dir = bool(ignore_cache_source_dir)
 
         self.preview_meta, self.ephem_times_s, self.ephem_positions, self.sat_ids = load_all_ephemerides(
             self.ephem_dir,
             self.start_s,
             self.end_s,
             step_s=self.step_s,
+            cache_root=self.cache_root,
+            ignore_cache_source_dir=self.ignore_cache_source_dir,
         )
 
         self.selected_sat_idx = None
@@ -934,10 +984,12 @@ class GlobeSatDemo(QWidget):
         new_step = self.step_s if step_s is None else int(step_s)
 
         preview_meta, ephem_times_s, ephem_positions, sat_ids = load_all_ephemerides(
-            EPHEM_DIR,
+            self.ephem_dir,
             new_start,
             new_end,
             step_s=new_step,
+            cache_root=self.cache_root,
+            ignore_cache_source_dir=self.ignore_cache_source_dir,
         )
 
         new_total = int(ephem_positions.shape[1])
@@ -2174,8 +2226,9 @@ def create_globe_demo(
     timer_interval_ms=200,
     initial_step=0,
     ephem_dir=None,
+    cache_root=None,
+    ignore_cache_source_dir=False,
 ):
-
     app = get_or_create_qapp()
     window = GlobeSatDemo(
         P=P,
@@ -2187,9 +2240,12 @@ def create_globe_demo(
         timer_interval_ms=timer_interval_ms,
         initial_step=initial_step,
         ephem_dir=ephem_dir,
+        cache_root=cache_root,
+        ignore_cache_source_dir=ignore_cache_source_dir,
     )
 
     return app, window
+
 
 
 def show_globe_demo(
@@ -2202,6 +2258,8 @@ def show_globe_demo(
     timer_interval_ms=200,
     initial_step=0,
     ephem_dir=None,
+    cache_root=None,
+    ignore_cache_source_dir=False,
 ):
     app, window = create_globe_demo(
         P=P,
@@ -2213,6 +2271,8 @@ def show_globe_demo(
         timer_interval_ms=timer_interval_ms,
         initial_step=initial_step,
         ephem_dir=ephem_dir,
+        cache_root=cache_root,
+        ignore_cache_source_dir=ignore_cache_source_dir,
     )
 
     window.show()
@@ -2224,6 +2284,7 @@ def show_globe_demo(
         pass
 
     return app, window
+
 
 
 def close_globe_demo(window=None):
@@ -2276,7 +2337,6 @@ def close_globe_demo(window=None):
         pass
 
 
-
 def run_globe_demo(
     P=18,
     N=36,
@@ -2286,6 +2346,9 @@ def run_globe_demo(
     auto_play=True,
     timer_interval_ms=50,
     initial_step=0,
+    ephem_dir=None,
+    cache_root=None,
+    ignore_cache_source_dir=False,
 ):
     app, window = show_globe_demo(
         P=P,
@@ -2296,8 +2359,12 @@ def run_globe_demo(
         auto_play=auto_play,
         timer_interval_ms=timer_interval_ms,
         initial_step=initial_step,
+        ephem_dir=ephem_dir,
+        cache_root=cache_root,
+        ignore_cache_source_dir=ignore_cache_source_dir,
     )
     return app.exec_()
+
 
 
 if __name__ == "__main__":
