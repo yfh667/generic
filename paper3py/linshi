@@ -3,6 +3,28 @@ python -m paper3py.plot_region_prbability_hops --config D:\paper3\data\postproce
 
 
 
- python -m paper3py.export_hops_and_probability_jpg2 `
->>   --route-policy D:\paper3\data\route_policy\route2.json `
+ python -m paper3py.export_hops_and_probability_jpg2`
+>>   --route-policy D:\paper3\data\route_policy\route2.json`
 >>   --motif "grid_four"
+
+
+
+ python -m paper3py.export_hops_and_probability_jpg2 --route-policy D:\paper3\data\route_policy\route2.json --motif "grid_four"
+>>   `
+>>
+
+
+python -m paper3py.step2.test `
+  --data-root D:\paper3\data `
+  --route-tag route2 `
+  --motifs grid_plane_alternating grid_x_sparse "grid+" gridx grid_four
+
+
+
+
+python -m paper3py.step2.plot_best_motif_bad95_regionpair_space `
+  --data-root D:\paper3\data `
+  --route-tag route2 `
+  --motifs grid_plane_alternating grid_x_sparse "grid+" gridx grid_four
+
+
