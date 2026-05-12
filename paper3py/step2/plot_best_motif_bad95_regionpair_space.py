@@ -384,3 +384,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+# --data-root   默认 D:\paper3\data
+# --route-tag   默认 route2
+# --motifs      默认 grid_plane_alternating grid_x_sparse grid+ gridx grid_four
+# --sla         默认 0.95
+# --bad-tol     默认 0.10
+# --out-dir     默认自动生成
+# --no-html     不生成交互 HTML

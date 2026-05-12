@@ -61,13 +61,15 @@ C_phase_even = '#FFFFFF'
 C_vline = '#BBBBBB'
 
 # ── Figure layout: upper hops, lower reliability ─────────────────────────────
+MM = 1 / 25.4
+
 fig, (ax1, ax2) = plt.subplots(
     2, 1,
-    figsize=(7.126, 3.8),
+    figsize=(181 * MM, 60 * MM),
     sharex=True,
     gridspec_kw={
-        'height_ratios': [2.0, 1.2],
-        'hspace': 0.08,
+        'height_ratios': [35, 22],
+        'hspace': 0.0,
     }
 )
 
@@ -109,7 +111,9 @@ ax1.set_ylim(0, 27)
 ax1.yaxis.set_major_locator(MultipleLocator(5))
 ax1.yaxis.set_minor_locator(MultipleLocator(1))
 ax1.tick_params(axis='y', colors=C_total)
-ax1.tick_params(labelbottom=False)
+ax1.tick_params(axis='x', which='both',
+                bottom=False, top=False, labelbottom=False)
+
 
 # ── Lower panel: reliability ─────────────────────────────────────────────────
 ax2.step(
@@ -162,6 +166,8 @@ for i, (lo, hi) in enumerate(zip(phase_bounds[:-1], phase_bounds[1:])):
 
 # ── X axis ───────────────────────────────────────────────────────────────────
 ax2.set_xlim(0, t.max())
+
+
 ax2.set_xlabel('Time Step')
 ax2.xaxis.set_major_locator(MultipleLocator(20000))
 ax2.xaxis.set_minor_locator(MultipleLocator(5000))
@@ -170,6 +176,8 @@ ax2.xaxis.set_major_formatter(
         lambda x, _: f'{int(x / 1000)}k' if x > 0 else '0'
     )
 )
+ax2.tick_params(axis='x', which='both',
+                bottom=True, top=False, labelbottom=True)
 
 # ── Title ────────────────────────────────────────────────────────────────────
 ax1.set_title(
@@ -202,7 +210,15 @@ ax1.legend(
 )
 
 # ── Show figure ──────────────────────────────────────────────────────────────
-plt.tight_layout()
+fig.subplots_adjust(
+    left=0.075,
+    right=0.965,
+    bottom=0.18,
+    top=0.90,
+    hspace=0.0
+)
+
 plt.show()
+
 
 print("Done")
