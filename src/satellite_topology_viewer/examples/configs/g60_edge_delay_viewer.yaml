@@ -1,0 +1,23 @@
+schema_version: 1
+
+edge_data:
+  store_dir: E:/paper11/data/basic_file/G60/satellitesposition/full_option_edge_delay/G60_full_options_t0_86164_stride1
+  options: [0, 1, 2, 4]
+
+time:
+  start: 0
+  end: 100
+  stride: 1
+
+groups:
+  enabled: true
+  xml_file: E:/paper11/data/basic_file/G60/satellitesposition/station_visible_satellites_20250106.xml
+  cache_dir: E:/paper11/data/basic_file/G60/satellitesposition/full_option_edge_delay/group_data_cache
+  force_cache: false
+
+window:
+  width: 1200
+  height: 760
+  check_only: false
+  offscreen: false
+  screenshot: null

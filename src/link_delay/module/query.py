@@ -4,17 +4,23 @@ import argparse
 import csv
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 
-LIGHT_SPEED_KM_S = 299_792.458
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_DELAY_OUTPUT_BASE = PROJECT_ROOT / "data" / "postprocess" / "full_option_edge_delay"
-DEFAULT_FULL_STORE_DIR = DEFAULT_DELAY_OUTPUT_BASE / "G60_full_options_t0_86164_stride1"
-STORE_DIR_RE = re.compile(r"^G60_full_options_t(?P<start>\d+)_(?P<end>\d+)_stride(?P<stride>\d+)$")
+GENERIC_ROOT = Path(__file__).resolve().parents[3]
+if str(GENERIC_ROOT) not in sys.path:
+    sys.path.insert(0, str(GENERIC_ROOT))
+
+from src.link_delay.module.delay_store import LIGHT_SPEED_KM_S
+
+
+STORE_DIR_RE = re.compile(
+    r"^(?P<constellation>.+)_full_options_t(?P<start>\d+)_(?P<end>\d+)_stride(?P<stride>\d+)$"
+)
 
 
 @dataclass(frozen=True)
@@ -175,25 +181,40 @@ class FullLinkDelayStore:
         return self.edges[self.edge_idx(src_node, dst_node)]
 
 
-def default_store_dir(start: int, end: int, stride: int = 1) -> Path:
-    return DEFAULT_DELAY_OUTPUT_BASE / f"G60_full_options_t{int(start)}_{int(end)}_stride{int(stride)}"
+def default_store_dir(
+    output_base: str | Path,
+    constellation_name: str,
+    start: int,
+    end: int,
+    stride: int = 1,
+) -> Path:
+    return (
+        Path(output_base)
+        / f"{str(constellation_name)}_full_options_t{int(start)}_{int(end)}_stride{int(stride)}"
+    )
 
 
-def discover_store_dirs() -> list[Path]:
-    if not DEFAULT_DELAY_OUTPUT_BASE.exists():
+def discover_store_dirs(
+    output_base: str | Path,
+    *,
+    constellation_name: str | None = None,
+) -> list[Path]:
+    output_base = Path(output_base)
+    if not output_base.exists():
         return []
     records: list[tuple[int, int, int, Path]] = []
-    for path in DEFAULT_DELAY_OUTPUT_BASE.iterdir():
+    for path in output_base.iterdir():
         if not path.is_dir():
             continue
         match = STORE_DIR_RE.match(path.name)
         if not match:
             continue
+        if constellation_name is not None and match.group("constellation") != str(constellation_name):
+            continue
         start = int(match.group("start"))
         end = int(match.group("end"))
         stride = int(match.group("stride"))
-        duration = end - start
-        records.append((duration, stride, start, path))
+        records.append((end - start, stride, start, path))
     return [path for *_rest, path in sorted(records)]
 
 
@@ -203,13 +224,16 @@ def open_delay_store_for_interval(
     *,
     stride: int = 1,
     store_dir: str | Path | None = None,
+    output_base: str | Path | None = None,
+    constellation_name: str | None = None,
 ) -> FullLinkDelayStore:
     candidates = []
     if store_dir is not None:
         candidates.append(Path(store_dir))
-    candidates.append(default_store_dir(start, end, stride))
-    candidates.append(DEFAULT_FULL_STORE_DIR)
-    candidates.extend(discover_store_dirs())
+    if output_base is not None and constellation_name is not None:
+        candidates.append(default_store_dir(output_base, constellation_name, start, end, stride))
+    if output_base is not None:
+        candidates.extend(discover_store_dirs(output_base, constellation_name=constellation_name))
 
     seen: set[Path] = set()
     for candidate in candidates:
@@ -223,13 +247,15 @@ def open_delay_store_for_interval(
 
     raise FileNotFoundError(
         f"No delay store covers interval {start}..{end} stride={stride}. "
-        f"Tried: {', '.join(str(p) for p in candidates)}"
+        f"Tried: {', '.join(str(p) for p in candidates) if candidates else 'no candidates; pass store_dir or output_base'}"
     )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Query a full-option ISL delay store.")
     parser.add_argument("store_dir", type=Path, nargs="?", default=None)
+    parser.add_argument("--output-base", type=Path, default=None)
+    parser.add_argument("--constellation", type=str, default=None)
     parser.add_argument("--time-step", type=int, required=True)
     parser.add_argument("--src", type=int, required=True)
     parser.add_argument("--dst", type=int, required=True)
@@ -242,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
         args.time_step,
         args.time_step,
         store_dir=args.store_dir,
+        output_base=args.output_base,
+        constellation_name=args.constellation,
     )
     record = store.edge_record(args.src, args.dst)
     payload = {

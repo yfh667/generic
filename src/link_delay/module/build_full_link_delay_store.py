@@ -2,29 +2,23 @@ from __future__ import annotations
 
 import argparse
 import copy
-import importlib
-import json
 import multiprocessing as mp
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import yaml
 
 
-GENERIC_ROOT = Path(__file__).resolve().parents[2]
+GENERIC_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = GENERIC_ROOT.parent
-CODEX_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG_PATH = CODEX_DIR / "configs" / "full_link_delay_store.yaml"
 if str(GENERIC_ROOT) not in sys.path:
     sys.path.insert(0, str(GENERIC_ROOT))
-if str(CODEX_DIR) not in sys.path:
-    sys.path.insert(0, str(CODEX_DIR))
 
-from src.config.viewer_config import G60_CONFIG
-from full_link_delay_viewer import build_or_load_artifacts
+from src.config.viewer_config import ViewerConfig
+from src.link_delay.module.delay_store import build_or_load_artifacts, write_edge_index_matrix, write_query_meta
+from src.link_delay.module.position_cache import ensure_position_cache, validate_position_cache
 
 
 @dataclass(frozen=True)
@@ -84,16 +78,10 @@ class DelayStoreBuildConfig:
     build: BuildSpec
 
 
-def read_json(path: Path) -> dict | None:
-    if not Path(path).exists():
-        return None
-    with Path(path).open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def write_yaml(path: Path, payload: dict) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with Path(path).open("w", encoding="utf-8") as f:
+def write_yaml(path: str | Path, payload: dict) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(payload, f, allow_unicode=True, sort_keys=False)
 
 
@@ -107,8 +95,9 @@ def deep_update(base: dict, updates: dict) -> dict:
     return out
 
 
-def load_yaml_dict(path: Path) -> dict:
-    with Path(path).open("r", encoding="utf-8") as f:
+def load_yaml_dict(path: str | Path) -> dict:
+    path = Path(path)
+    with path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
         raise ValueError(f"YAML root must be a mapping: {path}")
@@ -131,13 +120,22 @@ def raw_config_to_dataclass(raw: dict) -> DelayStoreBuildConfig:
     p = raw.get("paths", {})
     r = raw.get("runtime", {})
     b = raw.get("build", {})
+
+    missing = [key for key in ("name", "P", "N") if key not in c]
+    if missing:
+        raise ValueError(f"constellation.{', constellation.'.join(missing)} is required")
+    name = str(c["name"])
+    P = int(c["P"])
+    N = int(c["N"])
+    total_sats = int(c.get("total_sats", P * N))
+
     return DelayStoreBuildConfig(
         schema_version=int(raw.get("schema_version", 1)),
         constellation=ConstellationSpec(
-            name=str(c.get("name", "G60")),
-            P=int(c.get("P", 18)),
-            N=int(c.get("N", 36)),
-            total_sats=int(c.get("total_sats", 648)),
+            name=name,
+            P=P,
+            N=N,
+            total_sats=total_sats,
         ),
         edges=EdgeSpec(
             options=tuple(int(x) for x in e.get("options", [0, 1, 2, 4])),
@@ -150,15 +148,12 @@ def raw_config_to_dataclass(raw: dict) -> DelayStoreBuildConfig:
             stride=int(t.get("stride", 1)),
         ),
         paths=PathSpec(
-            ephem_dir=resolve_path(p.get("ephem_dir")) or (
-                PROJECT_ROOT / "data" / "basic_file" / "satellitesposition" / "satellite_pos"
-            ),
-            position_cache_root=resolve_path(p.get("position_cache_root")) or (
-                PROJECT_ROOT / "data" / "postprocess" / "full_option_edge_delay" / "_position_cache"
-            ),
-            delay_output_base=resolve_path(p.get("delay_output_base")) or (
-                PROJECT_ROOT / "data" / "postprocess" / "full_option_edge_delay"
-            ),
+            ephem_dir=resolve_path(p.get("ephem_dir"))
+            or (PROJECT_ROOT / "data" / "basic_file" / name / "satellitesposition" / "satellite_pos"),
+            position_cache_root=resolve_path(p.get("position_cache_root"))
+            or (PROJECT_ROOT / "data" / "basic_file" / name / "satellitesposition" / "_position_cache"),
+            delay_output_base=resolve_path(p.get("delay_output_base"))
+            or (PROJECT_ROOT / "data" / "basic_file" / name / "satellitesposition" / "full_option_edge_delay"),
             out_dir=resolve_path(p.get("out_dir")),
         ),
         runtime=RuntimeSpec(
@@ -185,10 +180,6 @@ def config_to_plain_dict(cfg: DelayStoreBuildConfig) -> dict:
     return plain
 
 
-def cache_dir_for(root: Path, start: int, end: int, step: int) -> Path:
-    return Path(root) / f"cache_{int(start)}_{int(end)}_{int(step)}s"
-
-
 def default_delay_out_dir(cfg: DelayStoreBuildConfig) -> Path:
     return (
         Path(cfg.paths.delay_output_base)
@@ -196,132 +187,25 @@ def default_delay_out_dir(cfg: DelayStoreBuildConfig) -> Path:
     )
 
 
-def completed_position_cache(cache_dir: Path) -> bool:
-    report = read_json(Path(cache_dir) / "build_report.json")
-    if not isinstance(report, dict):
-        return False
-    if report.get("status") != "completed" or not bool(report.get("build_succeeded", False)):
-        return False
-    required = ("positions_km.npy", "times_s.npy", "sat_ids.json", "cache_meta.json")
-    return all((Path(cache_dir) / name).exists() for name in required)
-
-
-def import_position_cache_builder():
-    paper3py_dir = GENERIC_ROOT / "paper3py"
-    if str(paper3py_dir) not in sys.path:
-        sys.path.insert(0, str(paper3py_dir))
-    return importlib.import_module("build_cache_parallel")
-
-
-def ensure_position_cache(cfg: DelayStoreBuildConfig) -> Path:
-    cache_dir = cache_dir_for(
-        cfg.paths.position_cache_root,
-        cfg.time.start,
-        cfg.time.end,
-        cfg.time.step,
-    )
-    if completed_position_cache(cache_dir) and not cfg.build.force_position_cache:
-        print(f"[delay-build] Reusing completed position cache: {cache_dir}", flush=True)
-        return cache_dir
-
-    builder = import_position_cache_builder()
-    builder.SIM_OUTPUT_DIR = Path(cfg.paths.position_cache_root)
-    builder.CACHE_DIR = cache_dir
-
-    print(f"[delay-build] Building position cache: {cache_dir}", flush=True)
-    print(f"[delay-build] ephem_dir={cfg.paths.ephem_dir}", flush=True)
-    builder.build_cache_parallel(
-        cfg.paths.ephem_dir,
-        cfg.time.start,
-        cfg.time.end,
-        cfg.time.step,
-        workers=cfg.runtime.workers,
-        progress_every=cfg.runtime.progress_every,
-        mode=cfg.runtime.mode,
-        flush_every=64,
-    )
-    return cache_dir
-
-
-def validate_position_cache(cfg: DelayStoreBuildConfig, cache_dir: Path) -> None:
-    positions = np.load(Path(cache_dir) / "positions_km.npy", mmap_mode="r")
-    expected_steps = int((cfg.time.end - cfg.time.start) / cfg.time.step) + 1
-    expected_shape = (expected_steps, int(cfg.constellation.total_sats), 3)
-    if positions.shape != expected_shape:
-        raise ValueError(f"position cache shape mismatch: got {positions.shape}, expected={expected_shape}")
-
-    if cfg.build.reject_zero_position_rows:
-        max_zero_rows = 0
-        bad_step = None
-        for local_start in range(0, expected_steps, 512):
-            local_end = min(local_start + 512, expected_steps)
-            chunk = positions[local_start:local_end]
-            zero_counts = np.all(chunk == 0.0, axis=2).sum(axis=1)
-            local_max = int(zero_counts.max())
-            if local_max > max_zero_rows:
-                max_zero_rows = local_max
-                bad_step = int(local_start + int(zero_counts.argmax()))
-        if max_zero_rows:
-            raise ValueError(
-                f"position cache has all-zero satellite rows: max_zero_rows={max_zero_rows} "
-                f"at local step {bad_step}"
-            )
-    print(f"[delay-build] Position cache validated: {cache_dir}", flush=True)
-
-
 def validate_constellation(cfg: DelayStoreBuildConfig) -> None:
-    expected = {
-        "name": str(G60_CONFIG.name),
-        "P": int(G60_CONFIG.P),
-        "N": int(G60_CONFIG.N),
-        "total_sats": int(G60_CONFIG.total_sats),
-    }
-    actual = {
-        "name": cfg.constellation.name,
-        "P": cfg.constellation.P,
-        "N": cfg.constellation.N,
-        "total_sats": cfg.constellation.total_sats,
-    }
-    if actual != expected:
-        raise ValueError(f"Only {expected} is wired currently, got {actual}")
+    if cfg.constellation.P <= 0 or cfg.constellation.N <= 0:
+        raise ValueError("constellation.P and constellation.N must be positive")
+    expected_total = int(cfg.constellation.P) * int(cfg.constellation.N)
+    if int(cfg.constellation.total_sats) != expected_total:
+        raise ValueError(
+            f"constellation.total_sats must equal P*N: got {cfg.constellation.total_sats}, "
+            f"expected={expected_total}"
+        )
 
 
-def write_edge_index_matrix(artifacts, cfg: DelayStoreBuildConfig) -> Path:
-    total_sats = int(cfg.constellation.total_sats)
-    matrix = np.full((total_sats, total_sats), -1, dtype=np.int32)
-    edge_table = artifacts.edge_table
-    for edge_idx in range(edge_table.num_edges):
-        src = int(edge_table.src[edge_idx])
-        dst = int(edge_table.dst[edge_idx])
-        matrix[src, dst] = int(edge_idx)
-        if not cfg.edges.directed_storage:
-            matrix[dst, src] = int(edge_idx)
-
-    path = Path(artifacts.out_dir) / "edge_index_matrix.npy"
-    np.save(path, matrix)
-    return path
-
-
-def write_query_meta(artifacts, edge_index_path: Path, cfg: DelayStoreBuildConfig) -> Path:
-    path = Path(artifacts.out_dir) / "delay_store_query_meta.json"
-    payload = {
-        "store_dir": str(Path(artifacts.out_dir).resolve()),
-        "delay_file": str(Path(artifacts.delay_path).name),
-        "edges_file": str(Path(artifacts.edges_csv_path).name),
-        "edge_index_matrix_file": str(Path(edge_index_path).name),
-        "time_indices_file": str(Path(artifacts.time_indices_path).name),
-        "times_file": str(Path(artifacts.times_path).name),
-        "query_rule": "edge_idx = edge_index_matrix[src_node, dst_node]; delay_ms = edge_delay_ms[row, edge_idx]",
-        "undirected_edge_lookup": not bool(cfg.edges.directed_storage),
-        "options": list(cfg.edges.options),
-        "time_start": int(artifacts.time_indices[0]),
-        "time_end": int(artifacts.time_indices[-1]),
-        "num_steps": int(len(artifacts.time_indices)),
-        "num_edges": int(artifacts.edge_table.num_edges),
-    }
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    return path
+def viewer_config_from_build_config(cfg: DelayStoreBuildConfig) -> ViewerConfig:
+    return ViewerConfig(
+        name=cfg.constellation.name,
+        N=int(cfg.constellation.N),
+        P=int(cfg.constellation.P),
+        station_groups={},
+        group_colors=[],
+    )
 
 
 def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
@@ -337,15 +221,33 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
     if cfg.runtime.mode not in {"memory", "memmap"}:
         raise ValueError("runtime.mode must be 'memory' or 'memmap'")
 
-    position_cache_dir = ensure_position_cache(cfg)
+    viewer_config = viewer_config_from_build_config(cfg)
+    position_cache_dir = ensure_position_cache(
+        ephem_dir=cfg.paths.ephem_dir,
+        cache_root=cfg.paths.position_cache_root,
+        start=cfg.time.start,
+        end=cfg.time.end,
+        step=cfg.time.step,
+        workers=cfg.runtime.workers,
+        progress_every=cfg.runtime.progress_every,
+        mode=cfg.runtime.mode,
+        force=cfg.build.force_position_cache,
+    )
     if cfg.build.validate_position_cache:
-        validate_position_cache(cfg, position_cache_dir)
+        validate_position_cache(
+            position_cache_dir,
+            total_sats=cfg.constellation.total_sats,
+            start=cfg.time.start,
+            end=cfg.time.end,
+            step=cfg.time.step,
+            reject_zero_position_rows=cfg.build.reject_zero_position_rows,
+        )
 
     out_dir = cfg.paths.out_dir or default_delay_out_dir(cfg)
     artifacts = build_or_load_artifacts(
         cache_dir=position_cache_dir,
         out_dir=out_dir,
-        config=G60_CONFIG,
+        config=viewer_config,
         start=cfg.time.start,
         end=cfg.time.end,
         stride=cfg.time.stride,
@@ -355,8 +257,17 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
         options=cfg.edges.options,
     )
 
-    edge_index_path = write_edge_index_matrix(artifacts, cfg)
-    query_meta_path = write_query_meta(artifacts, edge_index_path, cfg)
+    edge_index_path = write_edge_index_matrix(
+        artifacts,
+        total_sats=cfg.constellation.total_sats,
+        directed_storage=cfg.edges.directed_storage,
+    )
+    query_meta_path = write_query_meta(
+        artifacts,
+        edge_index_path,
+        options=cfg.edges.options,
+        directed_storage=cfg.edges.directed_storage,
+    )
     run_config_path = Path(artifacts.out_dir) / "run_config.yaml"
     write_yaml(run_config_path, config_to_plain_dict(cfg))
 
@@ -371,7 +282,7 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a reusable full-option ISL edge-delay store from YAML.")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--stride", type=int, default=None)

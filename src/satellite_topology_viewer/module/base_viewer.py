@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import math
-import os
 import sys
 from pathlib import Path
 
@@ -10,15 +8,12 @@ import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-GENERIC_ROOT = Path(__file__).resolve().parents[2]
-CODEX_DIR = Path(__file__).resolve().parent
+GENERIC_ROOT = Path(__file__).resolve().parents[3]
 if str(GENERIC_ROOT) not in sys.path:
     sys.path.insert(0, str(GENERIC_ROOT))
-if str(CODEX_DIR) not in sys.path:
-    sys.path.insert(0, str(CODEX_DIR))
 
-from src.config.viewer_config import G60_CONFIG, ViewerConfig
-from full_link_delay_viewer import build_full_option_edges
+from src.config.viewer_config import ViewerConfig
+from src.link_delay.module.edge_options import build_full_option_edges
 
 
 COLOR_STOPS = (
@@ -31,11 +26,11 @@ COLOR_STOPS = (
 )
 
 
-def color_from_delay(delay_ms: float, vmin_ms: float, vmax_ms: float, alpha: int) -> QtGui.QColor:
-    if vmax_ms <= vmin_ms:
+def color_from_value(value: float, vmin: float, vmax: float, alpha: int) -> QtGui.QColor:
+    if vmax <= vmin:
         t = 0.0
     else:
-        t = max(0.0, min(1.0, (float(delay_ms) - float(vmin_ms)) / (float(vmax_ms) - float(vmin_ms))))
+        t = max(0.0, min(1.0, (float(value) - float(vmin)) / (float(vmax) - float(vmin))))
 
     rgb = COLOR_STOPS[-1][1]
     for idx in range(len(COLOR_STOPS) - 1):
@@ -54,7 +49,7 @@ def color_from_delay(delay_ms: float, vmin_ms: float, vmax_ms: float, alpha: int
     return color
 
 
-def make_fake_delay_ms(edge_table, step: int, edge_idx: int) -> float:
+def make_fake_edge_value(edge_table, step: int, edge_idx: int) -> float:
     option = int(edge_table.option[edge_idx])
     src_plane = int(edge_table.src_plane[edge_idx])
     src_y = int(edge_table.src_y[edge_idx])
@@ -74,12 +69,17 @@ def make_fake_delay_ms(edge_table, step: int, edge_idx: int) -> float:
     return max(2.0, min(10.0, float(delay)))
 
 
-def build_fake_delay_matrix(edge_table, steps: list[int]) -> np.ndarray:
+def build_fake_edge_value_matrix(edge_table, steps: list[int]) -> np.ndarray:
     values = np.empty((len(steps), edge_table.num_edges), dtype=np.float32)
     for row, step in enumerate(steps):
         for edge_idx in range(edge_table.num_edges):
-            values[row, edge_idx] = make_fake_delay_ms(edge_table, step, edge_idx)
+            values[row, edge_idx] = make_fake_edge_value(edge_table, step, edge_idx)
     return values
+
+
+color_from_delay = color_from_value
+make_fake_delay_ms = make_fake_edge_value
+build_fake_delay_matrix = build_fake_edge_value_matrix
 
 
 def distance_point_to_segment(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:
@@ -105,105 +105,8 @@ def distance_point_to_polyline(px: float, py: float, points: list[tuple[float, f
     return best
 
 
-def _find_components_by_neighbors(sats: set[int], p_count: int, y_count: int) -> list[set[int]]:
-    if not sats:
-        return []
-
-    sats = set(int(x) for x in sats)
-    parent = {sid: sid for sid in sats}
-
-    def find(a: int) -> int:
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-
-    def union(a: int, b: int) -> None:
-        ra = find(a)
-        rb = find(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    for sid in sats:
-        x, y = divmod(int(sid), int(y_count))
-        up = x * y_count + ((y + 1) % y_count)
-        down = x * y_count + ((y - 1 + y_count) % y_count)
-        if up in sats:
-            union(sid, up)
-        if down in sats:
-            union(sid, down)
-        if x < int(p_count) - 1:
-            right = (x + 1) * y_count + y
-            if right in sats:
-                union(sid, right)
-
-    comps: dict[int, set[int]] = {}
-    for sid in sats:
-        comps.setdefault(find(sid), set()).add(sid)
-    return sorted(comps.values(), key=len, reverse=True)
-
-
-def _offset_from_component_y(sids: set[int] | None, y_count: int) -> int:
-    if not sids:
-        return 0
-    ys = sorted({int(sid) % int(y_count) for sid in sids})
-    if len(ys) == 1:
-        return int(ys[0])
-
-    max_gap = -1
-    idx_after_gap = 0
-    for idx in range(len(ys) - 1):
-        gap = int(ys[idx + 1]) - int(ys[idx])
-        if gap > max_gap:
-            max_gap = gap
-            idx_after_gap = idx + 1
-    wrap_gap = int(ys[0]) + int(y_count) - int(ys[-1])
-    if wrap_gap > max_gap:
-        idx_after_gap = 0
-    return int(ys[idx_after_gap - 1])
-
-
-def build_rev_group_offsets(
-    group_data: dict,
-    p_count: int,
-    y_count: int,
-    base_groupid: int,
-) -> dict[int, int]:
-    min_keep = 0.6
-    offsets: dict[int, int] = {}
-    prev_comp: set[int] | None = None
-
-    for step in sorted(int(x) for x in group_data.keys()):
-        current = group_data.get(step, {}) if group_data else {}
-        groups = current.get("groups", {}) if isinstance(current, dict) else {}
-        base_sats = set(int(x) for x in (groups.get(int(base_groupid), set()) or set()))
-        comps = _find_components_by_neighbors(base_sats, int(p_count), int(y_count))
-
-        if comps:
-            candidates = comps[:2]
-            if prev_comp:
-                best_comp = candidates[0]
-                best_ratio = -1.0
-                for comp in candidates:
-                    ratio = len(prev_comp & comp) / len(prev_comp) if prev_comp else 0.0
-                    if ratio > best_ratio:
-                        best_comp = comp
-                        best_ratio = ratio
-                chosen_comp = best_comp if best_ratio >= min_keep else candidates[0]
-            else:
-                chosen_comp = candidates[0]
-            chosen_offset = _offset_from_component_y(chosen_comp, int(y_count))
-            prev_comp = chosen_comp
-        else:
-            chosen_offset = _offset_from_component_y(prev_comp, int(y_count)) if prev_comp else 0
-
-        offsets[int(step)] = int(chosen_offset)
-
-    return offsets
-
-
 class TopologyGraphicsView(QtWidgets.QGraphicsView):
-    def __init__(self, owner: "GridFakeDelayViewer"):
+    def __init__(self, owner: "SatelliteTopology2DViewer"):
         super().__init__()
         self.owner = owner
         self._panning = False
@@ -289,24 +192,22 @@ class TopologyGraphicsView(QtWidgets.QGraphicsView):
         event.accept()
 
 
-class GridFakeDelayViewer(QtWidgets.QWidget):
+class SatelliteTopology2DViewer(QtWidgets.QWidget):
     def __init__(
         self,
-        config: ViewerConfig = G60_CONFIG,
+        config: ViewerConfig,
         *,
         start: int = 0,
         end: int = 100,
         steps: list[int] | None = None,
         edge_table=None,
-        delay_ms=None,
-        delay_min_ms: float | None = 2.0,
-        delay_max_ms: float | None = 10.0,
-        window_title: str = "Grid fake full-option delay topology 0..100s",
-        delay_value_label: str = "fake_delay_ms",
+        edge_values=None,
+        value_min: float | None = None,
+        value_max: float | None = None,
+        window_title: str = "Satellite topology 2D viewer",
+        edge_value_label: str = "edge_value",
         group_data: dict | None = None,
         show_groups: bool = True,
-        rev_group_base_id: int | None = None,
-        rev_group_offsets: dict[int, int] | None = None,
     ):
         super().__init__()
         self.config = config
@@ -316,24 +217,25 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         self.visible_row_to_pos = {row: row for row in self.visible_rows}
         self.subrange_steps: list[int] | None = None
         self.edge_table = edge_table if edge_table is not None else build_full_option_edges(config, options=(0, 1, 2, 4))
-        self.delay_ms = delay_ms if delay_ms is not None else build_fake_delay_matrix(self.edge_table, self.steps)
-        if int(self.delay_ms.shape[0]) != len(self.steps):
-            raise ValueError(f"delay rows {self.delay_ms.shape[0]} != steps length {len(self.steps)}")
-        if int(self.delay_ms.shape[1]) != int(self.edge_table.num_edges):
-            raise ValueError(f"delay cols {self.delay_ms.shape[1]} != edge count {self.edge_table.num_edges}")
-        self.delay_min_ms = float(np.nanmin(self.delay_ms)) if delay_min_ms is None else float(delay_min_ms)
-        self.delay_max_ms = float(np.nanmax(self.delay_ms)) if delay_max_ms is None else float(delay_max_ms)
+        self.has_edge_values = edge_values is not None
+        if self.has_edge_values:
+            self.edge_values = np.asarray(edge_values, dtype=np.float32)
+        else:
+            self.edge_values = np.zeros((len(self.steps), int(self.edge_table.num_edges)), dtype=np.float32)
+        if int(self.edge_values.shape[0]) != len(self.steps):
+            raise ValueError(f"edge value rows {self.edge_values.shape[0]} != steps length {len(self.steps)}")
+        if int(self.edge_values.shape[1]) != int(self.edge_table.num_edges):
+            raise ValueError(f"edge value cols {self.edge_values.shape[1]} != edge count {self.edge_table.num_edges}")
+        if self.has_edge_values:
+            self.value_min = float(np.nanmin(self.edge_values)) if value_min is None else float(value_min)
+            self.value_max = float(np.nanmax(self.edge_values)) if value_max is None else float(value_max)
+        else:
+            self.value_min = 0.0 if value_min is None else float(value_min)
+            self.value_max = 0.0 if value_max is None else float(value_max)
         self.window_title = str(window_title)
-        self.delay_value_label = str(delay_value_label)
+        self.edge_value_label = str(edge_value_label)
         self.group_data = group_data or {}
         self.show_groups_default = bool(show_groups and self.group_data)
-        self.rev_group_base_id = int(rev_group_base_id) if rev_group_base_id is not None else 0
-        self.rev_group_enabled = bool(rev_group_base_id is not None and self.group_data)
-        self.rev_group_offsets = {
-            int(k): int(v)
-            for k, v in (rev_group_offsets or {}).items()
-        }
-        self._last_display_key: tuple[bool, int | None] | None = None
 
         self.edge_width = 0.018
         self.edge_alpha = 145
@@ -372,10 +274,34 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         self.scene = QtWidgets.QGraphicsScene(self)
         self.view = TopologyGraphicsView(self)
         self.view.setScene(self.scene)
-        layout.addWidget(self.view, stretch=1)
+        self.view.setMinimumHeight(160)
+
+        self.main_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self.main_splitter.setHandleWidth(10)
+        self.main_splitter.addWidget(self.view)
+
+        self.controls_panel = QtWidgets.QWidget()
+        controls_layout = QtWidgets.QVBoxLayout(self.controls_panel)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(8)
+
+        self.controls_scroll = QtWidgets.QScrollArea()
+        self.controls_scroll.setWidgetResizable(True)
+        self.controls_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.controls_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.controls_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.controls_scroll.setMinimumHeight(76)
+        self.controls_scroll.setWidget(self.controls_panel)
+        self.main_splitter.addWidget(self.controls_scroll)
+        self.main_splitter.setStretchFactor(0, 8)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setCollapsible(0, False)
+        self.main_splitter.setCollapsible(1, False)
+        self.main_splitter.setSizes([720, 220])
+        layout.addWidget(self.main_splitter, stretch=1)
 
         time_row = QtWidgets.QHBoxLayout()
-        layout.addLayout(time_row)
+        controls_layout.addLayout(time_row)
         self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.slider.setMinimum(0)
         self.slider.setMaximum(max(0, len(self.visible_rows) - 1))
@@ -387,7 +313,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         time_row.addWidget(self.slider, stretch=1)
 
         range_layout = QtWidgets.QHBoxLayout()
-        layout.addLayout(range_layout)
+        controls_layout.addLayout(range_layout)
         self.range_start_input = QtWidgets.QLineEdit()
         self.range_start_input.setPlaceholderText("区间起点")
         self.range_start_input.setMinimumWidth(150)
@@ -404,7 +330,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         range_layout.addWidget(self.exit_range_btn)
 
         jump_layout = QtWidgets.QHBoxLayout()
-        layout.addLayout(jump_layout)
+        controls_layout.addLayout(jump_layout)
         self.jump_input = QtWidgets.QLineEdit()
         self.jump_input.setPlaceholderText("跳转到 step")
         self.jump_input.setMinimumWidth(190)
@@ -414,7 +340,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         jump_layout.addWidget(self.jump_button)
 
         step_layout = QtWidgets.QHBoxLayout()
-        layout.addLayout(step_layout)
+        controls_layout.addLayout(step_layout)
         self.prev_btn = QtWidgets.QPushButton("<")
         self.next_btn = QtWidgets.QPushButton(">")
         self.prev_btn.clicked.connect(self.step_prev)
@@ -424,33 +350,24 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
 
         self.step_label = QtWidgets.QLabel("")
         self.step_label.setObjectName("statusLabel")
-        layout.addWidget(self.step_label)
+        controls_layout.addWidget(self.step_label)
         self.coord_label = QtWidgets.QLabel("Cursor grid: none")
         self.coord_label.setObjectName("statusLabel")
-        layout.addWidget(self.coord_label)
+        controls_layout.addWidget(self.coord_label)
 
         colorbar_row = QtWidgets.QHBoxLayout()
-        layout.addLayout(colorbar_row)
+        controls_layout.addLayout(colorbar_row)
         colorbar_row.addStretch(1)
         self.colorbar_label = QtWidgets.QLabel()
         colorbar_row.addWidget(self.colorbar_label)
         colorbar_row.addStretch(1)
 
         group_layout = QtWidgets.QHBoxLayout()
-        layout.addLayout(group_layout)
+        controls_layout.addLayout(group_layout)
         self.show_groups_checkbox = QtWidgets.QCheckBox("显示 region groups")
         self.show_groups_checkbox.setChecked(self.show_groups_default)
         self.show_groups_checkbox.stateChanged.connect(lambda _state: self.update_step(self.current_row))
         group_layout.addWidget(self.show_groups_checkbox)
-        self.rev_group_checkbox = QtWidgets.QCheckBox("rev-group")
-        self.rev_group_checkbox.setChecked(self.rev_group_enabled)
-        self.rev_group_checkbox.stateChanged.connect(self.on_rev_group_changed)
-        group_layout.addWidget(self.rev_group_checkbox)
-        self.rev_group_spin = QtWidgets.QSpinBox()
-        self.rev_group_spin.setRange(0, max(0, max(int(x) for x in self.config.station_groups.keys())))
-        self.rev_group_spin.setValue(int(self.rev_group_base_id))
-        self.rev_group_spin.valueChanged.connect(self.on_rev_group_base_changed)
-        group_layout.addWidget(self.rev_group_spin)
         legend_parts = []
         for gid in sorted(self.config.station_groups):
             if int(gid) < len(self.config.group_colors):
@@ -464,7 +381,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         group_layout.addWidget(self.group_legend_label, stretch=1)
 
         control_row = QtWidgets.QHBoxLayout()
-        layout.addLayout(control_row)
+        controls_layout.addLayout(control_row)
         self.option_checks: dict[int, QtWidgets.QCheckBox] = {}
         for option in (0, 1, 2, 4):
             cb = QtWidgets.QCheckBox(f"option {option}")
@@ -499,7 +416,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         control_row.addWidget(self.zoom_reset_btn)
 
         info_row = QtWidgets.QHBoxLayout()
-        layout.addLayout(info_row)
+        controls_layout.addLayout(info_row)
         self.clear_btn = QtWidgets.QPushButton("Clear picked nodes")
         self.clear_btn.clicked.connect(self.clear_picked_nodes)
         self.pick_label = QtWidgets.QLabel("Picked nodes: none")
@@ -514,8 +431,8 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         self.selected_label.setObjectName("statusLabel")
         self.hover_label.setWordWrap(True)
         self.selected_label.setWordWrap(True)
-        layout.addWidget(self.hover_label)
-        layout.addWidget(self.selected_label)
+        controls_layout.addWidget(self.hover_label)
+        controls_layout.addWidget(self.selected_label)
         self.update_colorbar_labels()
 
     def _apply_large_control_style(self):
@@ -544,6 +461,14 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
             QLabel#statusLabel {
                 font-size: 15px;
                 min-height: 24px;
+            }
+            QSplitter::handle:vertical {
+                background: #C7D0DC;
+                height: 10px;
+                margin: 2px 0;
+            }
+            QSplitter::handle:vertical:hover {
+                background: #8FA2BA;
             }
             QSlider::groove:horizontal {
                 height: 8px;
@@ -655,93 +580,36 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         bar_h = 18
         for x in range(bar_w):
             t = x / max(1, bar_w - 1)
-            delay = self.delay_min_ms + t * (self.delay_max_ms - self.delay_min_ms)
-            painter.setPen(color_from_delay(delay, self.delay_min_ms, self.delay_max_ms, 255))
+            value = self.value_min + t * (self.value_max - self.value_min)
+            painter.setPen(color_from_value(value, self.value_min, self.value_max, 255))
             painter.drawLine(bar_x + x, bar_y, bar_x + x, bar_y + bar_h)
 
         painter.setPen(QtGui.QColor(55, 55, 55))
         painter.drawRect(bar_x, bar_y, bar_w, bar_h)
-        painter.drawText(int(width / 2) - 64, 16, "Delay color scale")
-        painter.drawText(4, bar_y + 14, f"{self.delay_min_ms:.3f} ms")
-        painter.drawText(bar_x + bar_w + 8, bar_y + 14, f"{self.delay_max_ms:.3f} ms")
+        painter.drawText(int(width / 2) - 72, 16, f"{self.edge_value_label} color scale")
+        painter.drawText(4, bar_y + 14, f"{self.value_min:.3f}")
+        painter.drawText(bar_x + bar_w + 8, bar_y + 14, f"{self.value_max:.3f}")
         painter.end()
         return pixmap
 
     def update_colorbar_labels(self):
         if not hasattr(self, "colorbar_label"):
             return
+        if not self.has_edge_values:
+            self.colorbar_label.clear()
+            self.colorbar_label.setVisible(False)
+            return
+        self.colorbar_label.setVisible(True)
         self.colorbar_label.setFixedSize(520, 52)
         self.colorbar_label.setPixmap(self.make_colorbar_pixmap(520, 52))
 
-    def ensure_rev_group_offsets(self) -> None:
-        if not self.group_data:
-            self.rev_group_offsets = {}
-            return
-        if self.rev_group_offsets:
-            return
-        self.rev_group_offsets = build_rev_group_offsets(
-            self.group_data,
-            int(self.config.P),
-            int(self.config.N),
-            int(self.rev_group_base_id),
-        )
-
-    def display_offset_for_row(self, row: int) -> int | None:
-        if not self.rev_group_enabled or not self.group_data:
-            return None
-        self.ensure_rev_group_offsets()
-        step = int(self.steps[int(row)])
-        return int(self.rev_group_offsets.get(step, 0))
-
-    def node_display_pos(self, raw_node: int, row: int | None = None) -> tuple[float, float]:
+    def node_grid_pos(self, raw_node: int) -> tuple[float, float]:
         raw_node = int(raw_node)
         p, y = divmod(raw_node, int(self.config.N))
-        offset = self.display_offset_for_row(self.current_row if row is None else int(row))
-        if offset is None:
-            return float(p), float(y)
-        y_disp = (int(y) - int(offset) + int(self.config.N) - 1) % int(self.config.N)
-        return float(p), float(y_disp)
+        return float(p), float(y)
 
-    def display_node_to_raw_node(self, p: int, y_disp: int, row: int | None = None) -> int:
-        p = int(p)
-        y_disp = int(y_disp)
-        offset = self.display_offset_for_row(self.current_row if row is None else int(row))
-        if offset is None:
-            return p * int(self.config.N) + y_disp
-        y_raw = (y_disp + int(offset) + 1) % int(self.config.N)
-        return p * int(self.config.N) + y_raw
-
-    def apply_display_offset(self, row: int) -> None:
-        offset = self.display_offset_for_row(row)
-        key = (bool(self.rev_group_enabled), None if offset is None else int(offset))
-        if self._last_display_key == key:
-            return
-
-        for idx, item in enumerate(self.edge_items):
-            path, samples = self._edge_path_and_samples(idx, row=row)
-            item.setPath(path)
-            self.edge_samples[idx] = samples
-
-        for raw_node, item in enumerate(self.node_items):
-            p, y = self.node_display_pos(raw_node, row=row)
-            item.setRect(
-                p - self.node_radius,
-                y - self.node_radius,
-                2 * self.node_radius,
-                2 * self.node_radius,
-            )
-        self._last_display_key = key
-
-    def on_rev_group_changed(self, _state: int):
-        self.rev_group_enabled = bool(self.rev_group_checkbox.isChecked() and self.group_data)
-        self._last_display_key = None
-        self.update_step(self.current_row)
-
-    def on_rev_group_base_changed(self, value: int):
-        self.rev_group_base_id = int(value)
-        self.rev_group_offsets = {}
-        self._last_display_key = None
-        self.update_step(self.current_row)
+    def grid_pos_to_node(self, p: int, y: int) -> int:
+        return int(p) * int(self.config.N) + int(y)
 
     def _build_scene(self):
         self.scene.clear()
@@ -751,7 +619,6 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         self.node_to_edge = {}
         self.pick_marker_items = []
         self.axis_label_items = []
-        self._last_display_key = None
 
         self.scene.setSceneRect(-2.3, -1.8, self.config.P + 3.0, self.config.N + 2.8)
         self._draw_grid()
@@ -815,8 +682,8 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
             self._make_axis_label(str(y), right_x, y_pos, color="#8A3FFC", bold=True, pixel_size=15)
 
     def _edge_path_and_samples(self, idx: int, row: int | None = None):
-        x0, y0 = self.node_display_pos(int(self.edge_table.src[idx]), row=self.current_row if row is None else int(row))
-        x1, y1 = self.node_display_pos(int(self.edge_table.dst[idx]), row=self.current_row if row is None else int(row))
+        x0, y0 = self.node_grid_pos(int(self.edge_table.src[idx]))
+        x1, y1 = self.node_grid_pos(int(self.edge_table.dst[idx]))
         path = QtGui.QPainterPath()
         path.moveTo(x0, y0)
 
@@ -851,7 +718,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
 
     def _draw_nodes(self):
         for node in range(self.config.total_sats):
-            p, y = self.node_display_pos(node, row=self.current_row)
+            p, y = self.node_grid_pos(node)
             item = QtWidgets.QGraphicsEllipseItem(
                 float(p) - self.node_radius,
                 float(y) - self.node_radius,
@@ -921,8 +788,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
             self.slider.setValue(slider_pos)
             self.slider.blockSignals(False)
 
-        self.apply_display_offset(row)
-        values = self.delay_ms[row]
+        values = self.edge_values[row] if self.has_edge_values else None
         for idx, item in enumerate(self.edge_items):
             option = int(self.edge_table.option[idx])
             visible = bool(self.visible_options.get(option, False))
@@ -940,8 +806,14 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
                 pen = QtGui.QPen(QtGui.QColor(35, 35, 35))
                 pen.setWidthF(0.060)
                 item.setZValue(40)
+            elif not self.has_edge_values:
+                color = QtGui.QColor(0, 0, 0)
+                color.setAlpha(int(self.edge_alpha))
+                pen = QtGui.QPen(color)
+                pen.setWidthF(self.edge_width)
+                item.setZValue(3)
             else:
-                pen = QtGui.QPen(color_from_delay(values[idx], self.delay_min_ms, self.delay_max_ms, self.edge_alpha))
+                pen = QtGui.QPen(color_from_value(values[idx], self.value_min, self.value_max, self.edge_alpha))
                 pen.setWidthF(self.edge_width)
                 item.setZValue(3)
             pen.setCapStyle(QtCore.Qt.RoundCap)
@@ -956,7 +828,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         )
         self.step_label.setText(
             f"step {step} | row {pos + 1}/{len(self.visible_rows)} | edges {self.edge_table.num_edges} | "
-            f"{range_text} | {self.rev_group_status_text(row)}"
+            f"{range_text}"
         )
         self.update_node_group_colors(row)
         self.update_pick_markers()
@@ -980,12 +852,6 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         if 0 <= int(gid) < len(self.config.group_colors):
             return QtGui.QColor(self.config.group_colors[int(gid)])
         return QtGui.QColor("#777777")
-
-    def rev_group_status_text(self, row: int) -> str:
-        offset = self.display_offset_for_row(row)
-        if offset is None:
-            return "rev-group off"
-        return f"rev-group base={int(self.rev_group_base_id)} offset={int(offset)}"
 
     def node_groups_for_row(self, row: int) -> dict[int, list[int]]:
         step = int(self.steps[int(row)])
@@ -1022,10 +888,10 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
                 f"Cursor grid: display approx=({float(x):.2f}, {float(y):.2f})"
             )
             return
-        raw_node = self.display_node_to_raw_node(p, yy, row=self.current_row)
+        raw_node = self.grid_pos_to_node(p, yy)
         raw_p, raw_y = divmod(int(raw_node), int(self.config.N))
         self.coord_label.setText(
-            f"Cursor grid: display x={p}, y={yy}; raw node={raw_node}; "
+            f"Cursor grid: x={p}, y={yy}; node={raw_node}; "
             f"raw x={raw_p}, y={raw_y}; groups={self.node_group_text(raw_node)}"
         )
 
@@ -1064,7 +930,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
             return None
         if math.hypot(x - p, y - yy) > self.node_hit_radius:
             return None
-        return int(self.display_node_to_raw_node(p, yy, row=self.current_row))
+        return int(self.grid_pos_to_node(p, yy))
 
     def find_nearest_edge(self, x: float, y: float) -> tuple[int | None, float]:
         best_idx: int | None = None
@@ -1092,9 +958,8 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
 
         if len(self.picked_nodes) == 1:
             p, y = divmod(int(node), self.config.N)
-            dp, dy = self.node_display_pos(int(node), row=self.current_row)
             self.pick_label.setText(
-                f"Picked node A: raw={node} ({p}, {y}); display=({int(dp)}, {int(dy)}); "
+                f"Picked node A: node={node} ({p}, {y}); "
                 f"groups={self.node_group_text(node)}."
             )
             return
@@ -1104,12 +969,9 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         if edge_idx is None:
             pa, ya = divmod(int(a), self.config.N)
             pb, yb = divmod(int(b), self.config.N)
-            dpa, dya = self.node_display_pos(int(a), row=self.current_row)
-            dpb, dyb = self.node_display_pos(int(b), row=self.current_row)
             self.pick_label.setText(
-                f"No edge between raw={a} ({pa}, {ya}) display=({int(dpa)}, {int(dya)}) "
-                f"groups={self.node_group_text(a)} and raw={b} ({pb}, {yb}) "
-                f"display=({int(dpb)}, {int(dyb)}) groups={self.node_group_text(b)}."
+                f"No edge between node={a} ({pa}, {ya}) groups={self.node_group_text(a)} "
+                f"and node={b} ({pb}, {yb}) groups={self.node_group_text(b)}."
             )
             self.selected_edge_idx = None
             self.update_step(self.current_row)
@@ -1134,7 +996,7 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
                 marker.setVisible(False)
                 continue
             node = int(self.picked_nodes[idx])
-            p, y = self.node_display_pos(node, row=self.current_row)
+            p, y = self.node_grid_pos(node)
             marker.setRect(float(p) - radius, float(y) - radius, 2 * radius, 2 * radius)
             marker.setVisible(True)
 
@@ -1143,20 +1005,32 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         self.selected_label.setText(self.describe_edge(edge_idx, prefix=f"Selected edge ({via})"))
         self.update_step(self.current_row)
 
+    def format_edge_value(self, edge_idx: int, row: int, value: float) -> str:
+        return f"{self.edge_value_label}={float(value):.4f}"
+
+    def edge_extra_description(self, edge_idx: int, row: int, value: float) -> str:
+        return ""
+
     def describe_edge(self, edge_idx: int, *, prefix: str) -> str:
         edge_idx = int(edge_idx)
         src = int(self.edge_table.src[edge_idx])
         dst = int(self.edge_table.dst[edge_idx])
-        delay = float(self.delay_ms[self.current_row, edge_idx])
-        src_disp = self.node_display_pos(src, row=self.current_row)
-        dst_disp = self.node_display_pos(dst, row=self.current_row)
+        value_segment = ""
+        if self.has_edge_values:
+            value = float(self.edge_values[self.current_row, edge_idx])
+            value_text = self.format_edge_value(edge_idx, self.current_row, value)
+            extra_text = self.edge_extra_description(edge_idx, self.current_row, value)
+            extra_segment = f"; {extra_text}" if extra_text else ""
+            value_segment = f"; {value_text}{extra_segment}"
+        src_pos = self.node_grid_pos(src)
+        dst_pos = self.node_grid_pos(dst)
         return (
             f"{prefix}: idx={edge_idx}; "
             f"raw {src} ({int(self.edge_table.src_plane[edge_idx])}, {int(self.edge_table.src_y[edge_idx])}) "
-            f"display=({int(src_disp[0])}, {int(src_disp[1])}) -> "
+            f"grid=({int(src_pos[0])}, {int(src_pos[1])}) -> "
             f"raw {dst} ({int(self.edge_table.dst_plane[edge_idx])}, {int(self.edge_table.dst_y[edge_idx])}) "
-            f"display=({int(dst_disp[0])}, {int(dst_disp[1])}); "
-            f"option={int(self.edge_table.option[edge_idx])}; {self.delay_value_label}={delay:.4f} ms; "
+            f"grid=({int(dst_pos[0])}, {int(dst_pos[1])}); "
+            f"option={int(self.edge_table.option[edge_idx])}{value_segment}; "
             f"src_groups={self.node_group_text(src)}; dst_groups={self.node_group_text(dst)}; "
             f"step={self.steps[self.current_row]}"
         )
@@ -1167,52 +1041,4 @@ class GridFakeDelayViewer(QtWidgets.QWidget):
         else:
             self.selected_label.setText(self.describe_edge(self.selected_edge_idx, prefix="Selected edge"))
 
-
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Open a fixed-grid fake-delay topology viewer with robust hit testing.")
-    parser.add_argument("--start", type=int, default=0)
-    parser.add_argument("--end", type=int, default=100)
-    parser.add_argument("--width", type=int, default=1200)
-    parser.add_argument("--height", type=int, default=760)
-    parser.add_argument("--check-only", action="store_true")
-    parser.add_argument("--offscreen", action="store_true")
-    parser.add_argument("--screenshot", type=Path, default=None)
-    return parser.parse_args(argv)
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    if args.check_only:
-        edge_table = build_full_option_edges(G60_CONFIG, options=(0, 1, 2, 4))
-        steps = list(range(int(args.start), int(args.end) + 1))
-        print(f"[grid-demo] steps={len(steps)}, edges_per_step={edge_table.num_edges}, range={args.start}..{args.end}")
-        return 0
-
-    if args.offscreen:
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication(sys.argv[:1])
-
-    viewer = GridFakeDelayViewer(G60_CONFIG, start=args.start, end=args.end)
-    viewer.resize(int(args.width), int(args.height))
-    viewer.show()
-
-    if args.screenshot is not None:
-        screenshot_path = Path(args.screenshot)
-        screenshot_path.parent.mkdir(parents=True, exist_ok=True)
-
-        def save_screenshot_and_quit():
-            app.processEvents()
-            ok = viewer.grab().save(str(screenshot_path))
-            print(f"[grid-demo] screenshot={screenshot_path} ok={ok}")
-            app.quit()
-
-        QtCore.QTimer.singleShot(800, save_screenshot_and_quit)
-
-    return int(app.exec_())
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+GridFakeDelayViewer = SatelliteTopology2DViewer
