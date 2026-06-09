@@ -1,0 +1,35 @@
+schema_version: 1
+
+constellation:
+  name: G60
+  P: 18
+  N: 36
+  total_sats: 648
+
+edges:
+  options: [0, 1, 2, 4]
+  directed_storage: false
+
+time:
+  start: 0
+  end: 86164
+  step: 1
+  stride: 1
+
+paths:
+  ephem_dir: E:/paper11/data/basic_file/G60/satellitesposition/satellite_pos
+  position_cache_root: E:/paper11/data/basic_file/G60/satellitesposition/_position_cache
+  delay_output_base: E:/paper11/data/basic_file/G60/satellitesposition/full_option_edge_delay
+  out_dir: null
+
+runtime:
+  workers: 8
+  progress_every: 32
+  mode: memory
+  chunk_steps: 512
+
+build:
+  force_position_cache: false
+  force_delay_cache: false
+  validate_position_cache: true
+  reject_zero_position_rows: true
