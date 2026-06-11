@@ -9,16 +9,16 @@ For interactive module usage, see:
 E:\paper11\generic\src\satellite_topology_viewer_3D\examples\satellite_topology_viewer_3D_usage.ipynb
 ```
 
-Run the 100s GUI:
+Run the 100s GUI with the full cache, sliced to 1..100s:
 
 ```powershell
-& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\run_starlink_2d3d_viewer.py'
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\run_starlink_2d3d_viewer.py' --config 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\configs\starlink_2d3d_viewer_full.yaml' --start 1 --end 100
 ```
 
 Run a check without opening the GUI:
 
 ```powershell
-& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\run_starlink_2d3d_viewer.py' --check-only --start 1 --end 20
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\run_starlink_2d3d_viewer.py' --config 'E:\paper11\generic\src\satellite_topology_viewer_3D\examples\configs\starlink_2d3d_viewer_full.yaml' --check-only --start 1 --end 20
 ```
 
 Run the long cache:
