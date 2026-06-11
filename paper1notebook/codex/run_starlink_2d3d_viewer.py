@@ -134,6 +134,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=None)
     parser.add_argument("--link-stride", type=int, default=1)
     parser.add_argument("--no-3d-links", action="store_true")
+    parser.add_argument("--no-orbits", action="store_true")
     parser.add_argument("--no-groups", action="store_true")
     parser.add_argument("--force-group-cache", action="store_true")
     parser.add_argument("--timer-interval-ms", type=int, default=180)
@@ -191,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     if position_cache_dir is None:
         raise ValueError("position cache dir is required; pass --position-cache-dir")
     position_series = load_position_series(cache_dir=position_cache_dir, start=start, end=end, stride=stride)
+    pos_shape = tuple(int(x) for x in position_series.positions_km.shape)
 
     groups_enabled = bool(group_raw.get("enabled", True)) and not bool(args.no_groups)
     group_data = load_or_build_group_data(
@@ -208,7 +210,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"[starlink-2d3d] config={config.name} steps={len(delay_data.steps)} "
-        f"edges={delay_data.edge_table.num_edges} position_cache={position_cache_dir}",
+        f"edges={delay_data.edge_table.num_edges}",
+        flush=True,
+    )
+    print(
+        f"[starlink-2d3d] 3d_position_source=real_position_cache "
+        f"cache={position_cache_dir} shape={pos_shape} "
+        f"time={position_series.steps[0]}..{position_series.steps[-1]} stride={stride}",
         flush=True,
     )
 
@@ -221,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
         height=int(args.height if args.height is not None else window_raw.get("height", 900)),
         show_groups=groups_enabled,
         show_3d_links=not bool(args.no_3d_links),
+        show_3d_orbits=not bool(args.no_orbits),
         link_stride=max(1, int(args.link_stride)),
         timer_interval_ms=int(args.timer_interval_ms),
         check_only=bool(args.check_only or window_raw.get("check_only", False)),

@@ -606,10 +606,20 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
     def node_grid_pos(self, raw_node: int) -> tuple[float, float]:
         raw_node = int(raw_node)
         p, y = divmod(raw_node, int(self.config.N))
-        return float(p), float(y)
+        return float(p), self.raw_y_to_scene_y(y)
 
     def grid_pos_to_node(self, p: int, y: int) -> int:
-        return int(p) * int(self.config.N) + int(y)
+        raw_y = self.scene_y_to_raw_y(y)
+        return int(p) * int(self.config.N) + int(raw_y)
+
+    def raw_y_to_scene_y(self, raw_y: int | float) -> float:
+        return float(int(self.config.N) - 1 - float(raw_y))
+
+    def scene_y_to_raw_y(self, scene_y: int | float) -> int:
+        return int(self.config.N) - 1 - int(scene_y)
+
+    def scene_y_to_axis_y(self, scene_y: int | float) -> float:
+        return float(int(self.config.N) - 1 - float(scene_y))
 
     def _build_scene(self):
         self.scene.clear()
@@ -667,19 +677,19 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.scene.addLine(-0.4, self.config.N - 0.35, self.config.P - 0.6, self.config.N - 0.35, axis_pen)
         self.scene.addLine(self.config.P - 0.35, -0.4, self.config.P - 0.35, self.config.N - 0.6, axis_pen)
 
-        self._make_axis_label("x", -1.85, -1.35, color="#1B4D89", bold=True, pixel_size=18)
+        self._make_axis_label("x", self.config.P + 0.48, self.config.N + 0.20, color="#1B4D89", bold=True, pixel_size=18)
         self._make_axis_label("y", -1.85, -0.45, color="#8A3FFC", bold=True, pixel_size=18)
         for p in range(int(self.config.P)):
-            self._make_axis_label(str(p), p - 0.16, -1.32, color="#1B4D89", bold=True, pixel_size=15)
-            self._make_axis_label(str(p), p - 0.16, self.config.N + 0.20, color="#1B4D89", pixel_size=15)
+            self._make_axis_label(str(p), p - 0.16, self.config.N + 0.20, color="#1B4D89", bold=True, pixel_size=15)
+            self._make_axis_label(str(p), p - 0.16, -1.32, color="#1B4D89", pixel_size=15)
 
         right_x = float(self.config.P) + 0.12
-        for y in range(int(self.config.N)):
-            if y % 5 != 0 and y != int(self.config.N) - 1:
+        for raw_y in range(int(self.config.N)):
+            if raw_y % 5 != 0 and raw_y != int(self.config.N) - 1:
                 continue
-            y_pos = float(y) - 0.18
-            self._make_axis_label(str(y), -1.55, y_pos, color="#8A3FFC", bold=True, pixel_size=15)
-            self._make_axis_label(str(y), right_x, y_pos, color="#8A3FFC", bold=True, pixel_size=15)
+            y_pos = self.raw_y_to_scene_y(raw_y) - 0.18
+            self._make_axis_label(str(raw_y), -1.55, y_pos, color="#8A3FFC", bold=True, pixel_size=15)
+            self._make_axis_label(str(raw_y), right_x, y_pos, color="#8A3FFC", bold=True, pixel_size=15)
 
     def _edge_path_and_samples(self, idx: int, row: int | None = None):
         x0, y0 = self.node_grid_pos(int(self.edge_table.src[idx]))
@@ -878,20 +888,21 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
 
     def update_cursor_grid_label(self, x: float, y: float):
         p = int(round(float(x)))
-        yy = int(round(float(y)))
-        if not (0 <= p < int(self.config.P) and 0 <= yy < int(self.config.N)):
+        scene_y = int(round(float(y)))
+        if not (0 <= p < int(self.config.P) and 0 <= scene_y < int(self.config.N)):
             self.coord_label.setText("Cursor grid: outside")
             return
-        dist = math.hypot(float(x) - p, float(y) - yy)
+        dist = math.hypot(float(x) - p, float(y) - scene_y)
         if dist > 0.55:
+            axis_y = self.scene_y_to_axis_y(float(y))
             self.coord_label.setText(
-                f"Cursor grid: display approx=({float(x):.2f}, {float(y):.2f})"
+                f"Cursor grid: display approx=({float(x):.2f}, {axis_y:.2f})"
             )
             return
-        raw_node = self.grid_pos_to_node(p, yy)
+        raw_node = self.grid_pos_to_node(p, scene_y)
         raw_p, raw_y = divmod(int(raw_node), int(self.config.N))
         self.coord_label.setText(
-            f"Cursor grid: x={p}, y={yy}; node={raw_node}; "
+            f"Cursor grid: x={p}, y={raw_y}; node={raw_node}; "
             f"raw x={raw_p}, y={raw_y}; groups={self.node_group_text(raw_node)}"
         )
 
@@ -925,12 +936,12 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
 
     def find_nearest_node(self, x: float, y: float) -> int | None:
         p = int(round(x))
-        yy = int(round(y))
-        if not (0 <= p < self.config.P and 0 <= yy < self.config.N):
+        scene_y = int(round(y))
+        if not (0 <= p < self.config.P and 0 <= scene_y < self.config.N):
             return None
-        if math.hypot(x - p, y - yy) > self.node_hit_radius:
+        if math.hypot(x - p, y - scene_y) > self.node_hit_radius:
             return None
-        return int(self.grid_pos_to_node(p, yy))
+        return int(self.grid_pos_to_node(p, scene_y))
 
     def find_nearest_edge(self, x: float, y: float) -> tuple[int | None, float]:
         best_idx: int | None = None
@@ -1024,12 +1035,14 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             value_segment = f"; {value_text}{extra_segment}"
         src_pos = self.node_grid_pos(src)
         dst_pos = self.node_grid_pos(dst)
+        src_axis_y = int(round(self.scene_y_to_axis_y(src_pos[1])))
+        dst_axis_y = int(round(self.scene_y_to_axis_y(dst_pos[1])))
         return (
             f"{prefix}: idx={edge_idx}; "
             f"raw {src} ({int(self.edge_table.src_plane[edge_idx])}, {int(self.edge_table.src_y[edge_idx])}) "
-            f"grid=({int(src_pos[0])}, {int(src_pos[1])}) -> "
+            f"grid=({int(src_pos[0])}, {src_axis_y}) -> "
             f"raw {dst} ({int(self.edge_table.dst_plane[edge_idx])}, {int(self.edge_table.dst_y[edge_idx])}) "
-            f"grid=({int(dst_pos[0])}, {int(dst_pos[1])}); "
+            f"grid=({int(dst_pos[0])}, {dst_axis_y}); "
             f"option={int(self.edge_table.option[edge_idx])}{value_segment}; "
             f"src_groups={self.node_group_text(src)}; dst_groups={self.node_group_text(dst)}; "
             f"step={self.steps[self.current_row]}"

@@ -1,113 +1,20 @@
 from __future__ import annotations
 
-import os
-import sys
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterable
-
 import numpy as np
-from PyQt5 import QtCore, QtGui, QtWidgets
-
-
-GENERIC_ROOT = Path(__file__).resolve().parents[2]
-if str(GENERIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(GENERIC_ROOT))
-
 import pyvista as pv
 import vtk
+from PyQt5 import QtCore, QtWidgets
 from pyvistaqt import QtInteractor
 
 from src.config.viewer_config import ViewerConfig
 from src.link_delay.module.edge_options import EdgeTable
-from src.link_delay.module.position_cache import PositionCacheStore
-from src.satellite_topology_viewer.module.edge_delay_data import EdgeDelayViewerData
-from src.satellite_topology_viewer.module.edge_delay_viewer import EdgeDelayTopologyViewer
 
-
-EARTH_R_KM = 6371.0
-
-
-@dataclass(frozen=True)
-class PositionSeries:
-    cache_dir: Path
-    positions_km: np.ndarray
-    cache_rows: np.ndarray
-    steps: list[int]
-    sat_ids: list[str]
-    meta: dict
-
-    @property
-    def num_steps(self) -> int:
-        return int(self.cache_rows.size)
-
-    @property
-    def num_sats(self) -> int:
-        return int(self.positions_km.shape[1])
-
-    def points_for_row(self, row: int) -> np.ndarray:
-        row = int(max(0, min(int(row), self.num_steps - 1)))
-        cache_row = int(self.cache_rows[row])
-        return np.asarray(self.positions_km[cache_row, :, :], dtype=np.float32)
-
-
-def load_position_series(
-    *,
-    cache_dir: str | Path,
-    start: int,
-    end: int,
-    stride: int = 1,
-) -> PositionSeries:
-    store = PositionCacheStore(cache_dir)
-    rows = store.rows_for_interval(int(start), int(end), int(stride))
-    steps = [int(x) for x in np.asarray(store.times_s[rows], dtype=np.int64)]
-    return PositionSeries(
-        cache_dir=Path(cache_dir),
-        positions_km=store.positions_km,
-        cache_rows=np.asarray(rows, dtype=np.int64),
-        steps=steps,
-        sat_ids=store.sat_ids,
-        meta=store.meta,
-    )
-
-
-def _hex_to_rgb(value: str) -> tuple[int, int, int]:
-    color = QtGui.QColor(str(value))
-    if not color.isValid():
-        color = QtGui.QColor("#3b82f6")
-    return color.red(), color.green(), color.blue()
-
-
-def _segments_to_polydata(points: np.ndarray, edges: Iterable[tuple[int, int]]):
-    edges = list(edges)
-    if not edges:
-        return None
-
-    seg_pts = np.empty((2 * len(edges), 3), dtype=np.float32)
-    line_cells = np.empty((len(edges), 3), dtype=np.int64)
-    for idx, (src, dst) in enumerate(edges):
-        seg_pts[2 * idx] = points[int(src)]
-        seg_pts[2 * idx + 1] = points[int(dst)]
-        line_cells[idx] = [2, 2 * idx, 2 * idx + 1]
-
-    mesh = pv.PolyData()
-    mesh.points = seg_pts
-    mesh.lines = line_cells.ravel()
-    return mesh
-
-
-def build_orbit_edges(config: ViewerConfig) -> list[tuple[int, int]]:
-    """Connect satellites within the same orbit plane as closed orbit rings."""
-    edges: list[tuple[int, int]] = []
-    for p in range(int(config.P)):
-        base = p * int(config.N)
-        for y in range(int(config.N)):
-            edges.append((base + y, base + ((y + 1) % int(config.N))))
-    return edges
+from .geometry import EARTH_R_KM, build_orbit_edges, hex_to_rgb, segments_to_polydata
+from .position_data import PositionSeries
 
 
 class SatelliteGlobe3DWidget(QtWidgets.QWidget):
-    """PyVista-based 3D satellite widget driven by an external timeline."""
+    """PyVista-based 3D satellite widget driven by external data."""
 
     def __init__(
         self,
@@ -180,14 +87,17 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         self.status_label.setToolTip(str(self.position_series.cache_dir))
         self.pick_label = QtWidgets.QLabel("selected=none")
         self.pick_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+
         self.links_button = QtWidgets.QPushButton()
         self.links_button.setCheckable(True)
         self.links_button.setChecked(self.show_links)
         self.links_button.clicked.connect(lambda checked: self.set_links_visible(bool(checked)))
+
         self.orbits_button = QtWidgets.QPushButton()
         self.orbits_button.setCheckable(True)
         self.orbits_button.setChecked(self.show_orbits)
         self.orbits_button.clicked.connect(lambda checked: self.set_orbits_visible(bool(checked)))
+
         self._sync_layer_button_texts()
         status_row.addWidget(self.status_label, 1)
         status_row.addWidget(self.links_button)
@@ -278,7 +188,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         )
 
     def _point_colors_for_row(self, row: int) -> np.ndarray:
-        colors = np.full((self.config.total_sats, 3), _hex_to_rgb("#3b82f6"), dtype=np.uint8)
+        colors = np.full((self.config.total_sats, 3), hex_to_rgb("#3b82f6"), dtype=np.uint8)
         if not self.show_groups:
             return colors
 
@@ -286,7 +196,10 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         data = self.group_data.get(step, {})
         groups = data.get("groups", {}) if isinstance(data, dict) else {}
         for gid, nodes in groups.items():
-            rgb = _hex_to_rgb(self.config.group_colors[int(gid)] if int(gid) < len(self.config.group_colors) else "#64748b")
+            if int(gid) < len(self.config.group_colors):
+                rgb = hex_to_rgb(self.config.group_colors[int(gid)])
+            else:
+                rgb = hex_to_rgb("#64748b")
             for node in nodes or []:
                 node = int(node)
                 if 0 <= node < self.config.total_sats:
@@ -336,11 +249,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         return np.arange(0, self.edge_table.num_edges, self.link_stride, dtype=np.int64)
 
     def _refresh_link_actor(self, points: np.ndarray, row: int) -> None:
-        for actor_name in ("link_actor",):
-            try:
-                self.plotter.remove_actor(actor_name, render=False)
-            except Exception:
-                pass
+        self._remove_actor_quietly("link_actor")
         if not self.show_links or self.edge_table is None:
             return
 
@@ -349,7 +258,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
             (int(self.edge_table.src[idx]), int(self.edge_table.dst[idx]))
             for idx in edge_indices
         ]
-        mesh = _segments_to_polydata(points, edges)
+        mesh = segments_to_polydata(points, edges)
         if mesh is None:
             return
 
@@ -361,7 +270,9 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
                 name="link_actor",
                 scalars="edge_value",
                 cmap="turbo",
-                clim=(self.value_min, self.value_max) if self.value_min is not None and self.value_max is not None else None,
+                clim=(self.value_min, self.value_max)
+                if self.value_min is not None and self.value_max is not None
+                else None,
                 line_width=1.0,
                 opacity=0.36,
                 lighting=False,
@@ -389,7 +300,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         self._remove_actor_quietly("orbit_actor")
         if not self.show_orbits:
             return
-        mesh = _segments_to_polydata(points, self.orbit_edges)
+        mesh = segments_to_polydata(points, self.orbit_edges)
         if mesh is None:
             return
         self.plotter.add_mesh(
@@ -418,7 +329,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         idx = int(self.selected_edge_idx)
         if not (0 <= idx < self.edge_table.num_edges):
             return
-        mesh = _segments_to_polydata(
+        mesh = segments_to_polydata(
             points,
             [(int(self.edge_table.src[idx]), int(self.edge_table.dst[idx]))],
         )
@@ -467,7 +378,7 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         nodes = [int(x) for x in nodes if 0 <= int(x) < self.config.total_sats]
         if len(nodes) < 2:
             return
-        mesh = _segments_to_polydata(points, zip(nodes[:-1], nodes[1:]))
+        mesh = segments_to_polydata(points, zip(nodes[:-1], nodes[1:]))
         if mesh is not None:
             self.plotter.add_mesh(
                 mesh,
@@ -511,9 +422,11 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
             self.plotter.render()
 
     def _sat_display_name(self, sat_idx: int) -> str:
-        if 0 <= int(sat_idx) < len(self.position_series.sat_ids):
-            return f"SAT {self.position_series.sat_ids[int(sat_idx)]}"
-        return f"node {int(sat_idx)}"
+        node = int(sat_idx)
+        if 0 <= node < int(self.config.total_sats):
+            p, y = divmod(node, int(self.config.N))
+            return f"node={node} (x={p}, y={y})"
+        return f"node={node}"
 
     def _on_pick_satellite(self, picked_point) -> None:
         if picked_point is None:
@@ -582,7 +495,14 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
         self.plotter.render()
 
     def shutdown(self) -> None:
-        for name in ("sat_pick_labels", "selected_edge_actor", "path_actor", "path_node_actor", "link_actor", "orbit_actor"):
+        for name in (
+            "sat_pick_labels",
+            "selected_edge_actor",
+            "path_actor",
+            "path_node_actor",
+            "link_actor",
+            "orbit_actor",
+        ):
             self._remove_actor_quietly(name)
         try:
             self.plotter.close()
@@ -592,335 +512,3 @@ class SatelliteGlobe3DWidget(QtWidgets.QWidget):
             self.plotter.deleteLater()
         except Exception:
             pass
-
-
-class Synced2D3DTopologyWindow(QtWidgets.QWidget):
-    """A shared-timeline container for the new 2D topology viewer and a 3D globe."""
-
-    def __init__(
-        self,
-        *,
-        config: ViewerConfig,
-        delay_data: EdgeDelayViewerData,
-        position_series: PositionSeries,
-        group_data: dict[int, dict] | None = None,
-        show_groups: bool = True,
-        show_3d_links: bool = True,
-        show_3d_orbits: bool = True,
-        link_stride: int = 1,
-        timer_interval_ms: int = 180,
-        parent=None,
-    ):
-        super().__init__(parent)
-        self.config = config
-        self.delay_data = delay_data
-        self.position_series = position_series
-        self.group_data = group_data or {}
-        self.current_row = 0
-        self.playing = False
-        self.timer_interval_ms = max(1, int(timer_interval_ms))
-        self._syncing = False
-
-        if list(delay_data.steps) != list(position_series.steps):
-            raise ValueError(
-                "2D delay steps and 3D position steps must match exactly. "
-                f"2D={delay_data.steps[:3]}..{delay_data.steps[-3:]}, "
-                f"3D={position_series.steps[:3]}..{position_series.steps[-3:]}"
-            )
-
-        self.setWindowTitle(
-            f"{config.name} synced 2D + 3D topology {delay_data.steps[0]}..{delay_data.steps[-1]}s"
-        )
-        self._build_ui(
-            show_groups=show_groups,
-            show_3d_links=show_3d_links,
-            show_3d_orbits=show_3d_orbits,
-            link_stride=link_stride,
-        )
-        self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self._tick)
-        self.timer.start(self.timer_interval_ms)
-        self.set_playing(False)
-        self.set_row(0)
-
-    @property
-    def steps(self) -> list[int]:
-        return list(self.delay_data.steps)
-
-    def _build_ui(self, *, show_groups: bool, show_3d_links: bool, show_3d_orbits: bool, link_stride: int) -> None:
-        self.setStyleSheet(
-            """
-            QWidget { background: #ffffff; color: #334155; font-size: 13px; }
-            QPushButton {
-                background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px;
-                padding: 7px 12px; min-height: 28px;
-            }
-            QPushButton:hover { background: #eef2f7; }
-            QLineEdit { border: 1px solid #cbd5e1; border-radius: 5px; padding: 6px 8px; }
-            QLabel#timeLabel { font-weight: 700; color: #0f172a; }
-            QSlider::groove:horizontal { height: 8px; border-radius: 4px; background: #dbe4ec; }
-            QSlider::sub-page:horizontal { background: #2563eb; border-radius: 4px; }
-            QSlider::handle:horizontal {
-                background: #ffffff; border: 2px solid #2563eb; width: 18px;
-                margin: -7px 0; border-radius: 9px;
-            }
-            """
-        )
-
-        root = QtWidgets.QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(8)
-
-        self.viewer2d = EdgeDelayTopologyViewer(
-            self.config,
-            steps=self.delay_data.steps,
-            edge_table=self.delay_data.edge_table,
-            delay_ms=self.delay_data.delay_ms,
-            delay_min_ms=self.delay_data.delay_min_ms,
-            delay_max_ms=self.delay_data.delay_max_ms,
-            window_title=f"{self.config.name} 2D topology",
-            group_data=self.group_data,
-            show_groups=show_groups,
-        )
-        self.viewer3d = SatelliteGlobe3DWidget(
-            self.config,
-            position_series=self.position_series,
-            edge_table=self.delay_data.edge_table,
-            edge_values=self.delay_data.delay_ms,
-            value_min=self.delay_data.delay_min_ms,
-            value_max=self.delay_data.delay_max_ms,
-            group_data=self.group_data,
-            show_groups=show_groups,
-            show_links=show_3d_links,
-            show_orbits=show_3d_orbits,
-            link_stride=link_stride,
-        )
-        self.viewer2d.setMinimumWidth(620)
-        self.viewer3d.setMinimumWidth(620)
-
-        self._patch_2d_edge_selection_sync()
-
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        splitter.addWidget(self.viewer2d)
-        splitter.addWidget(self.viewer3d)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([850, 850])
-        root.addWidget(splitter, 1)
-
-        timeline = QtWidgets.QFrame()
-        timeline.setObjectName("timelinePanel")
-        timeline_layout = QtWidgets.QVBoxLayout(timeline)
-        timeline_layout.setContentsMargins(10, 8, 10, 8)
-        timeline_layout.setSpacing(8)
-
-        controls = QtWidgets.QHBoxLayout()
-        controls.setSpacing(8)
-        self.play_btn = QtWidgets.QPushButton("Play")
-        self.play_btn.clicked.connect(lambda: self.set_playing(not self.playing))
-        self.prev_btn = QtWidgets.QPushButton("<")
-        self.prev_btn.clicked.connect(lambda: self.set_row(self.current_row - 1))
-        self.next_btn = QtWidgets.QPushButton(">")
-        self.next_btn.clicked.connect(lambda: self.set_row(self.current_row + 1))
-        self.time_label = QtWidgets.QLabel("")
-        self.time_label.setObjectName("timeLabel")
-        self.time_label.setMinimumWidth(260)
-        self.jump_input = QtWidgets.QLineEdit()
-        self.jump_input.setPlaceholderText(f"jump to time second, {self.steps[0]}-{self.steps[-1]}")
-        self.jump_input.returnPressed.connect(self.jump_to_input_time)
-        self.jump_btn = QtWidgets.QPushButton("Jump")
-        self.jump_btn.clicked.connect(self.jump_to_input_time)
-
-        controls.addWidget(self.play_btn)
-        controls.addWidget(self.prev_btn)
-        controls.addWidget(self.next_btn)
-        controls.addWidget(self.time_label)
-        controls.addWidget(self.jump_input, 1)
-        controls.addWidget(self.jump_btn)
-
-        self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.slider.setRange(0, len(self.steps) - 1)
-        self.slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
-        self.slider.setTickInterval(max(1, len(self.steps) // 10))
-        self.slider.setPageStep(max(1, len(self.steps) // 50))
-        self.slider.valueChanged.connect(lambda value: self.set_row(int(value), source="main_slider"))
-
-        axis = QtWidgets.QHBoxLayout()
-        self.axis_min = QtWidgets.QLabel(f"{self.steps[0]}s")
-        self.axis_mid = QtWidgets.QLabel("")
-        self.axis_mid.setAlignment(QtCore.Qt.AlignCenter)
-        self.axis_max = QtWidgets.QLabel(f"{self.steps[-1]}s")
-        self.axis_max.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-        axis.addWidget(self.axis_min)
-        axis.addWidget(self.axis_mid, 1)
-        axis.addWidget(self.axis_max)
-
-        timeline_layout.addLayout(controls)
-        timeline_layout.addWidget(self.slider)
-        timeline_layout.addLayout(axis)
-        root.addWidget(timeline)
-
-        self.viewer2d.slider.valueChanged.connect(self._sync_from_2d_slider)
-
-    def _patch_2d_edge_selection_sync(self) -> None:
-        original_select_edge = self.viewer2d.select_edge
-        original_clear_picked_nodes = self.viewer2d.clear_picked_nodes
-
-        def select_edge_and_sync(edge_idx: int, *args, **kwargs):
-            result = original_select_edge(edge_idx, *args, **kwargs)
-            self.viewer3d.set_selected_edge(int(edge_idx))
-            return result
-
-        def clear_and_sync(*args, **kwargs):
-            result = original_clear_picked_nodes(*args, **kwargs)
-            self.viewer3d.set_selected_edge(None)
-            return result
-
-        self.viewer2d.select_edge = select_edge_and_sync
-        self.viewer2d.clear_picked_nodes = clear_and_sync
-
-    def _sync_from_2d_slider(self, _value: int) -> None:
-        if self._syncing:
-            return
-        QtCore.QTimer.singleShot(0, lambda: self.set_row(self.viewer2d.current_row, source="viewer2d"))
-
-    def set_playing(self, playing: bool) -> bool:
-        self.playing = bool(playing)
-        self.play_btn.setText("Pause" if self.playing else "Play")
-        if self.playing:
-            self.timer.start(self.timer_interval_ms)
-        else:
-            self.timer.stop()
-        return self.playing
-
-    def _tick(self) -> None:
-        if not self.playing:
-            return
-        self.set_row((self.current_row + 1) % len(self.steps), source="timer")
-
-    def row_for_time(self, target_step: int | float) -> int:
-        wanted = int(round(float(target_step)))
-        pos = int(np.searchsorted(np.asarray(self.steps, dtype=np.int64), wanted))
-        if pos <= 0:
-            return 0
-        if pos >= len(self.steps):
-            return len(self.steps) - 1
-        before = self.steps[pos - 1]
-        after = self.steps[pos]
-        return pos - 1 if abs(wanted - before) <= abs(after - wanted) else pos
-
-    def jump_to_input_time(self) -> None:
-        raw = self.jump_input.text().strip()
-        if not raw:
-            return
-        try:
-            row = self.row_for_time(float(raw))
-        except ValueError:
-            self.jump_input.selectAll()
-            return
-        self.set_playing(False)
-        self.set_row(row)
-
-    def set_row(self, row: int, *, source: str | None = None) -> None:
-        if self._syncing:
-            return
-        row = int(max(0, min(int(row), len(self.steps) - 1)))
-        self.current_row = row
-        self._syncing = True
-        try:
-            self.slider.blockSignals(True)
-            self.slider.setValue(row)
-            self.slider.blockSignals(False)
-            self.viewer2d.update_step(row)
-            self.viewer3d.set_row(row)
-            self.viewer3d.set_selected_edge(self.viewer2d.selected_edge_idx, render=False)
-        finally:
-            self._syncing = False
-        step = int(self.steps[row])
-        self.time_label.setText(f"step={step}s  row={row + 1}/{len(self.steps)}")
-        self.axis_mid.setText(f"2D/3D synchronized | 3D=pyvista | source={source or 'api'}")
-
-    def closeEvent(self, event) -> None:
-        try:
-            self.timer.stop()
-        except Exception:
-            pass
-        try:
-            self.viewer3d.shutdown()
-        except Exception:
-            pass
-        super().closeEvent(event)
-
-
-def run_synced_2d3d_viewer(
-    *,
-    config: ViewerConfig,
-    delay_data: EdgeDelayViewerData,
-    position_series: PositionSeries,
-    group_data: dict[int, dict] | None = None,
-    width: int = 1600,
-    height: int = 900,
-    show_groups: bool = True,
-    show_3d_links: bool = True,
-    show_3d_orbits: bool = True,
-    link_stride: int = 1,
-    timer_interval_ms: int = 180,
-    check_only: bool = False,
-    offscreen: bool = False,
-    screenshot: str | Path | None = None,
-) -> int:
-    if check_only:
-        print(
-            f"[synced-2d3d] check OK | steps={len(delay_data.steps)} "
-            f"edges={delay_data.edge_table.num_edges} position_cache={position_series.cache_dir} "
-            f"backend=pyvista",
-            flush=True,
-        )
-        return 0
-
-    if offscreen:
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication(sys.argv[:1])
-
-    window = Synced2D3DTopologyWindow(
-        config=config,
-        delay_data=delay_data,
-        position_series=position_series,
-        group_data=group_data,
-        show_groups=show_groups,
-        show_3d_links=show_3d_links,
-        show_3d_orbits=show_3d_orbits,
-        link_stride=link_stride,
-        timer_interval_ms=timer_interval_ms,
-    )
-    window.resize(int(width), int(height))
-    window.show()
-
-    def settle_initial_layout():
-        try:
-            window.viewer2d.fit_scene()
-        except Exception:
-            pass
-        try:
-            window.viewer3d.set_row(window.current_row)
-        except Exception:
-            pass
-
-    QtCore.QTimer.singleShot(120, settle_initial_layout)
-
-    if screenshot is not None:
-        screenshot_path = Path(screenshot)
-        screenshot_path.parent.mkdir(parents=True, exist_ok=True)
-
-        def save_screenshot_and_quit():
-            app.processEvents()
-            ok = window.grab().save(str(screenshot_path))
-            print(f"[synced-2d3d] screenshot={screenshot_path} ok={ok}", flush=True)
-            app.quit()
-
-        QtCore.QTimer.singleShot(2200, save_screenshot_and_quit)
-
-    return int(app.exec_())

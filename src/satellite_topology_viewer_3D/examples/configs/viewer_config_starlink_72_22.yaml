@@ -1,0 +1,6 @@
+schema_version: 1
+
+viewer_config:
+  name: Starlink_72_22
+  P: 72
+  N: 22

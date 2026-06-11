@@ -1,0 +1,35 @@
+schema_version: 1
+
+viewer_config_file: viewer_config_starlink_72_22.yaml
+station_group_scheme_file: station_groups_default.yaml
+
+edge_data:
+  store_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/full_option_edge_delay/Starlink_72_22_full_options_t0_86160_stride1
+  options: [0, 1, 2, 4]
+
+position_data:
+  full_cache_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/_position_cache/cache_0_86160_1s
+
+time:
+  start: 1
+  end: 86100
+  stride: 1
+
+groups:
+  enabled: true
+  xml_file: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/station_visible_satellites_72_22_1_delta.xml
+  cache_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/full_option_edge_delay/group_data_cache
+  force_cache: false
+
+view3d:
+  show_links: true
+  show_orbits: true
+  link_stride: 1
+  timer_interval_ms: 180
+
+window:
+  width: 1600
+  height: 900
+  check_only: false
+  offscreen: false
+  screenshot: null
