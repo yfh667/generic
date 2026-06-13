@@ -208,6 +208,20 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         edge_value_label: str = "edge_value",
         group_data: dict | None = None,
         show_groups: bool = True,
+        scale_edge_width_by_value: bool = False,
+        value_width_min: float = 0.006,
+        value_width_max: float = 0.085,
+        value_color_mode: str = "gradient",
+        value_solid_color: str = "#C1121F",
+        value_alpha_min: int = 35,
+        value_alpha_max: int | None = None,
+        zero_value_edges_visible: bool = True,
+        zero_value_threshold: float = 0.0,
+        show_topology_under_edge_values: bool = False,
+        topology_edge_color: str = "#000000",
+        topology_edge_alpha: int | None = None,
+        topology_edge_width: float | None = None,
+        hide_y_wrap_edges: bool = True,
     ):
         super().__init__()
         self.config = config
@@ -219,7 +233,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.edge_table = edge_table if edge_table is not None else build_full_option_edges(config, options=(0, 1, 2, 4))
         self.has_edge_values = edge_values is not None
         if self.has_edge_values:
-            self.edge_values = np.asarray(edge_values, dtype=np.float32)
+            self.edge_values = edge_values if getattr(edge_values, "dtype", None) == np.dtype(np.float32) else np.asarray(edge_values, dtype=np.float32)
         else:
             self.edge_values = np.zeros((len(self.steps), int(self.edge_table.num_edges)), dtype=np.float32)
         if int(self.edge_values.shape[0]) != len(self.steps):
@@ -239,6 +253,20 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
 
         self.edge_width = 0.018
         self.edge_alpha = 145
+        self.scale_edge_width_by_value = bool(scale_edge_width_by_value)
+        self.value_width_min = float(value_width_min)
+        self.value_width_max = float(value_width_max)
+        self.value_color_mode = str(value_color_mode)
+        self.value_solid_color = QtGui.QColor(str(value_solid_color))
+        self.value_alpha_min = int(value_alpha_min)
+        self.value_alpha_max = int(self.edge_alpha if value_alpha_max is None else value_alpha_max)
+        self.zero_value_edges_visible = bool(zero_value_edges_visible)
+        self.zero_value_threshold = float(zero_value_threshold)
+        self.show_topology_under_edge_values = bool(show_topology_under_edge_values)
+        self.topology_edge_color = QtGui.QColor(str(topology_edge_color))
+        self.topology_edge_alpha = int(self.edge_alpha if topology_edge_alpha is None else topology_edge_alpha)
+        self.topology_edge_width = float(self.edge_width if topology_edge_width is None else topology_edge_width)
+        self.hide_y_wrap_edges = bool(hide_y_wrap_edges)
         self.node_radius = 0.14
         self.node_hit_radius = 0.34
         self.edge_hit_threshold = 0.13
@@ -246,13 +274,15 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.min_zoom_factor = 0.35
         self.max_zoom_factor = 8.0
         self.fit_on_next_resize = True
-        self.visible_options = {0: True, 1: True, 2: True, 4: True}
+        self.option_order = sorted({int(x) for x in np.asarray(self.edge_table.option).tolist()})
+        self.visible_options = {option: True for option in self.option_order}
         self.current_row = 0
         self.selected_edge_idx: int | None = None
         self.preview_edge_idx: int | None = None
         self.picked_nodes: list[int] = []
 
         self.edge_items: list[QtWidgets.QGraphicsPathItem] = []
+        self.edge_value_items: list[QtWidgets.QGraphicsPathItem | None] = []
         self.node_items: list[QtWidgets.QGraphicsEllipseItem] = []
         self.node_base_pen = QtGui.QPen(QtGui.QColor(80, 80, 80), 0.0)
         self.edge_samples: list[list[tuple[float, float]]] = []
@@ -306,7 +336,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.slider.setMinimum(0)
         self.slider.setMaximum(max(0, len(self.visible_rows) - 1))
         self.slider.setValue(0)
-        self.slider.setTickInterval(1)
+        self.slider.setTickInterval(self._slider_tick_interval())
         self.slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.slider.valueChanged.connect(self.on_slider)
         self.slider.setMinimumHeight(28)
@@ -383,8 +413,9 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         control_row = QtWidgets.QHBoxLayout()
         controls_layout.addLayout(control_row)
         self.option_checks: dict[int, QtWidgets.QCheckBox] = {}
-        for option in (0, 1, 2, 4):
-            cb = QtWidgets.QCheckBox(f"option {option}")
+        for option in self.option_order:
+            label = "intra y-ring" if int(option) == -1 else f"option {option}"
+            cb = QtWidgets.QCheckBox(label)
             cb.setChecked(True)
             cb.stateChanged.connect(self.on_option_changed)
             self.option_checks[option] = cb
@@ -434,6 +465,9 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         controls_layout.addWidget(self.hover_label)
         controls_layout.addWidget(self.selected_label)
         self.update_colorbar_labels()
+
+    def _slider_tick_interval(self) -> int:
+        return max(1, int(math.ceil(max(1, len(self.visible_rows)) / 100)))
 
     def _apply_large_control_style(self):
         base_font = QtGui.QFont()
@@ -492,6 +526,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.slider.blockSignals(True)
         self.slider.setMinimum(0)
         self.slider.setMaximum(max(0, len(self.visible_rows) - 1))
+        self.slider.setTickInterval(self._slider_tick_interval())
         self.slider.setValue(0)
         self.slider.blockSignals(False)
         self.update_step(self.visible_rows[0] if target_row is None else target_row)
@@ -581,13 +616,46 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         for x in range(bar_w):
             t = x / max(1, bar_w - 1)
             value = self.value_min + t * (self.value_max - self.value_min)
-            painter.setPen(color_from_value(value, self.value_min, self.value_max, 255))
+            if self.value_color_mode == "red_alpha":
+                color = QtGui.QColor(self.value_solid_color)
+                if (
+                    value <= self.zero_value_threshold
+                    and not self.zero_value_edges_visible
+                    and self.show_topology_under_edge_values
+                ):
+                    color = QtGui.QColor(self.topology_edge_color)
+                    color.setAlpha(int(self.topology_edge_alpha))
+                elif value <= self.zero_value_threshold and not self.zero_value_edges_visible:
+                    color.setAlpha(0)
+                else:
+                    alpha_t = max(0.0, min(1.0, t))
+                    alpha = self.value_alpha_min + alpha_t * (self.value_alpha_max - self.value_alpha_min)
+                    color.setAlpha(int(round(alpha)))
+                painter.setPen(color)
+            else:
+                painter.setPen(color_from_value(value, self.value_min, self.value_max, 255))
             painter.drawLine(bar_x + x, bar_y, bar_x + x, bar_y + bar_h)
 
         painter.setPen(QtGui.QColor(55, 55, 55))
         painter.drawRect(bar_x, bar_y, bar_w, bar_h)
-        painter.drawText(int(width / 2) - 72, 16, f"{self.edge_value_label} color scale")
-        painter.drawText(4, bar_y + 14, f"{self.value_min:.3f}")
+        title = (
+            f"{self.edge_value_label}: black=0, red=strength"
+            if self.value_color_mode == "red_alpha" and self.show_topology_under_edge_values
+            else f"{self.edge_value_label}: red alpha scale"
+            if self.value_color_mode == "red_alpha"
+            else f"{self.edge_value_label} color scale"
+        )
+        painter.drawText(int(width / 2) - 110, 16, title)
+        left_label = (
+            "0 black"
+            if self.value_color_mode == "red_alpha"
+            and not self.zero_value_edges_visible
+            and self.show_topology_under_edge_values
+            else "0 hidden"
+            if self.value_color_mode == "red_alpha" and not self.zero_value_edges_visible
+            else f"{self.value_min:.3f}"
+        )
+        painter.drawText(4, bar_y + 14, left_label)
         painter.drawText(bar_x + bar_w + 8, bar_y + 14, f"{self.value_max:.3f}")
         painter.end()
         return pixmap
@@ -624,6 +692,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
     def _build_scene(self):
         self.scene.clear()
         self.edge_items = []
+        self.edge_value_items = []
         self.node_items = []
         self.edge_samples = []
         self.node_to_edge = {}
@@ -697,7 +766,21 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         path = QtGui.QPainterPath()
         path.moveTo(x0, y0)
 
-        if int(self.edge_table.option[idx]) == 2:
+        if int(self.edge_table.option[idx]) == -1:
+            raw_y0 = int(self.edge_table.src_y[idx])
+            raw_y1 = int(self.edge_table.dst_y[idx])
+            if abs(raw_y0 - raw_y1) == int(self.config.N) - 1:
+                side_x = float(x0) + 0.32
+                top_y = min(float(y0), float(y1)) - 0.55
+                bottom_y = max(float(y0), float(y1)) + 0.55
+                path.lineTo(side_x, top_y)
+                path.lineTo(side_x, bottom_y)
+                path.lineTo(x1, y1)
+                samples = [(float(x0), float(y0)), (side_x, top_y), (side_x, bottom_y), (float(x1), float(y1))]
+            else:
+                path.lineTo(x1, y1)
+                samples = [(x0, y0), (x1, y1)]
+        elif int(self.edge_table.option[idx]) == 2:
             ctrl_x = (x0 + x1) / 2.0
             ctrl_y = (y0 + y1) / 2.0 + 0.5 * abs(x1 - x0)
             path.quadTo(ctrl_x, ctrl_y, x1, y1)
@@ -712,6 +795,22 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
 
         return path, samples
 
+    def is_hidden_visual_edge(self, idx: int) -> bool:
+        """Hide the y-ring wrap link in the flat 2D drawing.
+
+        The torus edge still exists in the edge table and can still be used by
+        computations. It is only omitted from the visual layer to avoid drawing
+        a long head-tail line such as (x, 0) -- (x, N-1).
+        """
+
+        if not self.hide_y_wrap_edges:
+            return False
+        if int(self.edge_table.option[idx]) != -1:
+            return False
+        if int(self.edge_table.src_plane[idx]) != int(self.edge_table.dst_plane[idx]):
+            return False
+        return abs(int(self.edge_table.src_y[idx]) - int(self.edge_table.dst_y[idx])) == int(self.config.N) - 1
+
     def _draw_edges(self):
         for idx in range(self.edge_table.num_edges):
             path, samples = self._edge_path_and_samples(idx)
@@ -719,6 +818,14 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             item.setZValue(3)
             self.scene.addItem(item)
             self.edge_items.append(item)
+
+            value_item = None
+            if self.has_edge_values and self.show_topology_under_edge_values:
+                value_item = QtWidgets.QGraphicsPathItem(path)
+                value_item.setZValue(4)
+                self.scene.addItem(value_item)
+            self.edge_value_items.append(value_item)
+
             self.edge_samples.append(samples)
 
             src = int(self.edge_table.src[idx])
@@ -800,14 +907,65 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
 
         values = self.edge_values[row] if self.has_edge_values else None
         for idx, item in enumerate(self.edge_items):
+            value_item = self.edge_value_items[idx] if idx < len(self.edge_value_items) else None
+            if self.is_hidden_visual_edge(idx):
+                item.setVisible(False)
+                if value_item is not None:
+                    value_item.setVisible(False)
+                continue
             option = int(self.edge_table.option[idx])
             visible = bool(self.visible_options.get(option, False))
             item.setVisible(visible)
+            if value_item is not None:
+                value_item.setVisible(False)
             if not visible:
                 continue
 
             selected = idx == self.selected_edge_idx
             preview = idx == self.preview_edge_idx
+            if self.has_edge_values and self.show_topology_under_edge_values:
+                if selected:
+                    base_pen = QtGui.QPen(QtGui.QColor(10, 10, 10))
+                    base_pen.setWidthF(0.085)
+                    item.setZValue(50)
+                elif preview:
+                    base_pen = QtGui.QPen(QtGui.QColor(35, 35, 35))
+                    base_pen.setWidthF(0.060)
+                    item.setZValue(40)
+                else:
+                    base_color = QtGui.QColor(self.topology_edge_color)
+                    base_color.setAlpha(int(self.topology_edge_alpha))
+                    base_pen = QtGui.QPen(base_color)
+                    base_pen.setWidthF(float(self.topology_edge_width))
+                    item.setZValue(3)
+                base_pen.setCapStyle(QtCore.Qt.RoundCap)
+                item.setPen(base_pen)
+
+                edge_value = float(values[idx])
+                overlay_visible = edge_value > self.zero_value_threshold or self.zero_value_edges_visible
+                if value_item is not None and overlay_visible:
+                    if self.value_color_mode == "red_alpha":
+                        denom = max(1e-12, float(self.value_max) - float(self.value_min))
+                        t = max(0.0, min(1.0, (edge_value - float(self.value_min)) / denom))
+                        color = QtGui.QColor(self.value_solid_color)
+                        alpha = self.value_alpha_min + math.sqrt(t) * (self.value_alpha_max - self.value_alpha_min)
+                        color.setAlpha(int(round(alpha)))
+                        pen = QtGui.QPen(color)
+                    else:
+                        pen = QtGui.QPen(color_from_value(edge_value, self.value_min, self.value_max, self.edge_alpha))
+                    if self.scale_edge_width_by_value:
+                        denom = max(1e-12, float(self.value_max) - float(self.value_min))
+                        t = max(0.0, min(1.0, (edge_value - float(self.value_min)) / denom))
+                        width = self.value_width_min + (self.value_width_max - self.value_width_min) * math.sqrt(t)
+                        pen.setWidthF(float(width))
+                    else:
+                        pen.setWidthF(self.edge_width)
+                    pen.setCapStyle(QtCore.Qt.RoundCap)
+                    value_item.setPen(pen)
+                    value_item.setZValue(55 if selected else 45 if preview else 4)
+                    value_item.setVisible(True)
+                continue
+
             if selected:
                 pen = QtGui.QPen(QtGui.QColor(10, 10, 10))
                 pen.setWidthF(0.085)
@@ -823,8 +981,26 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                 pen.setWidthF(self.edge_width)
                 item.setZValue(3)
             else:
-                pen = QtGui.QPen(color_from_value(values[idx], self.value_min, self.value_max, self.edge_alpha))
-                pen.setWidthF(self.edge_width)
+                edge_value = float(values[idx])
+                if edge_value <= self.zero_value_threshold and not self.zero_value_edges_visible:
+                    item.setVisible(False)
+                    continue
+                if self.value_color_mode == "red_alpha":
+                    denom = max(1e-12, float(self.value_max) - float(self.value_min))
+                    t = max(0.0, min(1.0, (edge_value - float(self.value_min)) / denom))
+                    color = QtGui.QColor(self.value_solid_color)
+                    alpha = self.value_alpha_min + math.sqrt(t) * (self.value_alpha_max - self.value_alpha_min)
+                    color.setAlpha(int(round(alpha)))
+                    pen = QtGui.QPen(color)
+                else:
+                    pen = QtGui.QPen(color_from_value(edge_value, self.value_min, self.value_max, self.edge_alpha))
+                if self.scale_edge_width_by_value:
+                    denom = max(1e-12, float(self.value_max) - float(self.value_min))
+                    t = max(0.0, min(1.0, (edge_value - float(self.value_min)) / denom))
+                    width = self.value_width_min + (self.value_width_max - self.value_width_min) * math.sqrt(t)
+                    pen.setWidthF(float(width))
+                else:
+                    pen.setWidthF(self.edge_width)
                 item.setZValue(3)
             pen.setCapStyle(QtCore.Qt.RoundCap)
             item.setPen(pen)
@@ -947,6 +1123,8 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         best_idx: int | None = None
         best_dist = math.inf
         for idx, samples in enumerate(self.edge_samples):
+            if idx < len(self.edge_items) and not self.edge_items[idx].isVisible():
+                continue
             option = int(self.edge_table.option[idx])
             if not self.visible_options.get(option, False):
                 continue

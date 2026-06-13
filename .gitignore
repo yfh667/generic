@@ -1,6 +1,16 @@
 data/
 linshi/
 dataresult/
+paper1notebook/codex2/outputs/
+paper1notebook/codex2/cache/
+src/**/examples/outputs/
+*.npy
+*.npz
+*.pkl
+*.h5
+*.hdf5
+*.parquet
+*.log
 paper3py/sim_output/cache_*/
 paper3py/**/_cache/
 __pycache__/
