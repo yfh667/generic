@@ -201,6 +201,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         end: int = 100,
         steps: list[int] | None = None,
         edge_table=None,
+        edge_active_mask=None,
         edge_values=None,
         value_min: float | None = None,
         value_max: float | None = None,
@@ -240,6 +241,16 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             raise ValueError(f"edge value rows {self.edge_values.shape[0]} != steps length {len(self.steps)}")
         if int(self.edge_values.shape[1]) != int(self.edge_table.num_edges):
             raise ValueError(f"edge value cols {self.edge_values.shape[1]} != edge count {self.edge_table.num_edges}")
+        if edge_active_mask is None:
+            self.edge_active_mask = np.ones((len(self.steps), int(self.edge_table.num_edges)), dtype=bool)
+        else:
+            self.edge_active_mask = np.asarray(edge_active_mask, dtype=bool)
+            if int(self.edge_active_mask.shape[0]) != len(self.steps):
+                raise ValueError(f"edge active rows {self.edge_active_mask.shape[0]} != steps length {len(self.steps)}")
+            if int(self.edge_active_mask.shape[1]) != int(self.edge_table.num_edges):
+                raise ValueError(
+                    f"edge active cols {self.edge_active_mask.shape[1]} != edge count {self.edge_table.num_edges}"
+                )
         if self.has_edge_values:
             self.value_min = float(np.nanmin(self.edge_values)) if value_min is None else float(value_min)
             self.value_max = float(np.nanmax(self.edge_values)) if value_max is None else float(value_max)
@@ -906,6 +917,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             self.slider.blockSignals(False)
 
         values = self.edge_values[row] if self.has_edge_values else None
+        active_visible_count = 0
         for idx, item in enumerate(self.edge_items):
             value_item = self.edge_value_items[idx] if idx < len(self.edge_value_items) else None
             if self.is_hidden_visual_edge(idx):
@@ -914,12 +926,14 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                     value_item.setVisible(False)
                 continue
             option = int(self.edge_table.option[idx])
-            visible = bool(self.visible_options.get(option, False))
+            active = bool(self.edge_active_mask[row, idx])
+            visible = bool(active and self.visible_options.get(option, False))
             item.setVisible(visible)
             if value_item is not None:
                 value_item.setVisible(False)
             if not visible:
                 continue
+            active_visible_count += 1
 
             selected = idx == self.selected_edge_idx
             preview = idx == self.preview_edge_idx
@@ -1013,7 +1027,8 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             else "range empty"
         )
         self.step_label.setText(
-            f"step {step} | row {pos + 1}/{len(self.visible_rows)} | edges {self.edge_table.num_edges} | "
+            f"step {step} | row {pos + 1}/{len(self.visible_rows)} | "
+            f"active edges {active_visible_count}/{self.edge_table.num_edges} | "
             f"{range_text}"
         )
         self.update_node_group_colors(row)
