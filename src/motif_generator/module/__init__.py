@@ -15,7 +15,7 @@ from .exact_box import (
     pretty_motif,
     smaller_repeat_factors,
 )
-from .config_io import load_yaml_dict
+from .config_io import load_motif_support_yaml, load_yaml_dict
 from .drawing import (
     SYMBOL_COLORS,
     draw_motif_support,
@@ -24,13 +24,16 @@ from .drawing import (
 )
 from .library import (
     CanonicalMotifRow,
+    CombinedCanonicalMotifRow,
     canonical_motif_rows,
     canonical_primitive_representatives,
     canonical_torus_key,
+    combined_canonical_motif_rows,
     motif_matrix_support_label,
     motif_to_assignment,
     tiled_inter_edges_for_canonical_key,
     write_canonical_motif_library_csv,
+    write_combined_canonical_motif_library_csv,
 )
 from .support import (
     DEFAULT_SUPPORT_OFFSETS,
@@ -99,15 +102,19 @@ __all__ = [
     "option_from_delta",
     "option_from_symbol",
     "tiled_result_to_edge_table",
+    "load_motif_support_yaml",
     "load_yaml_dict",
     "CanonicalMotifRow",
+    "CombinedCanonicalMotifRow",
     "canonical_motif_rows",
     "canonical_primitive_representatives",
     "canonical_torus_key",
+    "combined_canonical_motif_rows",
     "motif_matrix_support_label",
     "motif_to_assignment",
     "tiled_inter_edges_for_canonical_key",
     "write_canonical_motif_library_csv",
+    "write_combined_canonical_motif_library_csv",
     "DEFAULT_SUPPORT_OFFSETS",
     "MotifSupport",
     "SupportEntry",

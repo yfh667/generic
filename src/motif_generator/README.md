@@ -16,6 +16,7 @@ This module enumerates self-contained exact-box inter-plane motifs.
 - `examples/tile_motif_on_grid.py`: runnable example for tiling and drawing one motif on a full grid.
 - `examples/run_tiled_motif_2d_viewer.py`: runnable example that opens the tiled motif with the shared 2D topology viewer.
 - `examples/configs/dad_cxx_support.yaml`: support-style motif YAML example.
+- `examples/configs/motif_000056_support.yaml`: support-style YAML example used in the notebook and 2D viewer demo.
 - `examples/motif_generator_usage.ipynb`: self-contained Jupyter usage guide.
 
 ## Definition
@@ -75,33 +76,90 @@ motif = {
 
 The `offsets` block makes the coordinate convention explicit, so the support entries only need to say where each edge starts and which symbol it uses.
 
-User-facing Python code should also use the same support-style motif object:
+## YAML-First Workflow
+
+The recommended user-facing input is a YAML file, for example:
+
+`E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml`
+
+Read the YAML motif:
+
+```python
+import sys
+from pathlib import Path
+
+GENERIC_ROOT = Path(r"E:\paper11\generic")
+if str(GENERIC_ROOT) not in sys.path:
+    sys.path.insert(0, str(GENERIC_ROOT))
+
+from src.motif_generator.module.config_io import load_motif_support_yaml, load_yaml_dict
+from src.motif_generator.module.support import motif_support_label
+
+CONFIG_PATH = GENERIC_ROOT / "src" / "motif_generator" / "examples" / "configs" / "motif_000056_support.yaml"
+
+raw_config = load_yaml_dict(CONFIG_PATH)
+motif_support = load_motif_support_yaml(CONFIG_PATH)
+
+print(raw_config["grid"])
+print(motif_support.name)
+print(motif_support_label(motif_support))
+```
+
+Tile it to a full `p x n` topology and write CSV/JSON/PNG outputs:
 
 ```python
 from pathlib import Path
 
+from src.motif_generator.module.config_io import load_motif_support_yaml, load_yaml_dict
 from src.motif_generator.module.tiling import tile_motif_on_grid, write_tiled_motif_outputs
 
-motif = {
-    "w": 3,
-    "h": 3,
-    "support": [
-        (0, 0, "D"),
-        (0, 1, "B"),
-        (0, 2, "D"),
-        (1, 2, "B"),
-    ],
-}
+CONFIG_PATH = Path(r"E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml")
+OUT_DIR = Path(r"E:\paper11\data\linshi\motif_000056_from_yaml")
+
+raw_config = load_yaml_dict(CONFIG_PATH)
+grid = raw_config.get("grid", {})
+tiling = raw_config.get("tiling", {})
+motif_support = load_motif_support_yaml(CONFIG_PATH)
 
 result = tile_motif_on_grid(
-    p=18,
-    n=36,
-    motif=motif,
-    horizontal_step=None,
-    allow_vertical_overlap=True,
-    allow_clipped_right=True,
+    p=int(grid.get("p", 18)),
+    n=int(grid.get("n", 36)),
+    motif=motif_support,
+    horizontal_step=tiling.get("horizontal_step"),
+    allow_vertical_overlap=bool(tiling.get("allow_vertical_overlap", True)),
+    allow_clipped_right=bool(tiling.get("allow_clipped_right", True)),
 )
-write_tiled_motif_outputs(result, Path(r"E:\paper11\data\linshi\notebook_tile_motif_000056"))
+write_tiled_motif_outputs(result, OUT_DIR)
+```
+
+Show the tiled result from YAML with the shared 2D topology viewer:
+
+```python
+from PyQt5 import QtWidgets
+
+from src.config.viewer_config import G60_CONFIG
+from src.motif_generator.module.config_io import load_motif_support_yaml
+from src.motif_generator.module.tiling import tile_motif_on_grid
+from src.motif_generator.module.viewer_adapter import tiled_result_to_edge_table
+from src.satellite_topology_viewer.module.base_viewer import SatelliteTopology2DViewer
+
+CONFIG_PATH = Path(r"E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml")
+motif_support = load_motif_support_yaml(CONFIG_PATH)
+
+result = tile_motif_on_grid(p=G60_CONFIG.P, n=G60_CONFIG.N, motif=motif_support)
+edge_table = tiled_result_to_edge_table(result)
+
+app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+viewer = SatelliteTopology2DViewer(
+    G60_CONFIG,
+    steps=[1],
+    edge_table=edge_table,
+    window_title=f"G60 tiled motif 2D: {result.motif_label}",
+    group_data={},
+    show_groups=False,
+)
+viewer.resize(1200, 760)
+viewer.show()
 ```
 
 Draw one local motif directly from the support-style Python data:
@@ -163,13 +221,19 @@ Generate the canonical experiment library for one `w,h`:
 Tile one motif on a full `p=18,n=36` grid and open it with the shared 2D topology viewer:
 
 ```powershell
-& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\motif_generator\examples\run_tiled_motif_2d_viewer.py' --config 'E:\paper11\generic\src\motif_generator\examples\configs\dad_cxx_support.yaml' --out-dir 'E:\paper11\generic\src\motif_generator\examples\outputs\viewer_yaml_dad_cxx'
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\motif_generator\examples\run_tiled_motif_2d_viewer.py' --config 'E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml' --out-dir 'E:\paper11\data\linshi\motif_000056_2d_viewer_from_yaml'
 ```
 
 Static PNG output is also available for quick non-GUI checks:
 
 ```powershell
-& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\motif_generator\examples\tile_motif_on_grid.py' --config 'E:\paper11\generic\src\motif_generator\examples\configs\dad_cxx_support.yaml' --out-dir 'E:\paper11\generic\src\motif_generator\examples\outputs\tile_yaml_dad_cxx'
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\motif_generator\examples\tile_motif_on_grid.py' --config 'E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml' --out-dir 'E:\paper11\data\linshi\motif_000056_tile_from_yaml'
+```
+
+Open the same YAML in the shared 2D viewer:
+
+```powershell
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\motif_generator\examples\run_tiled_motif_2d_viewer.py' --config 'E:\paper11\generic\src\motif_generator\examples\configs\motif_000056_support.yaml' --out-dir 'E:\paper11\data\linshi\motif_000056_2d_viewer_from_yaml'
 ```
 
 Notebook usage guide:

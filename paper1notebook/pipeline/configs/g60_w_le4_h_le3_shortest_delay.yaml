@@ -1,0 +1,78 @@
+constellation:
+  name: G60
+  p: 18
+  n: 36
+  station_groups:
+    0:
+      name: America
+      stations: [0, 1, 2, 3, 4]
+    1:
+      name: Africa
+      stations: [5, 6, 7, 8, 9, 10]
+    2:
+      name: China
+      stations: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+    3:
+      name: Europe
+      stations: [23, 24, 25, 26, 27, 28, 29, 30]
+  group_colors:
+    - "#FF0000"
+    - "#00FF00"
+    - "#0000FF"
+    - "#FFA500"
+
+time:
+  start: 0
+  end: 86160
+  stride: 60
+
+paths:
+  group_xml: E:/paper11/data/basic_file/G60/satellitesposition/station_visible_satellites_20250106.xml
+  group_cache_dir: E:/paper11/data/satnet_experiments/caches/G60/group_data_cache
+  motif_library_dir: E:/paper11/data/satnet_experiments/libraries/motif/exact_box/w_le_4_h_le_3
+  delay_store_dir: E:/paper11/data/basic_file/G60/satellitesposition/full_option_edge_delay/G60_full_options_t0_86164_stride1
+  position_cache_dir: E:/paper11/data/basic_file/G60/satellitesposition/_position_cache/cache_0_86164_1s
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w_le4_h_le3/shortest_delay_t0_86160_stride60
+  gridplus_config: E:/paper11/data/topology_design/grid+/config/motif.json
+
+motif_library:
+  min_w: 2
+  min_h: 1
+  max_w: 4
+  max_h: 3
+  include_max_size: true
+  name_prefix: combined
+  csv_name: combined_w_le4_h_le3_808.csv
+  regenerate: false
+
+region_pairs:
+  - key: china_europe
+    label: China-Europe
+    source_group_id: 2
+    target_group_id: 3
+  - key: china_america
+    label: China-America
+    source_group_id: 2
+    target_group_id: 0
+  - key: china_africa
+    label: China-Africa
+    source_group_id: 2
+    target_group_id: 1
+
+baselines:
+  full_link:
+    enabled: true
+    options: [0, 1, 2, 4]
+    add_intra_ring: true
+  gridplus:
+    enabled: true
+    add_intra_ring: true
+
+run:
+  label: g60_w_le4_h_le3_808_shortest_delay
+  engine: auto
+  progress_every: 200
+  sample_steps: 0
+  sample_pairs_per_step: 0
+  force_group_cache: false
+  limit_motifs: 0

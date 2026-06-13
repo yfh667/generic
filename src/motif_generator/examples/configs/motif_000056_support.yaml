@@ -1,0 +1,32 @@
+name: motif_000056_support
+
+grid:
+  p: 18
+  n: 36
+
+motif:
+  name: motif_000056_DBD_xxB
+  w: 3
+  h: 3
+  offsets:
+    A: [1, 0]
+    B: [1, -1]
+    C: [1, 1]
+    D: [2, 0]
+  support:
+    - [0, 0, D]
+    - [0, 1, B]
+    - [0, 2, D]
+    - [1, 2, B]
+
+tiling:
+  horizontal_step: null
+  allow_vertical_overlap: true
+  allow_clipped_right: true
+
+viewer:
+  step: 1
+  width: 1400
+  height: 860
+  edge_width: 0.045
+  edge_alpha: 190

@@ -1,0 +1,79 @@
+name: g60_motif_000056_china_europe_shortest_delay
+
+constellation:
+  name: G60
+  p: 18
+  n: 36
+  station_groups:
+    0:
+      name: America
+      stations: [0, 1, 2, 3, 4]
+    1:
+      name: Africa
+      stations: [5, 6, 7, 8, 9, 10]
+    2:
+      name: China
+      stations: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+    3:
+      name: Europe
+      stations: [23, 24, 25, 26, 27, 28, 29, 30]
+  group_colors: ["#FF0000", "#00FF00", "#0000FF", "#FFA500"]
+
+time:
+  start: 0
+  end: 86164
+  stride: 1
+
+data:
+  group_data:
+    xml_file: E:/paper11/data/basic_file/G60/satellitesposition/station_visible_satellites_20250106.xml
+    cache_dir: E:/paper11/data/linshi/cache/group_data_cache
+    enabled: true
+    force: false
+  position:
+    raw_dir: E:/paper11/data/basic_file/G60/satellitesposition/satellite_pos
+    cache_root: E:/paper11/data/basic_file/G60/satellitesposition/_position_cache
+    full_cache_dir: E:/paper11/data/basic_file/G60/satellitesposition/_position_cache/cache_0_86164_1s
+    enable_fallback: false
+  delay_store:
+    store_dir: E:/paper11/data/linshi/G60_full_options_plus_intra_t0_86164_stride1
+
+topology:
+  name: motif_000056_DBD_xxB
+  kind: single_motif
+  add_intra_ring: true
+  motif:
+    name: motif_000056_DBD_xxB
+    w: 3
+    h: 3
+    offsets:
+      A: [1, 0]
+      B: [1, -1]
+      C: [1, 1]
+      D: [2, 0]
+    support:
+      - [0, 0, D]
+      - [0, 1, B]
+      - [0, 2, D]
+      - [1, 2, B]
+  tiling:
+    horizontal_step: null
+    allow_vertical_overlap: true
+    allow_clipped_right: true
+
+metric:
+  type: shortest_delay
+  source_group_id: 2
+  source_group_name: China
+  target_group_id: 3
+  target_group_name: Europe
+  engine: auto
+  sample_steps: 3
+  sample_pairs_per_step: 60
+  progress_every: 200
+
+outputs:
+  out_dir: E:/paper11/data/linshi/workflows/g60_motif_000056_china_europe_shortest_delay_t0_86164
+  write_edges: true
+  write_step_summary: true
+  write_path_samples: true

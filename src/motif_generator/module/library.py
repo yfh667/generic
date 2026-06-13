@@ -26,6 +26,19 @@ class CanonicalMotifRow:
     edges: str
 
 
+@dataclass(frozen=True)
+class CombinedCanonicalMotifRow:
+    motif_id: int
+    source_w: int
+    source_h: int
+    local_motif_id: int
+    primitive_matrix_count: int
+    motif: str
+    edge_count: int
+    support: str
+    edges: str
+
+
 def motif_to_assignment(motif: Motif) -> dict[tuple[int, int], str | None]:
     return {
         (int(c), int(r)): motif[c][r]
@@ -164,6 +177,71 @@ def canonical_motif_rows(
     return rows, primitive_count
 
 
+def combined_canonical_motif_rows(
+    *,
+    max_w: int,
+    max_h: int,
+    min_w: int = 2,
+    min_h: int = 1,
+    include_max_size: bool = True,
+    row_pitch: int = 36,
+    phase_count: int | None = None,
+    start_motif_id: int = 1,
+) -> tuple[list[CombinedCanonicalMotifRow], list[dict]]:
+    """Build one combined canonical motif library over a size rectangle.
+
+    This is the reusable form of the paper experiments that concatenate
+    all translation-deduplicated primitive motif libraries up to `max_w,max_h`.
+    Set `include_max_size=False` to get the "small102" style library for
+    `max_w=4,max_h=3`; set it to `True` to get small102 plus the 4x3 706
+    library, i.e. 808 rows.
+    """
+
+    max_w = int(max_w)
+    max_h = int(max_h)
+    min_w = int(min_w)
+    min_h = int(min_h)
+    if min_w < 2:
+        raise ValueError("min_w must be >= 2")
+    if min_h < 1:
+        raise ValueError("min_h must be >= 1")
+    if max_w < min_w or max_h < min_h:
+        raise ValueError("max_w/max_h must be >= min_w/min_h")
+
+    rows: list[CombinedCanonicalMotifRow] = []
+    counts: list[dict] = []
+    motif_id = int(start_motif_id)
+    for w in range(min_w, max_w + 1):
+        for h in range(min_h, max_h + 1):
+            if not include_max_size and w == max_w and h == max_h:
+                continue
+            motifs, primitive_count = canonical_primitive_representatives(w, h, phase_count=phase_count)
+            counts.append(
+                {
+                    "w": int(w),
+                    "h": int(h),
+                    "canonical_count": int(len(motifs)),
+                    "primitive_matrix_count": int(primitive_count),
+                }
+            )
+            for local_motif_id, motif in enumerate(motifs, start=1):
+                rows.append(
+                    CombinedCanonicalMotifRow(
+                        motif_id=int(motif_id),
+                        source_w=int(w),
+                        source_h=int(h),
+                        local_motif_id=int(local_motif_id),
+                        primitive_matrix_count=int(primitive_count),
+                        motif=pretty_motif(motif),
+                        edge_count=int(sum(1 for col in motif for symbol in col if symbol is not None)),
+                        support=motif_matrix_support_label(motif),
+                        edges=", ".join(motif_edges_as_user_ids(motif, row_pitch=int(row_pitch))),
+                    )
+                )
+                motif_id += 1
+    return rows, counts
+
+
 def write_canonical_motif_library_csv(
     path: str | Path,
     *,
@@ -198,6 +276,58 @@ def write_canonical_motif_library_csv(
         "definition": "primitive_exact_box followed by canonical_torus_key translation deduplication",
     }
     (path.parent / f"canonical_w{int(w)}_h{int(h)}_summary.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return meta
+
+
+def write_combined_canonical_motif_library_csv(
+    path: str | Path,
+    *,
+    max_w: int,
+    max_h: int,
+    min_w: int = 2,
+    min_h: int = 1,
+    include_max_size: bool = True,
+    row_pitch: int = 36,
+    phase_count: int | None = None,
+) -> dict:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows, counts = combined_canonical_motif_rows(
+        max_w=max_w,
+        max_h=max_h,
+        min_w=min_w,
+        min_h=min_h,
+        include_max_size=include_max_size,
+        row_pitch=row_pitch,
+        phase_count=phase_count,
+    )
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        fieldnames = list(CombinedCanonicalMotifRow.__dataclass_fields__.keys())
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(asdict(row))
+
+    meta = {
+        "min_w": int(min_w),
+        "min_h": int(min_h),
+        "max_w": int(max_w),
+        "max_h": int(max_h),
+        "include_max_size": bool(include_max_size),
+        "row_pitch": int(row_pitch),
+        "phase_count": None if phase_count is None else int(phase_count),
+        "total_motifs": int(len(rows)),
+        "counts_by_size": counts,
+        "csv": str(path),
+        "definition": (
+            "Concatenate canonical_primitive_representatives(w,h) for "
+            "min_w<=w<=max_w and min_h<=h<=max_h."
+        ),
+    }
+    (path.parent / f"combined_canonical_w{int(min_w)}_{int(max_w)}_h{int(min_h)}_{int(max_h)}_summary.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
