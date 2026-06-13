@@ -4,8 +4,10 @@ import csv
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from .exact_box import EdgeRecord, Motif, motif_edge_records, pretty_motif
+from .support import MotifSupport, motif_support_from_dict, motif_support_label, motif_support_to_edge_records
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class TiledMotifResult:
     motif_height: int
     placed_edges: list[PlacedEdge]
     placements: list[PlacementAttempt]
+    motif_label: str = ""
 
     @property
     def edge_count(self) -> int:
@@ -138,6 +141,7 @@ def tile_edge_records_on_grid(
     motif_height: int,
     local_edges: list[EdgeRecord],
     motif: Motif | None = None,
+    motif_label: str | None = None,
     horizontal_step: int | None = None,
     allow_vertical_overlap: bool = True,
     allow_clipped_right: bool = True,
@@ -210,6 +214,54 @@ def tile_edge_records_on_grid(
             key=lambda item: (item.src_col, item.src_row, item.dst_col, item.dst_row),
         ),
         placements=placements,
+        motif_label=str(motif_label or (pretty_motif(motif) if motif else "edge-record motif")),
+    )
+
+
+def normalize_motif_for_tiling(
+    motif: Motif | MotifSupport | dict[str, Any],
+) -> tuple[int, int, list[EdgeRecord], Motif, str]:
+    """Normalize public motif inputs to local edge records for tiling.
+
+    User-facing code should normally pass the support-style dict:
+
+    ``{"w": 3, "h": 3, "support": [(0, 0, "D"), ...]}``
+
+    The symbol-matrix form is kept for compatibility with the exact-box
+    enumerator output.
+    """
+
+    if isinstance(motif, MotifSupport):
+        return (
+            motif.w,
+            motif.h,
+            motif_support_to_edge_records(motif),
+            tuple(),
+            motif.name or motif_support_label(motif),
+        )
+    if isinstance(motif, dict):
+        motif_support = motif_support_from_dict(motif)
+        return (
+            motif_support.w,
+            motif_support.h,
+            motif_support_to_edge_records(motif_support),
+            tuple(),
+            motif_support.name or motif_support_label(motif_support),
+        )
+
+    motif_matrix = motif
+    if not motif_matrix:
+        raise ValueError("motif must contain at least one planning column")
+    motif_height = len(motif_matrix[0])
+    if any(len(col) != motif_height for col in motif_matrix):
+        raise ValueError("all motif columns must have the same height")
+    motif_width = len(motif_matrix) + 1
+    return (
+        motif_width,
+        motif_height,
+        motif_edge_records(motif_matrix),
+        motif_matrix,
+        pretty_motif(motif_matrix),
     )
 
 
@@ -217,26 +269,26 @@ def tile_motif_on_grid(
     *,
     p: int,
     n: int,
-    motif: Motif,
+    motif: Motif | MotifSupport | dict[str, Any],
     horizontal_step: int | None = None,
     allow_vertical_overlap: bool = True,
     allow_clipped_right: bool = True,
 ) -> TiledMotifResult:
-    """Tile a symbol-matrix motif onto a full ``p x n`` 2D grid."""
+    """Tile one motif onto a full ``p x n`` 2D grid.
 
-    if not motif:
-        raise ValueError("motif must contain at least one planning column")
-    motif_height = len(motif[0])
-    if any(len(col) != motif_height for col in motif):
-        raise ValueError("all motif columns must have the same height")
-    motif_width = len(motif) + 1
+    Preferred user-facing input is a support-style dict with ``w``, ``h``, and
+    ``support``. Matrix motifs from the exact-box enumerator are also accepted.
+    """
+
+    motif_width, motif_height, local_edges, motif_matrix, motif_label = normalize_motif_for_tiling(motif)
     return tile_edge_records_on_grid(
         p=p,
         n=n,
         motif_width=motif_width,
         motif_height=motif_height,
-        local_edges=motif_edge_records(motif),
-        motif=motif,
+        local_edges=local_edges,
+        motif=motif_matrix,
+        motif_label=motif_label,
         horizontal_step=horizontal_step,
         allow_vertical_overlap=allow_vertical_overlap,
         allow_clipped_right=allow_clipped_right,
@@ -293,7 +345,8 @@ def write_tiled_motif_outputs(result: TiledMotifResult, out_dir: str | Path) -> 
     payload = {
         "p": result.p,
         "n": result.n,
-        "motif": pretty_motif(result.motif) if result.motif else None,
+        "motif": result.motif_label or (pretty_motif(result.motif) if result.motif else None),
+        "motif_matrix": pretty_motif(result.motif) if result.motif else None,
         "motif_width": result.motif_width,
         "motif_height": result.motif_height,
         "accepted_placements": result.accepted_count,
@@ -391,7 +444,7 @@ def draw_tiled_motif(
 
     ax.set_xlim(-0.8, result.p - 0.2)
     ax.set_ylim(-0.8, result.n - 0.2)
-    title_motif = pretty_motif(result.motif) if result.motif else "edge-record motif"
+    title_motif = result.motif_label or (pretty_motif(result.motif) if result.motif else "edge-record motif")
     ax.set_title(
         f"tiled motif {title_motif} on p={result.p}, n={result.n} | "
         f"accepted={result.accepted_count}, edges={result.edge_count}",

@@ -182,8 +182,35 @@ def safe_topology_name(motif_id: int) -> str:
 
 
 def load_baseline_series(path: Path, steps: list[int]) -> np.ndarray:
-    values = np.load(Path(path) / "mean_shortest_delay_ms.npy")
-    return np.asarray(values[np.asarray(steps, dtype=np.int64)], dtype=np.float32)
+    path = Path(path)
+    values = np.load(path / "mean_shortest_delay_ms.npy")
+    requested = np.asarray(steps, dtype=np.int64)
+
+    for step_name in ("time_indices.npy", "steps.npy"):
+        step_path = path / step_name
+        if not step_path.exists():
+            continue
+        baseline_steps = np.load(step_path).astype(np.int64, copy=False)
+        if baseline_steps.shape[0] != values.shape[0]:
+            raise ValueError(
+                f"{path} has {step_name} length {baseline_steps.shape[0]} "
+                f"but mean_shortest_delay_ms.npy length {values.shape[0]}"
+            )
+        index_by_step = {int(step): idx for idx, step in enumerate(baseline_steps)}
+        missing = [int(step) for step in requested if int(step) not in index_by_step]
+        if missing:
+            preview = ", ".join(str(step) for step in missing[:10])
+            raise KeyError(f"{path} baseline is missing requested steps: {preview}")
+        return np.asarray([values[index_by_step[int(step)]] for step in requested], dtype=np.float32)
+
+    if requested.size and int(np.max(requested)) < values.shape[0]:
+        return np.asarray(values[requested], dtype=np.float32)
+    if values.shape[0] == requested.shape[0]:
+        return np.asarray(values, dtype=np.float32)
+    raise ValueError(
+        f"{path} baseline cannot be aligned: values={values.shape[0]} "
+        f"requested_steps={requested.shape[0]} max_step={int(np.max(requested)) if requested.size else None}"
+    )
 
 
 def write_selected_copy(rows: list[dict[str, str]], path: Path) -> None:

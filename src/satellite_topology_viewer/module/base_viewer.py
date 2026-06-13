@@ -223,6 +223,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         topology_edge_alpha: int | None = None,
         topology_edge_width: float | None = None,
         hide_y_wrap_edges: bool = True,
+        show_grid_lines: bool | None = None,
     ):
         super().__init__()
         self.config = config
@@ -278,6 +279,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.topology_edge_alpha = int(self.edge_alpha if topology_edge_alpha is None else topology_edge_alpha)
         self.topology_edge_width = float(self.edge_width if topology_edge_width is None else topology_edge_width)
         self.hide_y_wrap_edges = bool(hide_y_wrap_edges)
+        self.show_grid_lines = self._infer_show_grid_lines() if show_grid_lines is None else bool(show_grid_lines)
         self.node_radius = 0.14
         self.node_hit_radius = 0.34
         self.edge_hit_threshold = 0.13
@@ -700,6 +702,24 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
     def scene_y_to_axis_y(self, scene_y: int | float) -> float:
         return float(int(self.config.N) - 1 - float(scene_y))
 
+    def _infer_show_grid_lines(self) -> bool:
+        """Show background grid only for full-link drawings.
+
+        Motif/oracle/gridplus views are sparse topology drawings; drawing the
+        background grid there can be mistaken for unselected links. The full-link
+        view is the exception because every inter option is intentionally present.
+        """
+
+        options = set(int(x) for x in np.asarray(self.edge_table.option).tolist() if int(x) != -1)
+        if not {0, 1, 2, 4}.issubset(options):
+            return False
+
+        p_count = int(self.config.P)
+        n_count = int(self.config.N)
+        expected_full_inter = (3 * max(0, p_count - 1) + max(0, p_count - 2)) * n_count
+        actual_inter = int(np.count_nonzero(np.asarray(self.edge_table.option) != -1))
+        return actual_inter >= expected_full_inter
+
     def _build_scene(self):
         self.scene.clear()
         self.edge_items = []
@@ -711,7 +731,8 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.axis_label_items = []
 
         self.scene.setSceneRect(-2.3, -1.8, self.config.P + 3.0, self.config.N + 2.8)
-        self._draw_grid()
+        if self.show_grid_lines:
+            self._draw_grid()
         self._draw_axis_labels()
         self._draw_edges()
         self._draw_nodes()

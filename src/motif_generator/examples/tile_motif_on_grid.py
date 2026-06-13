@@ -15,17 +15,26 @@ from src.motif_generator.module.exact_box import motif_from_columns, pretty_moti
 from src.motif_generator.module.support import (
     motif_support_from_dict,
     motif_support_label,
-    motif_support_to_edge_records,
 )
 from src.motif_generator.module.tiling import (
     draw_tiled_motif,
-    tile_edge_records_on_grid,
     tile_motif_on_grid,
     write_tiled_motif_outputs,
 )
 
 
 DEFAULT_OUT_DIR = THIS_DIR / "outputs" / "tile_motif_on_grid"
+DEFAULT_MOTIF = {
+    "name": "motif_000056_DBD_xxB",
+    "w": 3,
+    "h": 3,
+    "support": [
+        (0, 0, "D"),
+        (0, 1, "B"),
+        (0, 2, "D"),
+        (1, 2, "B"),
+    ],
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,8 +45,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--motif-columns",
         nargs="+",
-        default=["DAD", "C--"],
-        help="Motif planning columns, e.g. --motif-columns DAD C--",
+        default=None,
+        help="Backward-compatible debug input, e.g. --motif-columns DAD C--. Prefer --config or DEFAULT_MOTIF support format.",
     )
     parser.add_argument("--horizontal-step", type=int, default=None)
     parser.add_argument("--no-vertical-overlap", action="store_true")
@@ -61,12 +70,10 @@ def main() -> int:
         p = int(args.p if args.p is not None else grid_raw.get("p", 18))
         n = int(args.n if args.n is not None else grid_raw.get("n", 36))
         horizontal_step = args.horizontal_step if args.horizontal_step is not None else tiling_raw.get("horizontal_step")
-        result = tile_edge_records_on_grid(
+        result = tile_motif_on_grid(
             p=p,
             n=n,
-            motif_width=motif_support.w,
-            motif_height=motif_support.h,
-            local_edges=motif_support_to_edge_records(motif_support),
+            motif=motif_support,
             horizontal_step=None if horizontal_step is None else int(horizontal_step),
             allow_vertical_overlap=False
             if args.no_vertical_overlap
@@ -76,7 +83,7 @@ def main() -> int:
             else bool(tiling_raw.get("allow_clipped_right", True)),
         )
         motif_label = motif_support.name or motif_support_label(motif_support)
-    else:
+    elif args.motif_columns is not None:
         motif = motif_from_columns(tuple(args.motif_columns))
         result = tile_motif_on_grid(
             p=int(args.p if args.p is not None else 18),
@@ -87,6 +94,16 @@ def main() -> int:
             allow_clipped_right=not bool(args.no_clipped_right),
         )
         motif_label = pretty_motif(motif)
+    else:
+        result = tile_motif_on_grid(
+            p=int(args.p if args.p is not None else 18),
+            n=int(args.n if args.n is not None else 36),
+            motif=DEFAULT_MOTIF,
+            horizontal_step=args.horizontal_step,
+            allow_vertical_overlap=not bool(args.no_vertical_overlap),
+            allow_clipped_right=not bool(args.no_clipped_right),
+        )
+        motif_label = str(DEFAULT_MOTIF["name"])
 
     out_dir = Path(args.out_dir)
     write_tiled_motif_outputs(result, out_dir)
