@@ -58,10 +58,22 @@ def zone_signature() -> list[dict[str, object]]:
             "name": zone.name,
             "min_abs_deg": float(zone.min_abs_deg),
             "max_abs_deg": float(zone.max_abs_deg),
-            "color": zone.color,
         }
         for zone in DEFAULT_LATITUDE_ZONES
     ]
+
+
+def normalize_zone_signature(raw_zones) -> list[dict[str, object]]:
+    normalized = []
+    for zone in raw_zones or []:
+        normalized.append(
+            {
+                "name": zone.get("name"),
+                "min_abs_deg": float(zone.get("min_abs_deg")),
+                "max_abs_deg": float(zone.get("max_abs_deg")),
+            }
+        )
+    return normalized
 
 
 def default_latitude_cache_dir(start: int, end: int, stride: int) -> Path:
@@ -97,7 +109,9 @@ def load_or_build_latitude_cache(
     if not force and meta_path.exists() and lat_path.exists() and zone_path.exists():
         with meta_path.open("r", encoding="utf-8") as f:
             meta = json.load(f)
-        if all(meta.get(key) == value for key, value in expected.items()):
+        meta_compare = dict(meta)
+        meta_compare["zones"] = normalize_zone_signature(meta.get("zones"))
+        if all(meta_compare.get(key) == value for key, value in expected.items()):
             print(f"[latitude-zone-viewer] Reusing latitude cache: {cache_dir}", flush=True)
             return np.load(lat_path, mmap_mode="r"), np.load(zone_path, mmap_mode="r")
 

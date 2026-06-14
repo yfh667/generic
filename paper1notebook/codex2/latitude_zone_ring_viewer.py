@@ -20,8 +20,8 @@ class LatitudeZone:
 
 
 DEFAULT_LATITUDE_ZONES = (
-    LatitudeZone("0-30 deg", 0.0, 30.0, "#2F6FED"),
-    LatitudeZone("30-60 deg", 30.0, 60.0, "#1B9E77"),
+    LatitudeZone("0-30 deg", 0.0, 30.0, "#1B9E77"),
+    LatitudeZone("30-60 deg", 30.0, 60.0, "#2F6FED"),
     LatitudeZone("60-90 deg", 60.0, 90.000001, "#E3B100"),
 )
 
