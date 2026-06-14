@@ -121,9 +121,16 @@ def region_pair_specs(raw: dict[str, Any], subset: list[str] | None = None) -> l
     return out
 
 
+def wrap_planes_from_config(raw: dict[str, Any]) -> bool:
+    topology = raw.get("topology", {}) if isinstance(raw.get("topology", {}), dict) else {}
+    constellation = raw.get("constellation", {}) if isinstance(raw.get("constellation", {}), dict) else {}
+    return bool(topology.get("wrap_planes", constellation.get("wrap_planes", False)))
+
+
 def build_baselines(raw: dict[str, Any], *, config, skip_gridplus: bool = False) -> list[TopologySpec]:
     baselines = raw.get("baselines", {})
     paths = raw.get("paths", {})
+    wrap_planes = wrap_planes_from_config(raw)
     out: list[TopologySpec] = []
     full_raw = baselines.get("full_link", {}) if isinstance(baselines, dict) else {}
     if bool(full_raw.get("enabled", False)):
@@ -133,25 +140,40 @@ def build_baselines(raw: dict[str, Any], *, config, skip_gridplus: bool = False)
                 name="full_link",
                 options=tuple(int(x) for x in full_raw.get("options", [0, 1, 2, 4])),
                 add_intra_ring=bool(full_raw.get("add_intra_ring", True)),
+                wrap_planes=wrap_planes,
             )
         )
 
     grid_raw = baselines.get("gridplus", {}) if isinstance(baselines, dict) else {}
     if bool(grid_raw.get("enabled", False)) and not bool(skip_gridplus):
-        gridplus_config = path_from(paths, "gridplus_config")
-        out.append(
-            TopologySpec(
-                name="gridplus",
-                edge_table=build_legacy_gridplus_edge_table(
-                    motif_json=gridplus_config,
+        gridplus_kind = str(grid_raw.get("kind", "legacy"))
+        if gridplus_kind in {"option0_plus_intra", "option0", "full_option"}:
+            out.append(
+                full_link_topology_spec(
+                    config=config,
+                    name="gridplus",
+                    options=tuple(int(x) for x in grid_raw.get("options", [0])),
                     add_intra_ring=bool(grid_raw.get("add_intra_ring", True)),
-                ),
-                library="baseline",
-                motif="legacy_gridplus",
-                baseline=True,
-                meta={"gridplus_config": str(gridplus_config)},
+                    wrap_planes=wrap_planes,
+                )
             )
-        )
+            out[-1].motif = "option0_plus_intra"
+            out[-1].meta.update({"kind": gridplus_kind})
+        else:
+            gridplus_config = path_from(paths, "gridplus_config")
+            out.append(
+                TopologySpec(
+                    name="gridplus",
+                    edge_table=build_legacy_gridplus_edge_table(
+                        motif_json=gridplus_config,
+                        add_intra_ring=bool(grid_raw.get("add_intra_ring", True)),
+                    ),
+                    library="baseline",
+                    motif="legacy_gridplus",
+                    baseline=True,
+                    meta={"gridplus_config": str(gridplus_config), "kind": gridplus_kind},
+                )
+            )
     return out
 
 
@@ -182,6 +204,7 @@ def main() -> int:
     write_edges = bool(args.write_edges or run_raw.get("write_edges", False))
     force_group_cache = bool(args.force_group_cache or run_raw.get("force_group_cache", False))
     run_label = str(run_raw.get("label", "paper1_motif_shortest_hops"))
+    wrap_planes = wrap_planes_from_config(raw)
 
     csv_path = ensure_motif_library(raw, force=bool(args.regenerate_library))
     library_raw = raw.get("motif_library", {}) if isinstance(raw.get("motif_library", {}), dict) else {}
@@ -192,6 +215,7 @@ def main() -> int:
         name_prefix=str(library_raw.get("name_prefix", "combined")),
         limit=limit_motifs,
         add_intra_ring=True,
+        wrap_planes=wrap_planes,
     )
     baseline_specs = build_baselines(raw, config=config, skip_gridplus=bool(args.skip_gridplus))
     topology_specs = motif_specs + baseline_specs
@@ -228,6 +252,7 @@ def main() -> int:
         "pairs": [pair.key for pair in pair_specs],
         "run_label": run_label,
         "skip_gridplus": bool(args.skip_gridplus),
+        "wrap_planes": bool(wrap_planes),
     }
     (out_dir / "effective_run_config.json").write_text(
         json.dumps(effective, ensure_ascii=False, indent=2),

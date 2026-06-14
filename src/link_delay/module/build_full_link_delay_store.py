@@ -33,6 +33,7 @@ class ConstellationSpec:
 class EdgeSpec:
     options: tuple[int, ...]
     directed_storage: bool
+    wrap_planes: bool
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,7 @@ def raw_config_to_dataclass(raw: dict) -> DelayStoreBuildConfig:
         edges=EdgeSpec(
             options=tuple(int(x) for x in e.get("options", [0, 1, 2, 4])),
             directed_storage=bool(e.get("directed_storage", False)),
+            wrap_planes=bool(e.get("wrap_planes", False)),
         ),
         time=TimeSpec(
             start=int(t.get("start", 0)),
@@ -181,9 +183,10 @@ def config_to_plain_dict(cfg: DelayStoreBuildConfig) -> dict:
 
 
 def default_delay_out_dir(cfg: DelayStoreBuildConfig) -> Path:
+    wrap_label = "_wrap" if bool(cfg.edges.wrap_planes) else ""
     return (
         Path(cfg.paths.delay_output_base)
-        / f"{cfg.constellation.name}_full_options_t{cfg.time.start}_{cfg.time.end}_stride{cfg.time.stride}"
+        / f"{cfg.constellation.name}_full_options{wrap_label}_t{cfg.time.start}_{cfg.time.end}_stride{cfg.time.stride}"
     )
 
 
@@ -255,6 +258,7 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
         chunk_steps=cfg.runtime.chunk_steps,
         allow_incomplete_cache=False,
         options=cfg.edges.options,
+        wrap_planes=bool(cfg.edges.wrap_planes),
     )
 
     edge_index_path = write_edge_index_matrix(
@@ -267,6 +271,7 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
         edge_index_path,
         options=cfg.edges.options,
         directed_storage=cfg.edges.directed_storage,
+        wrap_planes=bool(cfg.edges.wrap_planes),
     )
     run_config_path = Path(artifacts.out_dir) / "run_config.yaml"
     write_yaml(run_config_path, config_to_plain_dict(cfg))

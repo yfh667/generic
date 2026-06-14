@@ -18,6 +18,7 @@ def build_full_option_plus_intra_edges(
     include_intra: bool = True,
     intra_option: int = INTRA_OPTION,
     sat_ids: list[str] | None = None,
+    wrap_planes: bool = False,
 ) -> EdgeTable:
     """Build the undirected edge representative table used by the 2D G60-style topology.
 
@@ -26,7 +27,12 @@ def build_full_option_plus_intra_edges(
     (p, N-1) -- (p, 0).
     """
 
-    inter = build_full_option_edges(config, options=tuple(int(x) for x in inter_options), sat_ids=sat_ids)
+    inter = build_full_option_edges(
+        config,
+        options=tuple(int(x) for x in inter_options),
+        sat_ids=sat_ids,
+        wrap_planes=bool(wrap_planes),
+    )
     if not include_intra:
         return inter
 

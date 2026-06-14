@@ -202,6 +202,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         steps: list[int] | None = None,
         edge_table=None,
         edge_active_mask=None,
+        edge_building_mask=None,
         edge_values=None,
         value_min: float | None = None,
         value_max: float | None = None,
@@ -222,6 +223,9 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         topology_edge_color: str = "#000000",
         topology_edge_alpha: int | None = None,
         topology_edge_width: float | None = None,
+        building_edge_color: str = "#2F6FED",
+        building_edge_alpha: int = 150,
+        building_edge_width: float | None = None,
         hide_y_wrap_edges: bool = True,
         show_grid_lines: bool | None = None,
     ):
@@ -238,19 +242,35 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             self.edge_values = edge_values if getattr(edge_values, "dtype", None) == np.dtype(np.float32) else np.asarray(edge_values, dtype=np.float32)
         else:
             self.edge_values = np.zeros((len(self.steps), int(self.edge_table.num_edges)), dtype=np.float32)
-        if int(self.edge_values.shape[0]) != len(self.steps):
-            raise ValueError(f"edge value rows {self.edge_values.shape[0]} != steps length {len(self.steps)}")
+        if int(self.edge_values.shape[0]) not in (1, len(self.steps)):
+            raise ValueError(
+                f"edge value rows {self.edge_values.shape[0]} must be 1 or steps length {len(self.steps)}"
+            )
         if int(self.edge_values.shape[1]) != int(self.edge_table.num_edges):
             raise ValueError(f"edge value cols {self.edge_values.shape[1]} != edge count {self.edge_table.num_edges}")
         if edge_active_mask is None:
             self.edge_active_mask = np.ones((len(self.steps), int(self.edge_table.num_edges)), dtype=bool)
         else:
             self.edge_active_mask = np.asarray(edge_active_mask, dtype=bool)
-            if int(self.edge_active_mask.shape[0]) != len(self.steps):
-                raise ValueError(f"edge active rows {self.edge_active_mask.shape[0]} != steps length {len(self.steps)}")
+            if int(self.edge_active_mask.shape[0]) not in (1, len(self.steps)):
+                raise ValueError(
+                    f"edge active rows {self.edge_active_mask.shape[0]} must be 1 or steps length {len(self.steps)}"
+                )
             if int(self.edge_active_mask.shape[1]) != int(self.edge_table.num_edges):
                 raise ValueError(
                     f"edge active cols {self.edge_active_mask.shape[1]} != edge count {self.edge_table.num_edges}"
+                )
+        if edge_building_mask is None:
+            self.edge_building_mask = np.zeros((len(self.steps), int(self.edge_table.num_edges)), dtype=bool)
+        else:
+            self.edge_building_mask = np.asarray(edge_building_mask, dtype=bool)
+            if int(self.edge_building_mask.shape[0]) not in (1, len(self.steps)):
+                raise ValueError(
+                    f"edge building rows {self.edge_building_mask.shape[0]} must be 1 or steps length {len(self.steps)}"
+                )
+            if int(self.edge_building_mask.shape[1]) != int(self.edge_table.num_edges):
+                raise ValueError(
+                    f"edge building cols {self.edge_building_mask.shape[1]} != edge count {self.edge_table.num_edges}"
                 )
         if self.has_edge_values:
             self.value_min = float(np.nanmin(self.edge_values)) if value_min is None else float(value_min)
@@ -278,6 +298,9 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.topology_edge_color = QtGui.QColor(str(topology_edge_color))
         self.topology_edge_alpha = int(self.edge_alpha if topology_edge_alpha is None else topology_edge_alpha)
         self.topology_edge_width = float(self.edge_width if topology_edge_width is None else topology_edge_width)
+        self.building_edge_color = QtGui.QColor(str(building_edge_color))
+        self.building_edge_alpha = int(building_edge_alpha)
+        self.building_edge_width = float(self.edge_width if building_edge_width is None else building_edge_width)
         self.hide_y_wrap_edges = bool(hide_y_wrap_edges)
         self.show_grid_lines = self._infer_show_grid_lines() if show_grid_lines is None else bool(show_grid_lines)
         self.node_radius = 0.14
@@ -821,6 +844,21 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                 qx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * ctrl_x + t * t * x1
                 qy = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * ctrl_y + t * t * y1
                 samples.append((float(qx), float(qy)))
+        elif abs(int(self.edge_table.src_plane[idx]) - int(self.edge_table.dst_plane[idx])) == int(self.config.P) - 1:
+            # Walker-delta seam edge: draw short boundary stubs instead of a
+            # full-width line across the flattened 2D layout.
+            left_x = -0.34
+            right_x = float(self.config.P) - 0.02
+            if x0 < x1:
+                path.lineTo(left_x, y0)
+                path.moveTo(right_x, y1)
+                path.lineTo(x1, y1)
+                samples = [(float(x0), float(y0)), (left_x, float(y0)), (right_x, float(y1)), (float(x1), float(y1))]
+            else:
+                path.lineTo(right_x, y0)
+                path.moveTo(left_x, y1)
+                path.lineTo(x1, y1)
+                samples = [(float(x0), float(y0)), (right_x, float(y0)), (left_x, float(y1)), (float(x1), float(y1))]
         else:
             path.lineTo(x1, y1)
             samples = [(x0, y0), (x1, y1)]
@@ -937,8 +975,12 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             self.slider.setValue(slider_pos)
             self.slider.blockSignals(False)
 
-        values = self.edge_values[row] if self.has_edge_values else None
+        value_row = 0 if int(self.edge_values.shape[0]) == 1 else row
+        active_row = 0 if int(self.edge_active_mask.shape[0]) == 1 else row
+        building_row = 0 if int(self.edge_building_mask.shape[0]) == 1 else row
+        values = self.edge_values[value_row] if self.has_edge_values else None
         active_visible_count = 0
+        building_visible_count = 0
         for idx, item in enumerate(self.edge_items):
             value_item = self.edge_value_items[idx] if idx < len(self.edge_value_items) else None
             if self.is_hidden_visual_edge(idx):
@@ -947,18 +989,22 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                     value_item.setVisible(False)
                 continue
             option = int(self.edge_table.option[idx])
-            active = bool(self.edge_active_mask[row, idx])
-            visible = bool(active and self.visible_options.get(option, False))
+            active = bool(self.edge_active_mask[active_row, idx])
+            building = bool((not active) and self.edge_building_mask[building_row, idx])
+            visible = bool((active or building) and self.visible_options.get(option, False))
             item.setVisible(visible)
             if value_item is not None:
                 value_item.setVisible(False)
             if not visible:
                 continue
-            active_visible_count += 1
+            if building:
+                building_visible_count += 1
+            else:
+                active_visible_count += 1
 
             selected = idx == self.selected_edge_idx
             preview = idx == self.preview_edge_idx
-            if self.has_edge_values and self.show_topology_under_edge_values:
+            if active and self.has_edge_values and self.show_topology_under_edge_values:
                 if selected:
                     base_pen = QtGui.QPen(QtGui.QColor(10, 10, 10))
                     base_pen.setWidthF(0.085)
@@ -1009,6 +1055,12 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                 pen = QtGui.QPen(QtGui.QColor(35, 35, 35))
                 pen.setWidthF(0.060)
                 item.setZValue(40)
+            elif building:
+                color = QtGui.QColor(self.building_edge_color)
+                color.setAlpha(int(self.building_edge_alpha))
+                pen = QtGui.QPen(color)
+                pen.setWidthF(float(self.building_edge_width))
+                item.setZValue(2)
             elif not self.has_edge_values:
                 color = QtGui.QColor(0, 0, 0)
                 color.setAlpha(int(self.edge_alpha))
@@ -1038,6 +1090,9 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
                     pen.setWidthF(self.edge_width)
                 item.setZValue(3)
             pen.setCapStyle(QtCore.Qt.RoundCap)
+            if building:
+                pen.setStyle(QtCore.Qt.DashLine)
+                pen.setDashPattern([4.0, 3.0])
             item.setPen(pen)
 
         step = self.steps[row]
@@ -1050,6 +1105,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.step_label.setText(
             f"step {step} | row {pos + 1}/{len(self.visible_rows)} | "
             f"active edges {active_visible_count}/{self.edge_table.num_edges} | "
+            f"building {building_visible_count} | "
             f"{range_text}"
         )
         self.update_node_group_colors(row)
@@ -1236,15 +1292,25 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
     def edge_extra_description(self, edge_idx: int, row: int, value: float) -> str:
         return ""
 
+    def edge_state_text(self, edge_idx: int, row: int) -> str:
+        active_row = 0 if int(self.edge_active_mask.shape[0]) == 1 else int(row)
+        building_row = 0 if int(self.edge_building_mask.shape[0]) == 1 else int(row)
+        if bool(self.edge_active_mask[active_row, int(edge_idx)]):
+            return "active"
+        if bool(self.edge_building_mask[building_row, int(edge_idx)]):
+            return "building"
+        return "inactive"
+
     def describe_edge(self, edge_idx: int, *, prefix: str) -> str:
         edge_idx = int(edge_idx)
         src = int(self.edge_table.src[edge_idx])
         dst = int(self.edge_table.dst[edge_idx])
         value_segment = ""
         if self.has_edge_values:
-            value = float(self.edge_values[self.current_row, edge_idx])
-            value_text = self.format_edge_value(edge_idx, self.current_row, value)
-            extra_text = self.edge_extra_description(edge_idx, self.current_row, value)
+            value_row = 0 if int(self.edge_values.shape[0]) == 1 else self.current_row
+            value = float(self.edge_values[value_row, edge_idx])
+            value_text = self.format_edge_value(edge_idx, value_row, value)
+            extra_text = self.edge_extra_description(edge_idx, value_row, value)
             extra_segment = f"; {extra_text}" if extra_text else ""
             value_segment = f"; {value_text}{extra_segment}"
         src_pos = self.node_grid_pos(src)
@@ -1257,7 +1323,8 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             f"grid=({int(src_pos[0])}, {src_axis_y}) -> "
             f"raw {dst} ({int(self.edge_table.dst_plane[edge_idx])}, {int(self.edge_table.dst_y[edge_idx])}) "
             f"grid=({int(dst_pos[0])}, {dst_axis_y}); "
-            f"option={int(self.edge_table.option[edge_idx])}{value_segment}; "
+            f"option={int(self.edge_table.option[edge_idx])}; "
+            f"state={self.edge_state_text(edge_idx, self.current_row)}{value_segment}; "
             f"src_groups={self.node_group_text(src)}; dst_groups={self.node_group_text(dst)}; "
             f"step={self.steps[self.current_row]}"
         )

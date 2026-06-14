@@ -9,7 +9,7 @@ from src.link_delay.module.edge_options import EdgeTable, build_full_option_edge
 from src.motif_generator.module.exact_box import Motif
 from src.motif_generator.module.support import motif_support_from_dict
 from src.motif_generator.module.tiling import tile_motif_on_grid
-from src.motif_generator.module.viewer_adapter import option_from_delta
+from src.motif_generator.module.viewer_adapter import option_from_symbol
 
 
 INTRA_OPTION = -1
@@ -99,6 +99,7 @@ def build_motif_text_edge_table(
     horizontal_step: int | None = None,
     allow_vertical_overlap: bool = True,
     allow_clipped_right: bool = True,
+    wrap_planes: bool = False,
     add_intra_ring: bool = True,
 ) -> EdgeTable:
     motif = motif_text_to_matrix(motif_text)
@@ -109,13 +110,12 @@ def build_motif_text_edge_table(
         horizontal_step=horizontal_step,
         allow_vertical_overlap=bool(allow_vertical_overlap),
         allow_clipped_right=bool(allow_clipped_right),
+        wrap_cols=bool(wrap_planes),
     )
 
     records: list[tuple[int, int, int, int, int]] = []
     for edge in tiled.placed_edges:
-        dx = int(edge.dst_col) - int(edge.src_col)
-        dy = int(edge.dst_row) - int(edge.src_row)
-        option = option_from_delta(dx, dy)
+        option = option_from_symbol(edge.symbol)
         records.append((int(edge.src_col), int(edge.src_row), int(edge.dst_col), int(edge.dst_row), int(option)))
 
     if bool(add_intra_ring):
@@ -128,8 +128,9 @@ def build_full_option_plus_intra_edge_table(
     config: ViewerConfig,
     options: tuple[int, ...] = (0, 1, 2, 4),
     add_intra_ring: bool = True,
+    wrap_planes: bool = False,
 ) -> EdgeTable:
-    inter_edges = build_full_option_edges(config, options=options)
+    inter_edges = build_full_option_edges(config, options=options, wrap_planes=bool(wrap_planes))
     records: list[tuple[int, int, int, int, int]] = []
     for edge_idx in range(inter_edges.num_edges):
         records.append(
@@ -159,6 +160,7 @@ def build_single_motif_edge_table(
         raise ValueError("topology.tiling must be a mapping when present")
 
     motif_support = motif_support_from_dict({"motif": motif_raw})
+    wrap_planes = bool(topology_raw.get("wrap_planes", False))
     tiled = tile_motif_on_grid(
         p=int(config.P),
         n=int(config.N),
@@ -166,13 +168,12 @@ def build_single_motif_edge_table(
         horizontal_step=tiling_raw.get("horizontal_step"),
         allow_vertical_overlap=bool(tiling_raw.get("allow_vertical_overlap", True)),
         allow_clipped_right=bool(tiling_raw.get("allow_clipped_right", True)),
+        wrap_cols=wrap_planes,
     )
 
     records: list[tuple[int, int, int, int, int]] = []
     for edge in tiled.placed_edges:
-        dx = int(edge.dst_col) - int(edge.src_col)
-        dy = int(edge.dst_row) - int(edge.src_row)
-        option = option_from_delta(dx, dy)
+        option = option_from_symbol(edge.symbol)
         records.append((int(edge.src_col), int(edge.src_row), int(edge.dst_col), int(edge.dst_row), int(option)))
 
     if bool(topology_raw.get("add_intra_ring", True)):
@@ -195,6 +196,7 @@ def build_edge_table_from_topology_config(
             horizontal_step=topology_raw.get("horizontal_step"),
             allow_vertical_overlap=bool(topology_raw.get("allow_vertical_overlap", True)),
             allow_clipped_right=bool(topology_raw.get("allow_clipped_right", True)),
+            wrap_planes=bool(topology_raw.get("wrap_planes", False)),
             add_intra_ring=bool(topology_raw.get("add_intra_ring", True)),
         )
     if kind == "full_option_plus_intra":
@@ -202,6 +204,7 @@ def build_edge_table_from_topology_config(
             config=config,
             options=tuple(int(x) for x in topology_raw.get("options", (0, 1, 2, 4))),
             add_intra_ring=bool(topology_raw.get("add_intra_ring", True)),
+            wrap_planes=bool(topology_raw.get("wrap_planes", False)),
         )
     raise NotImplementedError(
         f"Unsupported topology.kind={kind!r}. "

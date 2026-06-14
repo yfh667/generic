@@ -72,9 +72,11 @@ def topology_specs_from_motif_csv(
     library: str,
     name_prefix: str | None = None,
     limit: int = 0,
+    offset: int = 0,
     default_source_w: int | None = None,
     default_source_h: int | None = None,
     add_intra_ring: bool = True,
+    wrap_planes: bool = False,
 ) -> list[TopologySpec]:
     """Load motif rows and build one full-grid topology for each row.
 
@@ -86,18 +88,21 @@ def topology_specs_from_motif_csv(
     path = Path(path)
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
+    if int(offset) > 0:
+        rows = rows[int(offset) :]
     if int(limit) > 0:
         rows = rows[: int(limit)]
 
     specs: list[TopologySpec] = []
     prefix = str(name_prefix or library)
-    for row_idx, row in enumerate(rows, start=1):
+    for row_idx, row in enumerate(rows, start=int(offset) + 1):
         motif_text = str(row["motif"])
         motif_id = _optional_int(row.get("motif_id"), row_idx)
         edge_table = build_motif_text_edge_table(
             motif_text=motif_text,
             config=config,
             add_intra_ring=bool(add_intra_ring),
+            wrap_planes=bool(wrap_planes),
         )
         specs.append(
             TopologySpec(
@@ -124,6 +129,7 @@ def full_link_topology_spec(
     name: str = "full_link",
     options: tuple[int, ...] = (0, 1, 2, 4),
     add_intra_ring: bool = True,
+    wrap_planes: bool = False,
 ) -> TopologySpec:
     return TopologySpec(
         name=str(name),
@@ -131,11 +137,16 @@ def full_link_topology_spec(
             config=config,
             options=tuple(int(x) for x in options),
             add_intra_ring=bool(add_intra_ring),
+            wrap_planes=bool(wrap_planes),
         ),
         library="baseline",
         motif="full_option_plus_intra",
         baseline=True,
-        meta={"options": list(int(x) for x in options), "add_intra_ring": bool(add_intra_ring)},
+        meta={
+            "options": list(int(x) for x in options),
+            "add_intra_ring": bool(add_intra_ring),
+            "wrap_planes": bool(wrap_planes),
+        },
     )
 
 

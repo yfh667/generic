@@ -93,3 +93,48 @@ with the reusable example:
   --topology-prefix motif_ `
   --min-dwell-minutes 10 30 60 120
 ```
+
+## G60 Motifs With Region-Internal +Grid Constraint
+
+This is the paper1 experiment where each motif is first tiled over the whole
+constellation with intra-ring links, then the two regions in the evaluated
+pair are constrained at each time step:
+
+- selected-region internal inter-plane links are forced to option `0`
+- conflicting same-side inter-plane alternatives around selected-region nodes
+  are removed
+- nodes outside the selected regions keep the motif-tiled topology
+
+Default config:
+
+```powershell
+E:\paper11\generic\paper1notebook\pipeline\configs\g60_w_le4_h_le3_region_internal_grid_metrics.yaml
+```
+
+Smoke run:
+
+```powershell
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' `
+  'E:\paper11\generic\paper1notebook\pipeline\run_paper1_region_internal_grid_metrics.py' `
+  --start 0 --end 120 --stride 60 --limit-motifs 1 --max-workers 1 `
+  --out-dir 'E:\paper11\data\satnet_experiments\_smoke\paper1_region_internal_grid_metrics_t0_120_limit1'
+```
+
+Full 808-motif run:
+
+```powershell
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' `
+  'E:\paper11\generic\paper1notebook\pipeline\run_paper1_region_internal_grid_metrics.py' `
+  --max-workers 8 `
+  --out-dir 'E:\paper11\data\satnet_experiments\runs\paper1\G60\motif_w_le4_h_le3\region_internal_grid_metrics_t0_86160_stride60'
+```
+
+Main outputs per region pair:
+
+```text
+compare_mean_shortest_hops.csv
+compare_mean_shortest_delay_ms.csv
+summary_mean_shortest_hops.csv
+summary_mean_shortest_delay_ms.csv
+topologies/<motif_name>/step_metrics.csv
+```

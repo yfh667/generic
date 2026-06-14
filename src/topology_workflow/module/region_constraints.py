@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from src.config.viewer_config import ViewerConfig
-from src.link_delay.module.edge_options import EdgeTable, build_full_option_edges
+from src.link_delay.module.edge_options import EdgeTable, OPTION_DELTAS, build_full_option_edges
 
 from .edge_tables import INTRA_OPTION, make_edge_table_from_records
 
@@ -63,11 +63,46 @@ def edge_records_from_table(edge_table: EdgeTable) -> list[tuple[int, int, int, 
     ]
 
 
-def edge_side_for_node(edge_table: EdgeTable, edge_idx: int, node: int) -> int | None:
+def edge_side_for_node(
+    edge_table: EdgeTable,
+    edge_idx: int,
+    node: int,
+    *,
+    p: int | None = None,
+    wrap_planes: bool = False,
+) -> int | None:
     src = int(edge_table.src[edge_idx])
     dst = int(edge_table.dst[edge_idx])
     src_plane = int(edge_table.src_plane[edge_idx])
     dst_plane = int(edge_table.dst_plane[edge_idx])
+    option = int(edge_table.option[edge_idx])
+    if option == int(INTRA_OPTION):
+        return None
+
+    if option in OPTION_DELTAS:
+        dp, _dy = OPTION_DELTAS[option]
+        if bool(wrap_planes):
+            if p is None:
+                raise ValueError("p is required when wrap_planes=True")
+            src_to_dst = (src_plane + int(dp)) % int(p) == dst_plane
+            dst_to_src = (dst_plane + int(dp)) % int(p) == src_plane
+        else:
+            src_to_dst = src_plane + int(dp) == dst_plane
+            dst_to_src = dst_plane + int(dp) == src_plane
+
+        if src_to_dst and not dst_to_src:
+            if int(node) == src:
+                return RIGHT_SIDE
+            if int(node) == dst:
+                return LEFT_SIDE
+            return None
+        if dst_to_src and not src_to_dst:
+            if int(node) == dst:
+                return RIGHT_SIDE
+            if int(node) == src:
+                return LEFT_SIDE
+            return None
+
     if int(node) == src:
         return RIGHT_SIDE if dst_plane > src_plane else LEFT_SIDE
     if int(node) == dst:
@@ -99,6 +134,7 @@ def build_region_internal_option_edges(
     group_nodes: Mapping[int, Iterable[int]],
     constrained_groups: Iterable[int],
     option: int = 0,
+    wrap_planes: bool = False,
 ) -> EdgeTable:
     """Build full-grid option edges whose endpoints are inside the same selected group."""
 
@@ -107,7 +143,7 @@ def build_region_internal_option_edges(
         constrained_groups=constrained_groups,
         total_nodes=int(config.total_sats),
     )
-    option_edges = build_full_option_edges(config, options=(int(option),))
+    option_edges = build_full_option_edges(config, options=(int(option),), wrap_planes=bool(wrap_planes))
     keep = np.zeros(int(option_edges.num_edges), dtype=bool)
     for idx in range(int(option_edges.num_edges)):
         src = int(option_edges.src[idx])
@@ -128,6 +164,7 @@ def apply_region_internal_option_constraint(
     forced_option: int = 0,
     intra_option: int = INTRA_OPTION,
     group_names: Mapping[int, str] | None = None,
+    wrap_planes: bool = False,
 ) -> tuple[EdgeTable, RegionInternalOptionConstraintStats]:
     """Apply a side-aware selected-region internal-option constraint.
 
@@ -157,8 +194,20 @@ def apply_region_internal_option_constraint(
         src = int(internal_option_edge_table.src[idx])
         dst = int(internal_option_edge_table.dst[idx])
         forced_key_set.add((min(src, dst), max(src, dst)))
-        src_side = edge_side_for_node(internal_option_edge_table, idx, src)
-        dst_side = edge_side_for_node(internal_option_edge_table, idx, dst)
+        src_side = edge_side_for_node(
+            internal_option_edge_table,
+            idx,
+            src,
+            p=int(p),
+            wrap_planes=bool(wrap_planes),
+        )
+        dst_side = edge_side_for_node(
+            internal_option_edge_table,
+            idx,
+            dst,
+            p=int(p),
+            wrap_planes=bool(wrap_planes),
+        )
         if src_side is not None:
             allowed_neighbors[src][int(src_side)].add(dst)
         if dst_side is not None:
@@ -190,7 +239,7 @@ def apply_region_internal_option_constraint(
         for node, neighbor in ((src, dst), (dst, src)):
             if int(group_bits[node]) == 0:
                 continue
-            side = edge_side_for_node(combined, idx, node)
+            side = edge_side_for_node(combined, idx, node, p=int(p), wrap_planes=bool(wrap_planes))
             if side is None:
                 continue
             allowed = allowed_neighbors[node][int(side)]
@@ -216,7 +265,7 @@ def apply_region_internal_option_constraint(
         for node, neighbor in ((src, dst), (dst, src)):
             if int(group_bits[node]) == 0:
                 continue
-            side = edge_side_for_node(constrained, idx, node)
+            side = edge_side_for_node(constrained, idx, node, p=int(p), wrap_planes=bool(wrap_planes))
             if side is None:
                 continue
             allowed = allowed_neighbors[node][int(side)]

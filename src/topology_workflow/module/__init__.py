@@ -69,12 +69,31 @@ from .dynamic_schedule import (
 from .shortest_delay import compute_shortest_delay_timeseries
 from .shortest_hops import compute_shortest_hops_timeseries
 
+_LINK_SETUP_EXPORTS = {
+    "DynamicRegionConstraintSeries",
+    "LinkSetupTimeStepStats",
+    "build_dynamic_region_internal_option_constraint_series",
+    "expand_group_data_for_link_setup_time",
+    "write_dynamic_region_constraint_series",
+}
+
+
+def __getattr__(name: str):
+    if name in _LINK_SETUP_EXPORTS:
+        from src import link_setup_time
+
+        return getattr(link_setup_time, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "INTRA_OPTION",
     "LEFT_SIDE",
     "PairStatePayload",
     "RIGHT_SIDE",
     "ChosenRightEdge",
+    "DynamicRegionConstraintSeries",
+    "LinkSetupTimeStepStats",
     "RegionInternalOptionConstraintStats",
     "RegionPairSpec",
     "TopologySpec",
@@ -84,6 +103,7 @@ __all__ = [
     "build_edge_table_from_topology_config",
     "build_edge_pair_index",
     "build_full_option_plus_intra_edge_table",
+    "build_dynamic_region_internal_option_constraint_series",
     "build_motif_text_edge_table",
     "build_pair_state_payloads",
     "build_region_internal_option_edges",
@@ -98,6 +118,7 @@ __all__ = [
     "edge_records_from_table",
     "edge_side_for_node",
     "edge_table_from_chosen_right_edges",
+    "expand_group_data_for_link_setup_time",
     "full_link_topology_spec",
     "group_name",
     "infer_sample_seconds",
@@ -121,6 +142,7 @@ __all__ = [
     "viewer_config_from_workflow",
     "verify_one_right_one_left",
     "write_dynamic_schedule_outputs",
+    "write_dynamic_region_constraint_series",
     "write_chosen_right_edges_csv",
     "write_schedule_by_step",
     "write_shortest_delay_comparison",

@@ -64,6 +64,7 @@ def cache_signature(
     time_indices: np.ndarray,
     options: Iterable[int],
     stride: int,
+    wrap_planes: bool = False,
 ) -> dict:
     positions_path = cache.cache_dir / "positions_km.npy"
     times_path = cache.cache_dir / "times_s.npy"
@@ -81,6 +82,7 @@ def cache_signature(
         "N": int(config.N),
         "total_sats": int(config.total_sats),
         "options": [int(x) for x in options],
+        "wrap_planes": bool(wrap_planes),
         "num_edges": int(edge_table.num_edges),
         "time_start_index": int(time_indices[0]),
         "time_end_index": int(time_indices[-1]),
@@ -227,6 +229,7 @@ def build_or_load_artifacts(
     chunk_steps: int,
     allow_incomplete_cache: bool,
     options: Iterable[int] = (0, 1, 2, 4),
+    wrap_planes: bool = False,
 ) -> DelayArtifacts:
     cache = load_position_cache(cache_dir, allow_incomplete_cache=allow_incomplete_cache)
     if int(cache.positions_km.shape[1]) != int(config.total_sats):
@@ -234,7 +237,12 @@ def build_or_load_artifacts(
             f"Cache has {cache.positions_km.shape[1]} satellites, but {config.name} config expects {config.total_sats}"
         )
 
-    edge_table = build_full_option_edges(config, options=options, sat_ids=cache.sat_ids)
+    edge_table = build_full_option_edges(
+        config,
+        options=options,
+        sat_ids=cache.sat_ids,
+        wrap_planes=bool(wrap_planes),
+    )
     time_indices = resolve_time_indices(cache.positions_km.shape[0], start, end, stride)
     signature = cache_signature(
         cache=cache,
@@ -243,6 +251,7 @@ def build_or_load_artifacts(
         time_indices=time_indices,
         options=options,
         stride=stride,
+        wrap_planes=bool(wrap_planes),
     )
     meta = compute_delay_cache(
         cache=cache,
@@ -296,6 +305,7 @@ def write_query_meta(
     *,
     options: Iterable[int],
     directed_storage: bool = False,
+    wrap_planes: bool = False,
 ) -> Path:
     path = Path(artifacts.out_dir) / "delay_store_query_meta.json"
     payload = {
@@ -308,6 +318,7 @@ def write_query_meta(
         "query_rule": "edge_idx = edge_index_matrix[src_node, dst_node]; delay_ms = edge_delay_ms[row, edge_idx]",
         "undirected_edge_lookup": not bool(directed_storage),
         "options": [int(x) for x in options],
+        "wrap_planes": bool(wrap_planes),
         "time_start": int(artifacts.time_indices[0]),
         "time_end": int(artifacts.time_indices[-1]),
         "num_steps": int(len(artifacts.time_indices)),

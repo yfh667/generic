@@ -82,6 +82,7 @@ def try_place_edges(
     outgoing: dict[tuple[int, int], tuple[int, int]],
     incoming: dict[tuple[int, int], tuple[int, int]],
     allow_clipped_right: bool = True,
+    wrap_cols: bool = False,
 ) -> tuple[bool, str, list[PlacedEdge]]:
     """Try placing one motif patch at one origin without mutating state."""
 
@@ -92,6 +93,10 @@ def try_place_edges(
     for edge in local_edges:
         src = (int(origin_col) + int(edge.src_col), int(origin_row) + int(edge.src_row))
         dst = (int(origin_col) + int(edge.dst_col), int(origin_row) + int(edge.dst_row))
+
+        if bool(wrap_cols):
+            src = (src[0] % int(p), src[1])
+            dst = (dst[0] % int(p), dst[1])
 
         if not (0 <= src[0] < int(p) and 0 <= src[1] < int(n)):
             if allow_clipped_right and src[0] >= int(p) and 0 <= src[1] < int(n):
@@ -145,6 +150,7 @@ def tile_edge_records_on_grid(
     horizontal_step: int | None = None,
     allow_vertical_overlap: bool = True,
     allow_clipped_right: bool = True,
+    wrap_cols: bool = False,
 ) -> TiledMotifResult:
     """Greedily tile local motif edges onto a ``p x n`` grid.
 
@@ -185,6 +191,7 @@ def tile_edge_records_on_grid(
                 outgoing=outgoing,
                 incoming=incoming,
                 allow_clipped_right=allow_clipped_right,
+                wrap_cols=wrap_cols,
             )
             if not ok:
                 placements.append(PlacementAttempt(col0, row0, False, reason, 0))
@@ -273,6 +280,7 @@ def tile_motif_on_grid(
     horizontal_step: int | None = None,
     allow_vertical_overlap: bool = True,
     allow_clipped_right: bool = True,
+    wrap_cols: bool = False,
 ) -> TiledMotifResult:
     """Tile one motif onto a full ``p x n`` 2D grid.
 
@@ -292,6 +300,7 @@ def tile_motif_on_grid(
         horizontal_step=horizontal_step,
         allow_vertical_overlap=allow_vertical_overlap,
         allow_clipped_right=allow_clipped_right,
+        wrap_cols=wrap_cols,
     )
 
 

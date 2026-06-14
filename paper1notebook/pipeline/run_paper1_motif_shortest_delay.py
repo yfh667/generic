@@ -19,6 +19,7 @@ from run_paper1_motif_shortest_hops import (
     load_yaml,
     path_from,
     region_pair_specs,
+    wrap_planes_from_config,
 )
 from src.satellite_topology_viewer.module.region_groups import load_or_build_group_data
 from src.topology_workflow.module import compute_shortest_delay_batch, topology_specs_from_motif_csv
@@ -36,9 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stride", type=int, default=None)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--limit-motifs", type=int, default=None)
+    parser.add_argument("--motif-offset", type=int, default=None)
     parser.add_argument("--engine", choices=("auto", "scipy", "heapq"), default=None)
     parser.add_argument("--sample-steps", type=int, default=None)
     parser.add_argument("--sample-pairs-per-step", type=int, default=None)
+    parser.add_argument("--max-workers", type=int, default=None)
+    parser.add_argument("--force", action="store_true")
     parser.add_argument("--force-group-cache", action="store_true")
     parser.add_argument("--regenerate-library", action="store_true")
     parser.add_argument("--skip-gridplus", action="store_true")
@@ -68,6 +72,7 @@ def main() -> int:
     run_raw = raw.get("run", {}) if isinstance(raw.get("run", {}), dict) else {}
     out_dir = Path(args.out_dir) if args.out_dir is not None else path_from(paths, "out_dir")
     limit_motifs = int(args.limit_motifs if args.limit_motifs is not None else run_raw.get("limit_motifs", 0))
+    motif_offset = int(args.motif_offset if args.motif_offset is not None else run_raw.get("motif_offset", 0))
     engine = str(args.engine if args.engine is not None else run_raw.get("engine", "auto"))
     sample_steps = int(args.sample_steps if args.sample_steps is not None else run_raw.get("sample_steps", 0))
     sample_pairs = int(
@@ -76,6 +81,8 @@ def main() -> int:
         else run_raw.get("sample_pairs_per_step", 0)
     )
     force_group_cache = bool(args.force_group_cache or run_raw.get("force_group_cache", False))
+    wrap_planes = wrap_planes_from_config(raw)
+    max_workers = int(args.max_workers if args.max_workers is not None else run_raw.get("max_workers", 1))
 
     csv_path = ensure_motif_library(raw, force=bool(args.regenerate_library))
     library_raw = raw.get("motif_library", {}) if isinstance(raw.get("motif_library", {}), dict) else {}
@@ -85,7 +92,9 @@ def main() -> int:
         library="combined_motif",
         name_prefix=str(library_raw.get("name_prefix", "combined")),
         limit=limit_motifs,
+        offset=motif_offset,
         add_intra_ring=True,
+        wrap_planes=wrap_planes,
     )
     baseline_specs = build_baselines(raw, config=config, skip_gridplus=bool(args.skip_gridplus))
     topology_specs = motif_specs + baseline_specs
@@ -112,10 +121,15 @@ def main() -> int:
         "motif_csv": str(csv_path),
         "out_dir": str(out_dir),
         "num_topologies": len(topology_specs),
+        "motif_offset": int(motif_offset),
+        "limit_motifs": int(limit_motifs),
         "pairs": [pair.key for pair in pair_specs],
         "engine": engine,
         "sample_steps": sample_steps,
         "sample_pairs_per_step": sample_pairs,
+        "wrap_planes": bool(wrap_planes),
+        "max_workers": int(max_workers),
+        "force": bool(args.force),
     }
     (out_dir / "effective_config.json").write_text(json.dumps(effective, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -134,6 +148,8 @@ def main() -> int:
         sample_steps=sample_steps,
         sample_pairs_per_step=sample_pairs,
         progress_every=int(run_raw.get("progress_every", 200)),
+        max_workers=max_workers,
+        force=bool(args.force),
     )
     print(json.dumps(meta, ensure_ascii=False, indent=2), flush=True)
     return 0

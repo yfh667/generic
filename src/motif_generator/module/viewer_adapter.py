@@ -79,12 +79,7 @@ def tiled_result_to_edge_table(
     for edge in result.placed_edges:
         src.append(int(edge.src_col) * int(result.n) + int(edge.src_row))
         dst.append(int(edge.dst_col) * int(result.n) + int(edge.dst_row))
-        option.append(
-            option_from_delta(
-                int(edge.dst_col) - int(edge.src_col),
-                int(edge.dst_row) - int(edge.src_row),
-            )
-        )
+        option.append(option_from_symbol(edge.symbol))
         src_plane.append(int(edge.src_col))
         src_y.append(int(edge.src_row))
         dst_plane.append(int(edge.dst_col))

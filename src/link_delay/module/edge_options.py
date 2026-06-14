@@ -41,7 +41,15 @@ def build_full_option_edges(
     *,
     options: Iterable[int] = (0, 1, 2, 4),
     sat_ids: list[str] | None = None,
+    wrap_planes: bool = False,
 ) -> EdgeTable:
+    """Build inter-plane option edges.
+
+    ``wrap_planes=False`` keeps the old Walker-star/G60 behavior where the
+    first and last planes are separated by a seam. ``wrap_planes=True`` is for
+    Walker-delta constellations where plane ``P-1`` connects back to plane 0.
+    """
+
     options = tuple(int(x) for x in options)
     bad = [x for x in options if x not in OPTION_DELTAS]
     if bad:
@@ -61,10 +69,15 @@ def build_full_option_edges(
             for option in options:
                 dp, dy = OPTION_DELTAS[option]
                 q = p + dp
-                if not (0 <= q < int(config.P)):
-                    continue
+                if bool(wrap_planes):
+                    q = q % int(config.P)
+                else:
+                    if not (0 <= q < int(config.P)):
+                        continue
                 yy = (y + dy) % int(config.N)
                 v = q * int(config.N) + yy
+                if v == u:
+                    continue
                 src.append(u)
                 dst.append(v)
                 opt_values.append(option)

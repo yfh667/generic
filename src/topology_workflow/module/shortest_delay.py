@@ -153,6 +153,28 @@ def build_heapq_adjacency(edge_table: EdgeTable, total_nodes: int) -> list[list[
     return adjacency
 
 
+def connected_component_ids(adjacency: list[list[tuple[int, int]]]) -> np.ndarray:
+    """Return a component id for each node in an undirected static topology."""
+
+    comp = np.full(len(adjacency), -1, dtype=np.int32)
+    current = 0
+    for start in range(len(adjacency)):
+        if comp[start] >= 0:
+            continue
+        comp[start] = current
+        stack = [start]
+        while stack:
+            node = stack.pop()
+            for neighbor, _edge_idx in adjacency[node]:
+                neighbor = int(neighbor)
+                if comp[neighbor] >= 0:
+                    continue
+                comp[neighbor] = current
+                stack.append(neighbor)
+        current += 1
+    return comp
+
+
 def choose_engine(requested: str):
     if requested in ("auto", "scipy"):
         try:
@@ -321,6 +343,7 @@ def compute_shortest_delay_timeseries(
     heapq_adjacency = (
         build_heapq_adjacency(edge_table, int(config.total_sats)) if engine_name == "heapq" else None
     )
+    heapq_components = connected_component_ids(heapq_adjacency) if heapq_adjacency is not None else None
     mean_values = np.full(len(steps), np.nan, dtype=np.float32)
 
     summary_fields = [
@@ -427,15 +450,32 @@ def compute_shortest_delay_timeseries(
                             break
             else:
                 values_rows: list[np.ndarray] = []
-                target_set = set(int(x) for x in targets)
+                target_components = heapq_components[target_array] if heapq_components is not None else None
                 for source in sources:
+                    row = np.full(len(targets), np.inf, dtype=np.float64)
+                    if target_components is not None:
+                        same_component = target_components == int(heapq_components[int(source)])
+                        if not bool(np.any(same_component)):
+                            values_rows.append(row)
+                            continue
+                        source_target_array = target_array[same_component]
+                        target_set = set(int(x) for x in source_target_array)
+                    else:
+                        same_component = None
+                        source_target_array = target_array
+                        target_set = set(int(x) for x in targets)
+
                     dist, prev = dijkstra_heapq(
                         adjacency=heapq_adjacency,
                         weights=weights,
                         source=int(source),
                         targets=target_set,
                     )
-                    values_rows.append(dist[target_array])
+                    if same_component is None:
+                        row = np.asarray(dist[target_array], dtype=np.float64)
+                    else:
+                        row[same_component] = dist[source_target_array]
+                    values_rows.append(row)
                     if sample_this_step:
                         for target in targets:
                             delay_ms = float(dist[int(target)])

@@ -4,6 +4,7 @@ import csv
 import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
@@ -11,9 +12,12 @@ from src.config.viewer_config import ViewerConfig
 from src.link_delay.module.position_cache import open_position_cache_for_interval
 from src.link_delay.module.query import open_delay_store_for_interval
 
-from .batch_shortest_hops import RegionPairSpec, TopologySpec, finite_mean
+from .batch_shortest_hops import RegionPairSpec, TopologySpec, auto_worker_count, finite_mean
 from .config import group_name
 from .shortest_delay import compute_shortest_delay_timeseries
+
+
+_DELAY_WORKER_CONTEXT: dict[str, Any] = {}
 
 
 def read_shortest_delay_series(result_dir: str | Path) -> tuple[np.ndarray, np.ndarray]:
@@ -38,6 +42,26 @@ def _aligned_steps(series_by_name: Mapping[str, tuple[np.ndarray, np.ndarray]]) 
         if np.asarray(values).shape[0] != steps.shape[0]:
             raise ValueError(f"value length does not match steps for {name!r}")
     return steps
+
+
+def _topology_pair_delay_complete(topology_dir: Path, steps: Sequence[int]) -> bool:
+    time_path = topology_dir / "time_indices.npy"
+    delay_path = topology_dir / "mean_shortest_delay_ms.npy"
+    summary_path = topology_dir / "step_summary.csv"
+    if not (time_path.exists() and delay_path.exists() and summary_path.exists()):
+        return False
+    try:
+        saved_steps = np.load(time_path, mmap_mode="r")
+        if not np.array_equal(np.asarray(saved_steps, dtype=np.int64), np.asarray(steps, dtype=np.int64)):
+            return False
+        delay = np.load(delay_path, mmap_mode="r")
+        return delay.shape == (len(steps),)
+    except Exception:
+        return False
+
+
+def _load_topology_pair_delay(topology_dir: Path) -> np.ndarray:
+    return np.asarray(np.load(topology_dir / "mean_shortest_delay_ms.npy"), dtype=np.float32)
 
 
 def write_shortest_delay_comparison(
@@ -138,6 +162,82 @@ def plot_shortest_delay_series(
     plt.close(fig)
 
 
+def _init_delay_worker(payload: dict[str, Any]) -> None:
+    delay_store = open_delay_store_for_interval(
+        int(payload["start"]),
+        int(payload["end"]),
+        stride=int(payload["stride"]),
+        store_dir=payload.get("delay_store_dir"),
+        output_base=payload.get("delay_output_base"),
+        constellation_name=payload["config"].name,
+    )
+    position_store = None
+    position_rows = None
+    if payload.get("position_cache_dir") is not None or payload.get("position_cache_root") is not None:
+        position_store = open_position_cache_for_interval(
+            int(payload["start"]),
+            int(payload["end"]),
+            stride=int(payload["stride"]),
+            cache_dir=payload.get("position_cache_dir"),
+            cache_root=payload.get("position_cache_root"),
+        )
+        position_rows = position_store.rows_for_interval(
+            int(payload["start"]),
+            int(payload["end"]),
+            int(payload["stride"]),
+        )
+
+    _DELAY_WORKER_CONTEXT.clear()
+    _DELAY_WORKER_CONTEXT.update(
+        {
+            **payload,
+            "delay_store": delay_store,
+            "delay_rows": delay_store.rows_for_interval(
+                int(payload["start"]),
+                int(payload["end"]),
+                int(payload["stride"]),
+            ),
+            "position_store": position_store,
+            "position_rows": position_rows,
+        }
+    )
+
+
+def _compute_delay_topology_task(spec: TopologySpec) -> dict[str, Any]:
+    if not _DELAY_WORKER_CONTEXT:
+        raise RuntimeError("delay worker context is not initialized")
+    ctx = _DELAY_WORKER_CONTEXT
+    steps = [int(x) for x in ctx["steps"]]
+    out_dir = Path(ctx["out_dir"])
+    result_by_pair: dict[str, np.ndarray] = {}
+    for pair in ctx["pair_specs"]:
+        pair_dir = out_dir / str(pair.key)
+        topology_dir = pair_dir / str(spec.name)
+        if not bool(ctx.get("force", False)) and _topology_pair_delay_complete(topology_dir, steps):
+            result_by_pair[str(pair.key)] = _load_topology_pair_delay(topology_dir)
+            continue
+        values = compute_shortest_delay_timeseries(
+            topology_name=str(spec.name),
+            edge_table=spec.edge_table,
+            config=ctx["config"],
+            group_data=ctx["group_data"],
+            steps=steps,
+            delay_rows=ctx["delay_rows"],
+            position_rows=ctx["position_rows"],
+            delay_store=ctx["delay_store"],
+            position_store=ctx["position_store"],
+            source_group_id=int(pair.source_group_id),
+            target_group_id=int(pair.target_group_id),
+            out_dir=topology_dir,
+            engine=str(ctx.get("engine", "auto")),
+            sample_steps=int(ctx.get("sample_steps", 0)),
+            sample_pairs_per_step=int(ctx.get("sample_pairs_per_step", 0)),
+            progress_every=int(ctx.get("progress_every", 0)),
+        )
+        result_by_pair[str(pair.key)] = np.asarray(values, dtype=np.float32)
+    return {"topology": str(spec.name), "pairs": result_by_pair}
+
+
 def compute_shortest_delay_batch(
     *,
     topology_specs: Sequence[TopologySpec],
@@ -156,6 +256,8 @@ def compute_shortest_delay_batch(
     sample_steps: int = 0,
     sample_pairs_per_step: int = 0,
     progress_every: int = 200,
+    max_workers: int = 1,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Run shortest-delay time series for many topologies and region pairs.
 
@@ -195,33 +297,93 @@ def compute_shortest_delay_batch(
         )
         position_rows = position_store.rows_for_interval(int(start), int(end), int(stride))
 
+    pair_series: dict[str, dict[str, tuple[np.ndarray, np.ndarray]]] = {
+        str(pair.key): {} for pair in pair_specs
+    }
+    workers = auto_worker_count(int(max_workers), max_cap=32)
+    if workers <= 1:
+        for pair in pair_specs:
+            pair_dir = out_dir / str(pair.key)
+            pair_dir.mkdir(parents=True, exist_ok=True)
+            for spec in topology_specs:
+                topology_dir = pair_dir / str(spec.name)
+                if not bool(force) and _topology_pair_delay_complete(topology_dir, steps):
+                    means = _load_topology_pair_delay(topology_dir)
+                else:
+                    means = compute_shortest_delay_timeseries(
+                        topology_name=str(spec.name),
+                        edge_table=spec.edge_table,
+                        config=config,
+                        group_data=dict(group_data),
+                        steps=steps,
+                        delay_rows=delay_rows,
+                        position_rows=position_rows,
+                        delay_store=delay_store,
+                        position_store=position_store,
+                        source_group_id=int(pair.source_group_id),
+                        target_group_id=int(pair.target_group_id),
+                        out_dir=topology_dir,
+                        engine=engine,
+                        sample_steps=int(sample_steps),
+                        sample_pairs_per_step=int(sample_pairs_per_step),
+                        progress_every=int(progress_every),
+                    )
+                pair_series[str(pair.key)][str(spec.name)] = (
+                    np.asarray(steps, dtype=np.int64),
+                    np.asarray(means, dtype=np.float32),
+                )
+    else:
+        print(
+            f"[topology-workflow] shortest_delay_batch parallel topologies={len(topology_specs)} "
+            f"pairs={len(pair_specs)} steps={len(steps)} workers={workers}",
+            flush=True,
+        )
+        payload = {
+            "config": config,
+            "group_data": dict(group_data),
+            "steps": steps,
+            "start": int(start),
+            "end": int(end),
+            "stride": int(stride),
+            "out_dir": str(out_dir),
+            "delay_store_dir": str(delay_store.store_dir),
+            "delay_output_base": str(delay_output_base) if delay_output_base is not None else None,
+            "position_cache_dir": str(position_store.cache_dir) if position_store is not None else None,
+            "position_cache_root": str(position_cache_root) if position_cache_root is not None else None,
+            "pair_specs": list(pair_specs),
+            "engine": str(engine),
+            "sample_steps": int(sample_steps),
+            "sample_pairs_per_step": int(sample_pairs_per_step),
+            "progress_every": int(progress_every),
+            "force": bool(force),
+        }
+        completed = 0
+        with ProcessPoolExecutor(max_workers=workers, initializer=_init_delay_worker, initargs=(payload,)) as executor:
+            futures = [executor.submit(_compute_delay_topology_task, spec) for spec in topology_specs]
+            for future in as_completed(futures):
+                result = future.result()
+                topology = str(result["topology"])
+                for pair_key, values in result["pairs"].items():
+                    pair_series[str(pair_key)][topology] = (
+                        np.asarray(steps, dtype=np.int64),
+                        np.asarray(values, dtype=np.float32),
+                    )
+                completed += 1
+                if int(progress_every) > 0 and (completed == len(futures) or completed % int(progress_every) == 0):
+                    print(
+                        f"[topology-workflow] shortest_delay_batch completed "
+                        f"{completed}/{len(futures)} last={topology}",
+                        flush=True,
+                    )
+
     all_pair_meta: dict[str, Any] = {}
     for pair in pair_specs:
         pair_dir = out_dir / str(pair.key)
         pair_dir.mkdir(parents=True, exist_ok=True)
-        series_by_name: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        for spec in topology_specs:
-            topology_dir = pair_dir / str(spec.name)
-            means = compute_shortest_delay_timeseries(
-                topology_name=str(spec.name),
-                edge_table=spec.edge_table,
-                config=config,
-                group_data=dict(group_data),
-                steps=steps,
-                delay_rows=delay_rows,
-                position_rows=position_rows,
-                delay_store=delay_store,
-                position_store=position_store,
-                source_group_id=int(pair.source_group_id),
-                target_group_id=int(pair.target_group_id),
-                out_dir=topology_dir,
-                engine=engine,
-                sample_steps=int(sample_steps),
-                sample_pairs_per_step=int(sample_pairs_per_step),
-                progress_every=int(progress_every),
-            )
-            series_by_name[str(spec.name)] = (np.asarray(steps, dtype=np.int64), means)
-
+        series_by_name = {
+            str(spec.name): pair_series[str(pair.key)][str(spec.name)]
+            for spec in topology_specs
+        }
         pair_label = f"{group_name(config, pair.source_group_id)}-{group_name(config, pair.target_group_id)}"
         all_pair_meta[str(pair.key)] = write_shortest_delay_comparison(
             out_dir=pair_dir,
