@@ -193,9 +193,6 @@ class TopologyGraphicsView(QtWidgets.QGraphicsView):
 
 
 class SatelliteTopology2DViewer(QtWidgets.QWidget):
-    row_changed = QtCore.pyqtSignal(int)
-    visible_rows_changed = QtCore.pyqtSignal(object, int)
-
     def __init__(
         self,
         config: ViewerConfig,
@@ -313,7 +310,6 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.min_zoom_factor = 0.35
         self.max_zoom_factor = 8.0
         self.fit_on_next_resize = True
-        self._suppress_multi_signals = False
         self.option_order = sorted({int(x) for x in np.asarray(self.edge_table.option).tolist()})
         self.visible_options = {option: True for option in self.option_order}
         self.current_row = 0
@@ -569,10 +565,7 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.slider.setTickInterval(self._slider_tick_interval())
         self.slider.setValue(0)
         self.slider.blockSignals(False)
-        resolved_target_row = self.visible_rows[0] if target_row is None else int(target_row)
-        if not bool(getattr(self, "_suppress_multi_signals", False)):
-            self.visible_rows_changed.emit(list(self.visible_rows), int(resolved_target_row))
-        self.update_step(resolved_target_row)
+        self.update_step(self.visible_rows[0] if target_row is None else target_row)
 
     def _current_visible_pos(self) -> int:
         return int(self.visible_row_to_pos.get(int(self.current_row), int(self.slider.value())))
@@ -1118,8 +1111,6 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
         self.update_node_group_colors(row)
         self.update_pick_markers()
         self.update_selected_label()
-        if not bool(getattr(self, "_suppress_multi_signals", False)):
-            self.row_changed.emit(int(row))
 
     def update_node_group_colors(self, row: int):
         show = bool(self.group_data) and bool(self.show_groups_checkbox.isChecked())
@@ -1345,3 +1336,126 @@ class SatelliteTopology2DViewer(QtWidgets.QWidget):
             self.selected_label.setText(self.describe_edge(self.selected_edge_idx, prefix="Selected edge"))
 
 GridFakeDelayViewer = SatelliteTopology2DViewer
+
+
+class EdgeUsageTopology2DViewer(SatelliteTopology2DViewer):
+    """2D viewer preset for shortest-path edge usage / edge betweenness.
+
+    This class lives in paper1notebook/codex2 on purpose. It is a copied viewer
+    variant for experiment inspection, so src stays untouched.
+    """
+
+    def __init__(
+        self,
+        config: ViewerConfig,
+        *,
+        steps: list[int],
+        edge_table,
+        edge_usage_values,
+        window_title: str,
+        group_data: dict | None = None,
+        show_groups: bool = True,
+        value_max: float | None = None,
+        edge_active_mask=None,
+        edge_building_mask=None,
+        **viewer_kwargs,
+    ):
+        edge_usage_values = np.asarray(edge_usage_values, dtype=np.float32)
+        inferred_max = float(np.nanmax(edge_usage_values)) if edge_usage_values.size else 0.0
+        defaults = {
+            "edge_value_label": "edge_usage",
+            "scale_edge_width_by_value": True,
+            "value_width_min": 0.006,
+            "value_width_max": 0.085,
+            "value_color_mode": "red_alpha",
+            "value_solid_color": "#C1121F",
+            "value_alpha_min": 28,
+            "value_alpha_max": 235,
+            "zero_value_edges_visible": False,
+            "zero_value_threshold": 0.0,
+            "show_topology_under_edge_values": True,
+            "topology_edge_color": "#000000",
+            "topology_edge_alpha": 150,
+            "topology_edge_width": 0.014,
+            "show_grid_lines": False,
+        }
+        defaults.update(viewer_kwargs)
+        super().__init__(
+            config,
+            steps=steps,
+            edge_table=edge_table,
+            edge_active_mask=edge_active_mask,
+            edge_building_mask=edge_building_mask,
+            edge_values=edge_usage_values,
+            value_min=0.0,
+            value_max=inferred_max if value_max is None else float(value_max),
+            window_title=window_title,
+            group_data=group_data or {},
+            show_groups=show_groups,
+            **defaults,
+        )
+
+    def format_edge_value(self, edge_idx: int, row: int, value: float) -> str:
+        return f"edge_usage={float(value):.3f} shortest-path demand"
+
+    def edge_extra_description(self, edge_idx: int, row: int, value: float) -> str:
+        if float(value) <= 0.0:
+            return "not used by current region-pair shortest paths"
+        return "red overlay means this edge is used by current region-pair shortest paths"
+
+
+class LazyEdgeUsageTopology2DViewer(EdgeUsageTopology2DViewer):
+    """Compute edge usage only for the row currently being displayed."""
+
+    def __init__(
+        self,
+        config: ViewerConfig,
+        *,
+        steps: list[int],
+        edge_table,
+        edge_usage_provider,
+        window_title: str,
+        group_data: dict | None = None,
+        show_groups: bool = True,
+        initial_value_max: float = 1.0,
+    ):
+        self.edge_usage_provider = edge_usage_provider
+        self.edge_usage_cache: dict[int, tuple[np.ndarray, str]] = {}
+        self.edge_usage_status_text = ""
+        super().__init__(
+            config,
+            steps=steps,
+            edge_table=edge_table,
+            edge_usage_values=np.zeros((1, int(edge_table.num_edges)), dtype=np.float32),
+            value_max=float(max(1.0, initial_value_max)),
+            window_title=window_title,
+            group_data=group_data or {},
+            show_groups=show_groups,
+        )
+
+    def _values_for_row(self, row: int) -> tuple[np.ndarray, str]:
+        row = int(row)
+        cached = self.edge_usage_cache.get(row)
+        if cached is not None:
+            return cached
+        step = int(self.steps[row])
+        values, status_text = self.edge_usage_provider(row, step)
+        values = np.asarray(values, dtype=np.float32)
+        if int(values.size) != int(self.edge_table.num_edges):
+            raise ValueError(
+                f"edge_usage_provider returned {values.size} values, expected {self.edge_table.num_edges}"
+            )
+        payload = (values, str(status_text))
+        self.edge_usage_cache[row] = payload
+        return payload
+
+    def update_step(self, row: int, *, sync_slider: bool = True):
+        row = int(max(0, min(int(row), len(self.steps) - 1)))
+        values, status_text = self._values_for_row(row)
+        self.edge_values[0, :] = values
+        row_max = float(np.nanmax(values)) if values.size else 0.0
+        if row_max > float(self.value_max):
+            self.value_max = float(row_max)
+        self.edge_usage_status_text = status_text
+        super().update_step(row, sync_slider=sync_slider)
+        self.step_label.setText(self.step_label.text() + f" | {self.edge_usage_status_text}")

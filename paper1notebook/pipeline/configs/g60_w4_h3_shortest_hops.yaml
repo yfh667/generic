@@ -29,17 +29,17 @@ time:
 paths:
   group_xml: E:/paper11/data/basic_file/G60/satellitesposition/station_visible_satellites_20250106.xml
   group_cache_dir: E:/paper11/data/satnet_experiments/caches/G60/group_data_cache
-  motif_library_dir: E:/paper11/data/satnet_experiments/libraries/motif/exact_box/w_le_4_h_le_3
-  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w_le4_h_le3/shortest_hops_t0_86160_stride60
+  motif_library_dir: E:/paper11/data/satnet_experiments/libraries/motif/exact_box/w4_h3
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60
 
 motif_library:
-  min_w: 2
-  min_h: 1
+  min_w: 4
+  min_h: 3
   max_w: 4
   max_h: 3
   include_max_size: true
-  name_prefix: combined
-  csv_name: combined_w_le4_h_le3_808.csv
+  name_prefix: w4h3
+  csv_name: w4_h3_706.csv
   regenerate: false
 
 region_pairs:
@@ -68,9 +68,9 @@ baselines:
     add_intra_ring: true
 
 run:
-  label: g60_w_le4_h_le3_808
-  max_workers: 0
-  progress_every: 25
+  label: g60_w4_h3_706_shortest_hops
+  max_workers: 8
+  progress_every: 0
   write_edges: false
   force_group_cache: false
   limit_motifs: 0

@@ -1,0 +1,31 @@
+name: starlink_72_22_w2_h2_cross_cb
+
+grid:
+  p: 72
+  n: 22
+
+motif:
+  name: w2_h2_cross_cb
+  w: 2
+  h: 2
+  offsets:
+    A: [1, 0]
+    B: [1, -1]
+    C: [1, 1]
+    D: [2, 0]
+  support:
+    - [0, 0, C]
+    - [0, 1, B]
+
+tiling:
+  horizontal_step: 1
+  allow_vertical_overlap: true
+  allow_clipped_right: false
+  wrap_cols: true
+
+viewer:
+  step: 1
+  width: 1450
+  height: 850
+  edge_width: 0.055
+  edge_alpha: 185

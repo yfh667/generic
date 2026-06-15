@@ -62,6 +62,7 @@ def parse_args() -> argparse.Namespace:
         help="Backward-compatible debug input. Prefer --config or DEFAULT_MOTIF support format.",
     )
     parser.add_argument("--horizontal-step", type=int, default=None)
+    parser.add_argument("--wrap-cols", action="store_true", help="Wrap the first/last plane when tiling Walker-delta constellations.")
     parser.add_argument("--no-vertical-overlap", action="store_true")
     parser.add_argument("--no-clipped-right", action="store_true")
     parser.add_argument("--step", type=int, default=None)
@@ -108,6 +109,7 @@ def main() -> int:
             if args.no_clipped_right
             else bool(tiling_raw.get("allow_clipped_right", True))
         )
+        wrap_cols = bool(args.wrap_cols or tiling_raw.get("wrap_cols", False))
         result = tile_motif_on_grid(
             p=p,
             n=n,
@@ -115,6 +117,7 @@ def main() -> int:
             horizontal_step=None if horizontal_step is None else int(horizontal_step),
             allow_vertical_overlap=allow_vertical_overlap,
             allow_clipped_right=allow_clipped_right,
+            wrap_cols=wrap_cols,
         )
         motif_label = motif_support.name or motif_support_label(motif_support)
         config_label = str(args.config)
@@ -127,6 +130,7 @@ def main() -> int:
             horizontal_step=args.horizontal_step,
             allow_vertical_overlap=not bool(args.no_vertical_overlap),
             allow_clipped_right=not bool(args.no_clipped_right),
+            wrap_cols=bool(args.wrap_cols),
         )
         motif_label = pretty_motif(motif)
         config_label = None
@@ -138,6 +142,7 @@ def main() -> int:
             horizontal_step=args.horizontal_step,
             allow_vertical_overlap=not bool(args.no_vertical_overlap),
             allow_clipped_right=not bool(args.no_clipped_right),
+            wrap_cols=bool(args.wrap_cols),
         )
         motif_label = str(DEFAULT_MOTIF["name"])
         config_label = None

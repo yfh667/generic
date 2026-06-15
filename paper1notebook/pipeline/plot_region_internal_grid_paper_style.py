@@ -38,11 +38,14 @@ def parse_args() -> argparse.Namespace:
         description="Create paper-style plots for region-internal +grid motif metrics."
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument("--run-dir", type=Path, default=DEFAULT_RUN_DIR)
+    parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--delay-store-dir", type=Path, default=None)
     parser.add_argument("--position-cache-dir", type=Path, default=None)
     parser.add_argument("--no-position-cache", action="store_true")
+    parser.add_argument("--skip-baselines", action="store_true")
     parser.add_argument("--force-baselines", action="store_true")
+    parser.add_argument("--baseline-delay-engine", choices=("auto", "scipy", "heapq"), default="auto")
+    parser.add_argument("--baseline-step-heartbeat-seconds", type=float, default=30.0)
     parser.add_argument("--pairs", nargs="*", default=None)
     return parser.parse_args()
 
@@ -136,6 +139,8 @@ def ensure_baseline_outputs(
     force: bool,
     delay_store_dir: Path,
     position_cache_dir: Path | None,
+    delay_engine: str,
+    step_heartbeat_seconds: float,
 ) -> None:
     wrap_planes = wrap_planes_from_config(raw)
     meta_path = run_dir / "region_internal_grid_metrics_meta.json"
@@ -195,6 +200,9 @@ def ensure_baseline_outputs(
             "forced_option": 0,
             "force": bool(force),
             "wrap_planes": bool(wrap_planes),
+            "compute_hops": False,
+            "delay_engine": str(delay_engine),
+            "step_heartbeat_seconds": float(step_heartbeat_seconds),
         }
     )
     for spec in baseline_specs:
@@ -222,8 +230,19 @@ def plot_pair_delay(
         means[all_step_complete] = np.nanmean(valid_matrix[:, all_step_complete], axis=0)
         best_static_pool = "all_steps_complete"
     else:
-        means = np.nanmean(valid_matrix, axis=0)
-        best_static_pool = "partial_complete_fallback"
+        means = np.full(matrix.shape[1], np.nan, dtype=np.float64)
+        has_any_valid = np.any(np.isfinite(valid_matrix), axis=0)
+        if np.any(has_any_valid):
+            means[has_any_valid] = np.nanmean(valid_matrix[:, has_any_valid], axis=0)
+            best_static_pool = "partial_complete_fallback"
+        else:
+            valid_matrix = np.asarray(matrix, dtype=np.float64)
+            complete_mask = np.isfinite(valid_matrix)
+            has_any_valid = np.any(np.isfinite(valid_matrix), axis=0)
+            means[has_any_valid] = np.nanmean(valid_matrix[:, has_any_valid], axis=0)
+            best_static_pool = "reachable_mean_fallback"
+    if not np.any(np.isfinite(means)):
+        raise ValueError(f"No finite motif delay values are available for {pair_key}")
     best_static_idx = int(np.nanargmin(means))
     best_static_name = motif_names[best_static_idx]
     best_static_values = valid_matrix[:, best_static_idx]
@@ -330,7 +349,7 @@ def main() -> int:
     raw = load_yaml(args.config)
     config = viewer_config_from_workflow(raw)
     pairs = region_pair_specs(raw, subset=args.pairs)
-    run_dir = Path(args.run_dir)
+    run_dir = Path(args.run_dir) if args.run_dir is not None else path_from(raw.get("paths", {}), "out_dir")
     meta = json.loads((run_dir / "region_internal_grid_metrics_meta.json").read_text(encoding="utf-8"))
     delay_store_dir = Path(args.delay_store_dir or meta.get("delay_store_dir") or path_from(raw["paths"], "delay_store_dir"))
     if args.no_position_cache:
@@ -342,15 +361,18 @@ def main() -> int:
     else:
         position_cache_dir = None
 
-    ensure_baseline_outputs(
-        run_dir=run_dir,
-        raw=raw,
-        config=config,
-        pair_specs=pairs,
-        force=bool(args.force_baselines),
-        delay_store_dir=delay_store_dir,
-        position_cache_dir=position_cache_dir,
-    )
+    if not args.skip_baselines:
+        ensure_baseline_outputs(
+            run_dir=run_dir,
+            raw=raw,
+            config=config,
+            pair_specs=pairs,
+            force=bool(args.force_baselines),
+            delay_store_dir=delay_store_dir,
+            position_cache_dir=position_cache_dir,
+            delay_engine=str(args.baseline_delay_engine),
+            step_heartbeat_seconds=float(args.baseline_step_heartbeat_seconds),
+        )
 
     outputs: list[str] = []
     for pair in pairs:
