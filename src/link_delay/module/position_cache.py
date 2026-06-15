@@ -68,6 +68,7 @@ def ensure_position_cache(
     start: int,
     end: int,
     step: int = 1,
+    total_sats: int | None = None,
     workers: int = 8,
     progress_every: int = 32,
     mode: str = "memory",
@@ -93,6 +94,7 @@ def ensure_position_cache(
         progress_every=int(progress_every),
         mode=str(mode),
         flush_every=64,
+        expected_sat_count=None if total_sats is None else int(total_sats),
     )
     return cache_dir
 

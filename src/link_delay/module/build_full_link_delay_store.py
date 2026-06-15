@@ -231,6 +231,7 @@ def build_delay_store(cfg: DelayStoreBuildConfig) -> Any:
         start=cfg.time.start,
         end=cfg.time.end,
         step=cfg.time.step,
+        total_sats=cfg.constellation.total_sats,
         workers=cfg.runtime.workers,
         progress_every=cfg.runtime.progress_every,
         mode=cfg.runtime.mode,

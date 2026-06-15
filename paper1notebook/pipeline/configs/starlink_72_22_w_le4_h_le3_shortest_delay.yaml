@@ -30,10 +30,10 @@ time:
   stride: 60
 
 paths:
-  group_xml: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/station_visible_satellites_72_22_1_delta.xml
+  group_xml: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/station_visible_satellites_baseRaan_1.xml
   group_cache_dir: E:/paper11/data/satnet_experiments/cache/group_data/Starlink_72_22_1_550
   motif_library_dir: E:/paper11/data/satnet_experiments/libraries/motif/exact_box/w_le_4_h_le_3
-  delay_store_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/full_option_edge_delay/Starlink_72_22_full_options_wrap_t0_86160_stride1
+  delay_store_dir: E:/paper11/data/satnet_experiments/cache/link_delay/Starlink_72_22_1_550/Starlink_72_22_full_options_wrap_t0_86160_stride1
   position_cache_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/_position_cache/cache_0_86160_1s
   out_dir: E:/paper11/data/satnet_experiments/runs/paper1/Starlink_72_22_1_550/motif_w_le4_h_le3/shortest_delay_t0_86160_stride60
 

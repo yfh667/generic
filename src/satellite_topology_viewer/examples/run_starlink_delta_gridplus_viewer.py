@@ -29,16 +29,15 @@ DEFAULT_XML_FILE = (
     / "basic_file"
     / "Starlink_72_22_1_550"
     / "satellitesposition"
-    / "station_visible_satellites_72_22_1_delta.xml"
+    / "station_visible_satellites_baseRaan_1.xml"
 )
 DEFAULT_GROUP_CACHE_DIR = (
     PROJECT_ROOT
     / "data"
-    / "basic_file"
+    / "satnet_experiments"
+    / "cache"
+    / "group_data"
     / "Starlink_72_22_1_550"
-    / "satellitesposition"
-    / "full_option_edge_delay"
-    / "group_data_cache"
 )
 
 

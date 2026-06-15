@@ -83,7 +83,7 @@ def save_npy_atomic(path, array):
     os.replace(tmp, path)
 
 
-def list_ephemeris_files(ephem_dir):
+def list_ephemeris_files(ephem_dir, expected_sat_count=EXPECTED_SAT_COUNT):
     ephem_dir = Path(ephem_dir)
     files = [p for p in ephem_dir.glob("*.e") if p.stem.isdigit()]
     files = sorted(files, key=lambda p: int(p.stem))
@@ -91,9 +91,9 @@ def list_ephemeris_files(ephem_dir):
     if not files:
         raise FileNotFoundError(f"No .e files found in: {ephem_dir}")
 
-    if EXPECTED_SAT_COUNT is not None and len(files) != EXPECTED_SAT_COUNT:
+    if expected_sat_count is not None and len(files) != int(expected_sat_count):
         raise ValueError(
-            f"Expected {EXPECTED_SAT_COUNT} ephemeris files, got {len(files)}"
+            f"Expected {int(expected_sat_count)} ephemeris files, got {len(files)}"
         )
 
     return files
@@ -340,8 +340,8 @@ def parse_one_satellite(task):
     }
 
 
-def maybe_reuse_cache(ephem_dir, start_s, end_s, step_s):
-    files = list_ephemeris_files(ephem_dir)
+def maybe_reuse_cache(ephem_dir, start_s, end_s, step_s, expected_sat_count=EXPECTED_SAT_COUNT):
+    files = list_ephemeris_files(ephem_dir, expected_sat_count=expected_sat_count)
     paths = get_cache_paths(start_s, end_s, step_s)
     expected_meta = build_expected_meta(ephem_dir, files, start_s, end_s, step_s)
 
@@ -400,9 +400,10 @@ def build_cache_parallel(
     progress_every,
     mode=DEFAULT_MODE,
     flush_every=DEFAULT_FLUSH_EVERY,
+    expected_sat_count=EXPECTED_SAT_COUNT,
 ):
     ephem_dir = Path(ephem_dir)
-    files = list_ephemeris_files(ephem_dir)
+    files = list_ephemeris_files(ephem_dir, expected_sat_count=expected_sat_count)
     paths = get_cache_paths(start_s, end_s, step_s)
     expected_meta = build_expected_meta(ephem_dir, files, start_s, end_s, step_s)
 
@@ -650,6 +651,7 @@ def main():
     parser.add_argument("--progress-every", type=int, default=DEFAULT_PROGRESS_EVERY)
     parser.add_argument("--mode", choices=("memory", "memmap"), default=DEFAULT_MODE)
     parser.add_argument("--flush-every", type=int, default=DEFAULT_FLUSH_EVERY)
+    parser.add_argument("--expected-sat-count", type=int, default=EXPECTED_SAT_COUNT)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -662,7 +664,15 @@ def main():
     if args.step != 1:
         raise ValueError("This builder currently expects --step 1")
 
-    if not args.force and maybe_reuse_cache(EPHEM_DIR, args.start, args.end, args.step):
+    expected_sat_count = None if int(args.expected_sat_count) <= 0 else int(args.expected_sat_count)
+
+    if not args.force and maybe_reuse_cache(
+        EPHEM_DIR,
+        args.start,
+        args.end,
+        args.step,
+        expected_sat_count=expected_sat_count,
+    ):
         return 0
 
     return build_cache_parallel(
@@ -674,6 +684,7 @@ def main():
         progress_every=args.progress_every,
         mode=args.mode,
         flush_every=args.flush_every,
+        expected_sat_count=expected_sat_count,
     )
 
 

@@ -1,0 +1,36 @@
+schema_version: 1
+
+constellation:
+  name: Starlink_72_22
+  P: 72
+  N: 22
+  total_sats: 1584
+
+edges:
+  options: [0, 1, 2, 4]
+  directed_storage: false
+  wrap_planes: true
+
+time:
+  start: 0
+  end: 86160
+  step: 1
+  stride: 1
+
+paths:
+  ephem_dir: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/satellite_pos
+  position_cache_root: E:/paper11/data/basic_file/Starlink_72_22_1_550/satellitesposition/_position_cache
+  delay_output_base: E:/paper11/data/satnet_experiments/cache/link_delay/Starlink_72_22_1_550
+  out_dir: null
+
+runtime:
+  workers: 12
+  progress_every: 32
+  mode: memory
+  chunk_steps: 512
+
+build:
+  force_position_cache: false
+  force_delay_cache: false
+  validate_position_cache: true
+  reject_zero_position_rows: true
