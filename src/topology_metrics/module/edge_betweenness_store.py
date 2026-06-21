@@ -12,7 +12,7 @@ from numpy.lib.format import open_memmap
 
 from src.link_delay.module.edge_options import EdgeTable, write_edges_csv
 
-from .edge_betweenness import build_undirected_adjacency, edge_betweenness_between_node_sets
+from .edge_betweenness import build_undirected_adjacency, edge_betweenness_between_node_sets, edge_usage_share_from_counts
 from .group_states import GroupState, build_group_state_index
 from .stores import MetricStoreLayout, expand_unique_state_values, write_meta, write_state_definitions
 
@@ -61,8 +61,10 @@ def _write_state_summary(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         "total_shortest_distance_hops",
         "mean_shortest_distance_hops",
         "max_edge_betweenness",
+        "max_edge_usage_share",
         "nonzero_edges",
         "edge_value_sum",
+        "edge_usage_share_sum",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:
@@ -75,6 +77,39 @@ def _write_state_summary(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
 def _read_state_summary(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
+
+
+def _write_unique_usage_share_values(
+    path: Path,
+    *,
+    unique_values: np.ndarray,
+    state_summaries: Sequence[Mapping[str, Any]],
+) -> np.ndarray:
+    values = np.asarray(unique_values, dtype=np.float32)
+    shares = open_memmap(
+        path,
+        mode="w+",
+        dtype=np.float32,
+        shape=values.shape,
+    )
+    for state_id in range(values.shape[0]):
+        reachable_pairs = float(state_summaries[state_id].get("reachable_pairs", 0) or 0)
+        shares[state_id, :] = edge_usage_share_from_counts(values[state_id, :], reachable_pairs)
+    shares.flush()
+    return shares
+
+
+def _with_usage_share_fields(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        reachable_pairs = float(item.get("reachable_pairs", 0) or 0)
+        max_value = float(item.get("max_edge_betweenness", 0.0) or 0.0)
+        value_sum = float(item.get("edge_value_sum", 0.0) or 0.0)
+        item["max_edge_usage_share"] = float(max_value / reachable_pairs) if reachable_pairs > 0.0 else 0.0
+        item["edge_usage_share_sum"] = float(value_sum / reachable_pairs) if reachable_pairs > 0.0 else 0.0
+        out.append(item)
+    return out
 
 
 def _write_path_samples(path: Path, samples_by_state: Mapping[int, Sequence[Mapping[str, Any]]]) -> None:
@@ -110,22 +145,40 @@ def _write_step_summary(
     steps: Sequence[int],
     state_ids: np.ndarray,
     unique_state_values: np.ndarray,
+    state_summaries: Sequence[Mapping[str, Any]],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:
-        fieldnames = ["step", "state_id", "max_edge_betweenness", "nonzero_edges", "edge_value_sum"]
+        fieldnames = [
+            "step",
+            "state_id",
+            "reachable_pairs",
+            "max_edge_betweenness",
+            "max_edge_usage_share",
+            "nonzero_edges",
+            "edge_value_sum",
+            "edge_usage_share_sum",
+        ]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row, step in enumerate(steps):
             state_id = int(state_ids[row])
             values = np.asarray(unique_state_values[state_id, :], dtype=np.float32)
+            summary = state_summaries[state_id]
+            reachable_pairs = int(float(summary.get("reachable_pairs", 0) or 0))
+            denom = float(reachable_pairs)
+            max_value = float(np.max(values)) if values.size else 0.0
+            value_sum = float(np.sum(values))
             writer.writerow(
                 {
                     "step": int(step),
                     "state_id": state_id,
-                    "max_edge_betweenness": float(np.max(values)) if values.size else 0.0,
+                    "reachable_pairs": reachable_pairs,
+                    "max_edge_betweenness": max_value,
+                    "max_edge_usage_share": float(max_value / denom) if denom > 0.0 else 0.0,
                     "nonzero_edges": int(np.count_nonzero(values > 0.0)),
-                    "edge_value_sum": float(np.sum(values)),
+                    "edge_value_sum": value_sum,
+                    "edge_usage_share_sum": float(value_sum / denom) if denom > 0.0 else 0.0,
                 }
             )
 
@@ -154,7 +207,17 @@ def build_unique_edge_betweenness_values(
         and layout.state_summary_csv.exists()
     ):
         print(f"[topology-metrics] reusing unique edge betweenness: {layout.unique_state_values_npy}", flush=True)
-        return np.load(layout.unique_state_values_npy, mmap_mode="r"), _read_state_summary(layout.state_summary_csv)
+        old_rows = _read_state_summary(layout.state_summary_csv)
+        summary_rows = _with_usage_share_fields(old_rows)
+        if summary_rows and ("max_edge_usage_share" not in old_rows[0] or "edge_usage_share_sum" not in old_rows[0]):
+            _write_state_summary(layout.state_summary_csv, summary_rows)
+        if not layout.unique_state_usage_share_npy.exists():
+            _write_unique_usage_share_values(
+                layout.unique_state_usage_share_npy,
+                unique_values=np.load(layout.unique_state_values_npy, mmap_mode="r"),
+                state_summaries=summary_rows,
+            )
+        return np.load(layout.unique_state_values_npy, mmap_mode="r"), summary_rows
 
     values = open_memmap(
         layout.unique_state_values_npy,
@@ -179,7 +242,15 @@ def build_unique_edge_betweenness_values(
         for task in tasks:
             state_id, row_values, summary, samples = _compute_state_value(task)
             values[state_id, :] = row_values
-            summaries[state_id] = {"state_id": int(state_id), **summary}
+            reachable_pairs = float(summary.get("reachable_pairs", 0) or 0)
+            max_value = float(summary.get("max_edge_betweenness", 0.0) or 0.0)
+            value_sum = float(summary.get("edge_value_sum", 0.0) or 0.0)
+            summaries[state_id] = {
+                "state_id": int(state_id),
+                **summary,
+                "max_edge_usage_share": float(max_value / reachable_pairs) if reachable_pairs > 0.0 else 0.0,
+                "edge_usage_share_sum": float(value_sum / reachable_pairs) if reachable_pairs > 0.0 else 0.0,
+            }
             if samples:
                 samples_by_state[int(state_id)] = samples
             completed += 1
@@ -191,7 +262,15 @@ def build_unique_edge_betweenness_values(
             for future in as_completed(futures):
                 state_id, row_values, summary, samples = future.result()
                 values[state_id, :] = row_values
-                summaries[state_id] = {"state_id": int(state_id), **summary}
+                reachable_pairs = float(summary.get("reachable_pairs", 0) or 0)
+                max_value = float(summary.get("max_edge_betweenness", 0.0) or 0.0)
+                value_sum = float(summary.get("edge_value_sum", 0.0) or 0.0)
+                summaries[state_id] = {
+                    "state_id": int(state_id),
+                    **summary,
+                    "max_edge_usage_share": float(max_value / reachable_pairs) if reachable_pairs > 0.0 else 0.0,
+                    "edge_usage_share_sum": float(value_sum / reachable_pairs) if reachable_pairs > 0.0 else 0.0,
+                }
                 if samples:
                     samples_by_state[int(state_id)] = samples
                 completed += 1
@@ -206,6 +285,11 @@ def build_unique_edge_betweenness_values(
             raise RuntimeError("missing edge betweenness state summary")
         final_summaries.append(row)
     _write_state_summary(layout.state_summary_csv, final_summaries)
+    _write_unique_usage_share_values(
+        layout.unique_state_usage_share_npy,
+        unique_values=np.asarray(values),
+        state_summaries=final_summaries,
+    )
     if int(sample_path_limit) > 0:
         _write_path_samples(layout.root / "path_samples.csv", samples_by_state)
     return values, final_summaries
@@ -265,6 +349,7 @@ def compute_edge_betweenness_store(
         steps=steps,
         state_ids=state_index.state_ids,
         unique_state_values=unique_values,
+        state_summaries=state_summaries,
     )
 
     if bool(expand_full_matrix):
@@ -273,18 +358,27 @@ def compute_edge_betweenness_store(
             state_ids=state_index.state_ids,
         )
         np.save(layout.metric_values_npy, full_values.astype(np.float32, copy=False))
+        unique_share_values = np.load(layout.unique_state_usage_share_npy, mmap_mode="r")
+        full_share_values = expand_unique_state_values(
+            unique_state_values=np.asarray(unique_share_values),
+            state_ids=state_index.state_ids,
+        )
+        np.save(layout.metric_usage_share_npy, full_share_values.astype(np.float32, copy=False))
 
     meta = {
         "topology": str(topology_name),
         "metric": "unweighted_edge_betweenness_between_group_sets",
-        "storage": "unique_state_values + state_ids",
+        "storage": "unique_state_values + unique_state_usage_share + state_ids",
+        "counting_rule": "edge_betweenness is shortest-hop path usage count; edge_usage_share = count / reachable_pairs",
         "num_steps": int(len(steps)),
         "num_unique_group_states": int(state_index.num_states),
         "num_edges": int(edge_table.num_edges),
         "source_group_id": int(source_group_id),
         "target_group_id": int(target_group_id),
         "expanded_full_matrix": bool(expand_full_matrix),
+        "expanded_full_share_matrix": bool(expand_full_matrix),
         "max_edge_betweenness": max((float(row["max_edge_betweenness"]) for row in state_summaries), default=0.0),
+        "max_edge_usage_share": max((float(row.get("max_edge_usage_share", 0.0)) for row in state_summaries), default=0.0),
         "extra": dict(extra_meta or {}),
     }
     write_meta(layout.meta_json, meta)

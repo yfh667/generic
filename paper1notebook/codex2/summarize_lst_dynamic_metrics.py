@@ -45,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--delay-sample-stride", type=int, default=60)
     parser.add_argument("--skip-delay", action="store_true")
+    parser.add_argument("--pairs", nargs="+", default=None)
     return parser.parse_args()
 
 
@@ -372,7 +373,10 @@ def main() -> int:
 
     group_data = load_group_data(workflow=workflow, config=config, steps=steps.astype(int).tolist(), stride=1)
     pair_by_key = region_pairs_from_workflow(workflow)
-    pair_keys = ("china_europe", "china_america", "china_africa")
+    pair_keys = tuple(str(x) for x in (args.pairs if args.pairs else ("china_europe", "china_america", "china_africa")))
+    missing_pairs = [key for key in pair_keys if key not in pair_by_key]
+    if missing_pairs:
+        raise ValueError(f"unknown pair(s) {missing_pairs}; available={sorted(pair_by_key)}")
     pairs = {key: pair_by_key[key] for key in pair_keys}
 
     link_stats: dict[str, Any] = {}
@@ -397,8 +401,18 @@ def main() -> int:
 
     coarse_hops: dict[str, dict[str, Any]] = {}
     for pair_key in pair_keys:
-        dyn_values = [float(row[f"{pair_key}_mean_hops"]) for row in dynamic_rows]
-        base_values = [float(row[f"{pair_key}_base_mean_hops"]) for row in dynamic_rows]
+        dyn_key = f"{pair_key}_mean_hops"
+        base_key = f"{pair_key}_base_mean_hops"
+        if not dynamic_rows or dyn_key not in dynamic_rows[0] or base_key not in dynamic_rows[0]:
+            coarse_hops[pair_key] = {
+                "dynamic_target_topology": None,
+                "base_000056": None,
+                "mean_improvement_vs_base": None,
+                "note": f"dynamic_schedule.csv has no {dyn_key}/{base_key} columns",
+            }
+            continue
+        dyn_values = [float(row[dyn_key]) for row in dynamic_rows]
+        base_values = [float(row[base_key]) for row in dynamic_rows]
         coarse_hops[pair_key] = {
             "dynamic_target_topology": finite_stats(dyn_values),
             "base_000056": finite_stats(base_values),

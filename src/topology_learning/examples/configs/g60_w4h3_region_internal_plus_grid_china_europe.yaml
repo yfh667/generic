@@ -1,0 +1,29 @@
+# Legacy example only.
+# Current paper1 dynamic-topology experiments do not force region-internal +grid.
+# Region groups should be used as metric endpoint sets unless a caller explicitly
+# opts into a separate constrained-topology experiment.
+name: g60_w4h3_region_internal_plus_grid_china_europe_selector
+
+inputs:
+  topology_library_csv: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3_region_internal_plus_grid/region_internal_grid_metrics_t0_86160_stride60/topology_library.csv
+
+metrics:
+  - name: delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3_region_internal_plus_grid/region_internal_grid_metrics_t0_86160_stride60/china_europe/compare_mean_shortest_delay_ms.csv
+    weight: 1.0
+    normalize: none
+  - name: hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3_region_internal_plus_grid/region_internal_grid_metrics_t0_86160_stride60/china_europe/compare_mean_shortest_hops.csv
+    weight: 0.0
+    normalize: none
+
+teacher:
+  # Empty/null means use all topology columns shared by all metric CSVs.
+  topology_prefix: null
+  step_column: step
+
+features:
+  time_period_seconds: 86400
+
+outputs:
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/topology_learning/g60_w4h3_region_internal_plus_grid_china_europe_selector

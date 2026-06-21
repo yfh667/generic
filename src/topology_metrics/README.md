@@ -49,6 +49,29 @@ Output:
 - summary dictionary
 - optional representative path samples
 
+For the current topology-design experiments, edge betweenness is interpreted as
+shortest-path edge usage:
+
+- `edge_betweenness_between_node_sets`: unweighted shortest-hop usage. Equal
+  hop-shortest paths are split fractionally.
+- `weighted_edge_betweenness_between_node_sets`: weighted shortest-delay usage.
+  The current implementation records one deterministic delay-shortest path per
+  source-target pair; this is usually stable for continuous delay weights.
+- Raw edge values are path-usage counts. When the experiment needs "usage
+  share", use `edge_usage_share_from_counts(values, reachable_pairs)`, i.e.
+  `edge_usage_share = edge_usage_count / reachable_pairs`. Store summaries now
+  include both `max_edge_betweenness` and `max_edge_usage_share`.
+- When one scalar edge-criticality vector is needed, use
+  `combine_delay_hop_usage_share(delay_usage_share=..., hop_usage_share=...)`.
+  The current convention is a weighted sum of max-normalized shortest-delay
+  usage share and shortest-hop usage share. Region groups remain endpoint sets
+  only; this combination does not add region-internal `+grid` links.
+- Stores keep both conventions when available:
+  - `edge_betweenness.npy` or `unique_state_values.npy`: raw path-usage count.
+  - `edge_usage_share.npy` or `unique_state_usage_share.npy`: usage share.
+  - `metric_usage_share.npy`: expanded full time-axis share matrix when
+    `expand_full_matrix=True`.
+
 The algorithm should accept an already-built adjacency list when the caller is
 looping over many states.
 
@@ -61,8 +84,10 @@ Minimum stable files:
 - `state_ids.npy`
 - `state_definitions.json`
 - `unique_state_values.npy`
+- `unique_state_usage_share.npy`
 - `state_summary.csv`
 - `metric_values.npy`
+- `metric_usage_share.npy`
 - `step_summary.csv`
 - `meta.json`
 
@@ -88,4 +113,3 @@ meaning should be described by `meta.json`, especially:
    `src/topology_metrics/examples`.
 4. Keep Jupyter usage notes in `examples/*.ipynb` so later users can run cells
    independently.
-

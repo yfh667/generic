@@ -1,0 +1,121 @@
+name: g60_w4h3_full_link_gap_three_pairs_hop_delay_dense_transition
+
+constellation:
+  name: G60
+  p: 18
+  n: 36
+
+inputs:
+  topology_library_csv: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/topology_library.csv
+
+metrics:
+  - name: ce_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_europe/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ce_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_europe/compare_w4h3_china_europe_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ca_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_africa/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ca_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_africa/compare_w4h3_china_africa_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: cam_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_america/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: cam_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_america/compare_w4h3_china_america_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+
+selector:
+  step_column: step
+  exclude_topologies: [full_link]
+  transition_normalize: max
+  switch_penalties:
+    - 0
+    - 0.005
+    - 0.01
+    - 0.015
+    - 0.02
+    - 0.03
+    - 0.04
+    - 0.05
+    - 0.06
+    - 0.07
+    - 0.08
+    - 0.09
+    - 0.1
+    - 0.125
+    - 0.15
+    - 0.175
+    - 0.2
+    - 0.25
+    - 0.3
+    - 0.35
+    - 0.4
+    - 0.45
+    - 0.5
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+    - 1.0
+    - 1.25
+    - 1.5
+    - 1.75
+    - 2.0
+    - 2.5
+    - 3.0
+    - 4.0
+    - 5.0
+  burst_power: 2.0
+  burst_threshold: 0
+  burst_penalties:
+    - 0.1
+    - 0.15
+    - 0.2
+    - 0.3
+    - 0.4
+    - 0.5
+    - 0.75
+    - 1.0
+    - 1.5
+    - 2.0
+    - 3.0
+    - 5.0
+    - 7.5
+    - 10.0
+    - 15.0
+    - 20.0
+  transition_caps:
+    - 160
+    - 170
+    - 180
+    - 190
+    - 200
+    - 210
+    - 220
+    - 230
+    - 240
+    - 260
+    - 280
+    - 300
+  min_dwell_steps: [3, 5, 10]
+  min_dwell_switch_penalties: [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
+  min_dwell_burst_penalties: [2.5, 5.0, 7.5, 10.0, 12.5, 15.0]
+
+outputs:
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/topology_learning/g60_w4h3_full_link_gap_three_pairs_hop_delay_dense_transition

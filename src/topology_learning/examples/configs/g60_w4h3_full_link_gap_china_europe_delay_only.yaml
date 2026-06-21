@@ -1,0 +1,26 @@
+name: g60_w4h3_full_link_gap_china_europe_delay_only
+
+constellation:
+  name: G60
+  p: 18
+  n: 36
+
+inputs:
+  topology_library_csv: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/topology_library.csv
+
+metrics:
+  - name: delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_europe/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 1.0
+    gap: relative_abs
+
+selector:
+  step_column: step
+  exclude_topologies: [full_link]
+  transition_normalize: max
+  switch_penalties: [0, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+
+outputs:
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/topology_learning/g60_w4h3_full_link_gap_china_europe_delay_only
+

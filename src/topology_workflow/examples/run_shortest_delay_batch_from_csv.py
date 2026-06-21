@@ -14,6 +14,8 @@ from src.config.viewer_config import G60_CONFIG
 from src.satellite_topology_viewer.module.region_groups import load_or_build_group_data
 from src.topology_workflow.module import (
     RegionPairSpec,
+    TopologySpec,
+    build_motif_text_edge_table,
     compute_shortest_delay_batch,
     full_link_topology_spec,
     topology_specs_from_motif_csv,
@@ -30,6 +32,17 @@ def parse_pair(text: str) -> RegionPairSpec:
     else:
         raise argparse.ArgumentTypeError("pair must be source:target or source:target:key")
     return RegionPairSpec(key=str(key), label=str(key), source_group_id=int(source), target_group_id=int(target))
+
+
+def gridplus_topology_spec(name: str = "gridplus") -> TopologySpec:
+    return TopologySpec(
+        name=str(name),
+        edge_table=build_motif_text_edge_table(motif_text="A", config=G60_CONFIG, add_intra_ring=True),
+        library="baseline",
+        motif="option0_plus_intra",
+        baseline=True,
+        meta={"add_intra_ring": True},
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,10 +62,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--library", type=str, default="motif_library")
     parser.add_argument("--name-prefix", type=str, default=None)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--include-full-link", action="store_true")
+    parser.add_argument("--include-gridplus", action="store_true")
     parser.add_argument("--engine", choices=("auto", "scipy", "heapq"), default="auto")
     parser.add_argument("--sample-steps", type=int, default=1)
     parser.add_argument("--sample-pairs-per-step", type=int, default=20)
+    parser.add_argument("--max-workers", type=int, default=1)
+    parser.add_argument("--progress-every", type=int, default=25)
     parser.add_argument("--force-group-cache", action="store_true")
     return parser.parse_args()
 
@@ -69,10 +86,13 @@ def main() -> int:
         library=args.library,
         name_prefix=args.name_prefix,
         limit=int(args.limit),
+        offset=int(args.offset),
         add_intra_ring=True,
     )
     if args.include_full_link:
-        topology_specs.append(full_link_topology_spec(config=G60_CONFIG, name="full_link_plus_intra"))
+        topology_specs.append(full_link_topology_spec(config=G60_CONFIG, name="full_link"))
+    if args.include_gridplus:
+        topology_specs.append(gridplus_topology_spec(name="gridplus"))
 
     group_data = load_or_build_group_data(
         xml_file=args.group_xml,
@@ -99,6 +119,8 @@ def main() -> int:
         engine=args.engine,
         sample_steps=int(args.sample_steps),
         sample_pairs_per_step=int(args.sample_pairs_per_step),
+        max_workers=int(args.max_workers),
+        progress_every=int(args.progress_every),
     )
     print(f"[topology-workflow] shortest-delay batch written: {meta['num_topologies']} topologies -> {args.out_dir}")
     return 0

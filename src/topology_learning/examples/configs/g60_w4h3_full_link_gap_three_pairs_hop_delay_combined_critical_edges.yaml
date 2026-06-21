@@ -1,0 +1,60 @@
+name: g60_w4h3_full_link_gap_three_pairs_hop_delay_combined_critical_edges
+
+constellation:
+  name: G60
+  p: 18
+  n: 36
+
+inputs:
+  topology_library_csv: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/topology_library.csv
+
+metrics:
+  - name: ce_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_europe/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ce_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_europe/compare_w4h3_china_europe_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ca_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_africa/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: ca_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_africa/compare_w4h3_china_africa_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: cam_delay_ms
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_delay_t0_86160_stride60/china_america/compare_mean_shortest_delay_ms.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+  - name: cam_hops
+    path: E:/paper11/data/satnet_experiments/runs/paper1/G60/motif_w4_h3/shortest_hops_t0_86160_stride60/china_america/compare_w4h3_china_america_strict_reachable.csv
+    reference_topology: full_link
+    weight: 0.1666667
+    gap: relative_abs
+
+selector:
+  step_column: step
+  exclude_topologies: [full_link]
+  transition_normalize: max
+  switch_penalties: []
+  critical_edge_transition_profiles:
+    - name: delay_hop_usage
+      edges_csv: E:/paper11/data/satnet_experiments/runs/paper1/G60/full_link_edge_usage_share_three_pairs_t0_86160_stride60/delay_shortest/edges.csv
+      weights_npy: E:/paper11/data/satnet_experiments/runs/paper1/G60/full_link_edge_usage_share_three_pairs_t0_86160_stride60/delay_hop_combined/combined_usage_share_max_over_time.npy
+      normalize_weights: max
+      base_new_edge_cost: 0.25
+      weight_scale: 1.0
+      weight_power: 1.0
+      missing_edge_weight: 0.25
+      penalties: [0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0]
+
+outputs:
+  out_dir: E:/paper11/data/satnet_experiments/runs/paper1/G60/topology_learning/g60_w4h3_full_link_gap_three_pairs_hop_delay_combined_critical_edges

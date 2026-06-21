@@ -37,12 +37,20 @@ class MetricStoreLayout:
         return self.root / "unique_state_values.npy"
 
     @property
+    def unique_state_usage_share_npy(self) -> Path:
+        return self.root / "unique_state_usage_share.npy"
+
+    @property
     def state_summary_csv(self) -> Path:
         return self.root / "state_summary.csv"
 
     @property
     def metric_values_npy(self) -> Path:
         return self.root / "metric_values.npy"
+
+    @property
+    def metric_usage_share_npy(self) -> Path:
+        return self.root / "metric_usage_share.npy"
 
     @property
     def step_summary_csv(self) -> Path:
@@ -87,4 +95,3 @@ def expand_unique_state_values(
 def write_meta(path: str | Path, payload: dict) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-

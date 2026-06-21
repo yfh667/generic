@@ -59,6 +59,25 @@ metric:
 
 The output folder changes to `<topology>/shortest_hops/`, and the main array is `mean_shortest_hops.npy`.
 
+## Hybrid Edge Tables
+
+`src.topology_workflow.module.hybrid_edges` builds local hybrid topologies from
+two existing `EdgeTable` objects. The common use case is:
+
+1. keep one base topology;
+2. copy selected inter-plane links from a patch topology in a y-band;
+3. remove outgoing/incoming conflicts from the base topology;
+4. verify each satellite has at most one right-neighbor link and at most one
+   left-neighbor link.
+
+This is parameter-transparent infrastructure: it does not know motif ids,
+region groups, or paper-specific metrics. A concrete G60 bridge search example
+is:
+
+```powershell
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' 'E:\paper11\generic\src\topology_learning\examples\search_local_hybrid_bridge_candidates.py' --previous-action 466 --next-action 621 --base-actions 557 --patch-actions 621 --min-width 1 --max-width 12 --row-step 1 --max-total-setup 489 --out-dir 'E:\paper11\data\satnet_experiments\runs\paper1\G60\topology_learning\local_hybrid_bridge_candidates_466_to_621_b489'
+```
+
 ## YAML Shape
 
 ```yaml

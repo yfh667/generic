@@ -38,6 +38,21 @@ def build_undirected_adjacency(edge_table: EdgeTable, total_nodes: int) -> list[
     return adjacency
 
 
+def edge_usage_share_from_counts(edge_values: np.ndarray, reachable_pairs: int | float) -> np.ndarray:
+    """Convert shortest-path edge usage counts to per-pair usage share.
+
+    The count convention is: each reachable source-target pair contributes one
+    unit of demand to its shortest path set. Dividing by ``reachable_pairs``
+    gives the fraction of endpoint-pair demands that use each edge.
+    """
+
+    values = np.asarray(edge_values, dtype=np.float32)
+    denom = float(reachable_pairs)
+    if denom <= 0.0 or not np.isfinite(denom):
+        return np.zeros_like(values, dtype=np.float32)
+    return (values / denom).astype(np.float32, copy=False)
+
+
 def _bfs_shortest_path_dag(
     adjacency: list[list[tuple[int, int]]],
     source: int,
@@ -161,4 +176,3 @@ def edge_betweenness_between_node_sets(
         edge_value_sum=float(np.sum(edge_values)),
     )
     return edge_values.astype(np.float32), summary, samples
-

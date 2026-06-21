@@ -14,6 +14,7 @@ from numpy.lib.format import open_memmap
 
 from src.link_delay.module.edge_options import EdgeTable, write_edges_csv
 
+from .edge_betweenness import edge_usage_share_from_counts
 from .group_states import group_nodes_for_step
 
 
@@ -255,8 +256,18 @@ def _summary_row(*, step: int, pair: WeightedPairSpec, summary: WeightedBetweenn
         "min_shortest_weight": _finite_or_none(summary.min_shortest_weight),
         "max_shortest_weight": _finite_or_none(summary.max_shortest_weight),
         "max_edge_betweenness": float(summary.max_edge_betweenness),
+        "max_edge_usage_share": (
+            float(summary.max_edge_betweenness) / float(summary.reachable_pairs)
+            if int(summary.reachable_pairs) > 0
+            else 0.0
+        ),
         "nonzero_edges": int(summary.nonzero_edges),
         "edge_value_sum": float(summary.edge_value_sum),
+        "edge_usage_share_sum": (
+            float(summary.edge_value_sum) / float(summary.reachable_pairs)
+            if int(summary.reachable_pairs) > 0
+            else 0.0
+        ),
     }
 
 
@@ -313,6 +324,7 @@ def compute_weighted_edge_betweenness_timeseries(
     )
     combined_sum[:] = 0.0
     pair_mmaps: dict[str, np.memmap] = {}
+    pair_share_mmaps: dict[str, np.memmap] = {}
     for pair in pair_specs:
         pair_dir = out_dir / str(pair.key)
         pair_dir.mkdir(parents=True, exist_ok=True)
@@ -322,6 +334,19 @@ def compute_weighted_edge_betweenness_timeseries(
             dtype=np.float32,
             shape=(len(steps), int(edge_table.num_edges)),
         )
+        pair_share_mmaps[str(pair.key)] = open_memmap(
+            pair_dir / "edge_usage_share.npy",
+            mode="w+",
+            dtype=np.float32,
+            shape=(len(steps), int(edge_table.num_edges)),
+        )
+    combined_share_sum = open_memmap(
+        out_dir / "combined_sum_edge_usage_share.npy",
+        mode="w+",
+        dtype=np.float32,
+        shape=(len(steps), int(edge_table.num_edges)),
+    )
+    combined_share_sum[:] = 0.0
 
     summary_by_pair: dict[str, list[dict[str, Any]]] = {str(pair.key): [] for pair in pair_specs}
     samples: list[dict[str, Any]] = []
@@ -341,8 +366,11 @@ def compute_weighted_edge_betweenness_timeseries(
                 adjacency=adjacency,
                 sample_path_limit=sample_limit,
             )
+            shares = edge_usage_share_from_counts(values, summary.reachable_pairs)
             pair_mmaps[str(pair.key)][step_idx, :] = values
+            pair_share_mmaps[str(pair.key)][step_idx, :] = shares
             combined_sum[step_idx, :] += values
+            combined_share_sum[step_idx, :] += shares
             summary_by_pair[str(pair.key)].append(_summary_row(step=int(step), pair=pair, summary=summary))
             for sample in step_samples:
                 samples.append(
@@ -366,11 +394,15 @@ def compute_weighted_edge_betweenness_timeseries(
             )
 
     combined_sum.flush()
+    combined_share_sum.flush()
     combined_max = np.asarray(combined_sum, dtype=np.float32).max(axis=0)
     np.save(out_dir / "combined_max_over_time.npy", combined_max.astype(np.float32, copy=False))
+    combined_share_max = np.asarray(combined_share_sum, dtype=np.float32).max(axis=0)
+    np.save(out_dir / "combined_usage_share_max_over_time.npy", combined_share_max.astype(np.float32, copy=False))
     for pair in pair_specs:
         key = str(pair.key)
         pair_mmaps[key].flush()
+        pair_share_mmaps[key].flush()
         _write_rows(out_dir / key / "step_summary.csv", summary_by_pair[key])
     if samples:
         _write_rows(out_dir / "path_samples.csv", samples)
@@ -378,6 +410,7 @@ def compute_weighted_edge_betweenness_timeseries(
     meta = {
         "topology": str(topology_name),
         "metric": "weighted_shortest_path_edge_betweenness",
+        "counting_rule": "edge_betweenness counts shortest-path usage; edge_usage_share = edge_betweenness / reachable_pairs",
         "num_steps": len(steps),
         "num_edges": int(edge_table.num_edges),
         "total_nodes": int(total_nodes),
@@ -392,8 +425,11 @@ def compute_weighted_edge_betweenness_timeseries(
         ],
         "storage": {
             "per_pair": "<out_dir>/<pair_key>/edge_betweenness.npy",
+            "per_pair_usage_share": "<out_dir>/<pair_key>/edge_usage_share.npy",
             "combined_sum": "combined_sum_edge_betweenness.npy",
+            "combined_sum_usage_share": "combined_sum_edge_usage_share.npy",
             "combined_max_over_time": "combined_max_over_time.npy",
+            "combined_usage_share_max_over_time": "combined_usage_share_max_over_time.npy",
         },
     }
     (out_dir / "weighted_edge_betweenness_meta.json").write_text(
