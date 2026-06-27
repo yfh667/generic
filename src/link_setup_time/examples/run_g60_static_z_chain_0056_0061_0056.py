@@ -319,14 +319,20 @@ def build_masks_and_values(
             continue
         start_row = int(np.searchsorted(steps, int(transition.start), side="left"))
         ready_row = int(np.searchsorted(steps, int(transition.ready), side="left"))
+        old_release_time = getattr(transition, "old_release", None)
+        if old_release_time is None:
+            old_release_time = transition.start
+        release_row = int(np.searchsorted(steps, int(old_release_time), side="left"))
         start_row = max(0, min(total_rows, start_row))
         ready_row = max(0, min(total_rows, ready_row))
+        release_row = max(0, min(total_rows, release_row))
+        release_row = min(release_row, start_row)
 
         if transition.old_right is not None:
             old_col = key_to_idx.get(edge_key(int(transition.owner), int(transition.old_right)))
             if old_col is not None:
-                active[start_row:, int(old_col)] = False
-                values[start_row:, int(old_col)] = 0.0
+                active[release_row:, int(old_col)] = False
+                values[release_row:, int(old_col)] = 0.0
 
         if transition.new_right is None:
             continue

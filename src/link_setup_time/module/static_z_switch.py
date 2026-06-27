@@ -55,11 +55,15 @@ class NodeTransition:
     old_right: Optional[int]
     new_right: Optional[int]
     tau: int
+    # ``old_release`` is the physical time when the old active link releases
+    # its ports. It can be earlier than ``start`` if this old link blocks
+    # another owner's target left port.
     start: Optional[int]
     ready: Optional[int]
     conflict: bool
     delta_lag: int
     reason: str
+    old_release: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -360,13 +364,21 @@ def reschedule_plan_rows(
     lst: int,
     strategy: str = "latest",
     tau: Optional[int] = None,
+    latest_ready: Optional[int] = None,
 ) -> list[PlanRow]:
-    """Choose concrete build starts from each row's feasible window."""
+    """Choose concrete build starts from each row's feasible window.
+
+    ``latest_ready`` caps a target topology that is only valid until the next
+    nominal switch. For a chain such as ``m1 -> m2 -> m1``, transitions into
+    ``m2`` should not be scheduled after the next switch just because static
+    usage in ``m2`` first appears later.
+    """
 
     if strategy not in {"latest", "earliest", "near_tau"}:
         raise ValueError("strategy must be one of: latest, earliest, near_tau")
 
     out: list[PlanRow] = []
+    latest_start = None if latest_ready is None else int(latest_ready) - int(lst)
     for row in rows:
         if row.rho_a is None or row.s_a is None:
             out.append(row)
@@ -378,7 +390,15 @@ def reschedule_plan_rows(
             continue
 
         rho_a = int(row.rho_a)
+
         if row.eta is None or row.s_max is None:
+            effective_s_max = latest_start
+        else:
+            effective_s_max = int(row.s_max)
+            if latest_start is not None:
+                effective_s_max = min(effective_s_max, int(latest_start))
+
+        if effective_s_max is None:
             if strategy == "earliest" or tau is None:
                 s_a = rho_a
             else:
@@ -386,19 +406,19 @@ def reschedule_plan_rows(
             out.append(replace(row, s_a=s_a, ready=s_a + int(lst), delta_lag=0, conflict=False))
             continue
 
-        eta = int(row.eta)
-        s_max = int(row.s_max)
-        if rho_a <= s_max:
+        if rho_a <= int(effective_s_max):
             if strategy == "earliest":
                 s_a = rho_a
             elif strategy == "latest":
-                s_a = s_max
+                s_a = int(effective_s_max)
             else:
-                anchor = int(tau) if tau is not None else s_max
-                s_a = min(max(anchor, rho_a), s_max)
+                anchor = int(tau) if tau is not None else int(effective_s_max)
+                s_a = min(max(anchor, rho_a), int(effective_s_max))
+            row_s_max = int(effective_s_max) if row.s_max is None else min(int(row.s_max), int(effective_s_max))
             out.append(
                 replace(
                     row,
+                    s_max=row_s_max,
                     s_a=s_a,
                     ready=s_a + int(lst),
                     delta_lag=0,
@@ -410,13 +430,20 @@ def reschedule_plan_rows(
 
         s_a = rho_a
         ready = s_a + int(lst)
+        if row.eta is not None:
+            lag = int(max(0, ready - int(row.eta)))
+        elif latest_ready is not None:
+            lag = int(max(0, ready - int(latest_ready)))
+        else:
+            lag = 0
         out.append(
             replace(
                 row,
+                s_max=int(effective_s_max),
                 s_a=s_a,
                 ready=ready,
-                delta_lag=int(max(0, ready - eta)),
-                conflict=ready > eta,
+                delta_lag=lag,
+                conflict=bool(lag > 0 or (latest_ready is not None and ready > int(latest_ready))),
                 reason="conflict",
             )
         )
@@ -438,13 +465,57 @@ def summarize_plan_rows(rows: Sequence[PlanRow], *, lst: int) -> dict:
     }
 
 
+def compute_old_release_by_owner(
+    rows: Sequence[PlanRow],
+    *,
+    r_minus: RightMap,
+) -> dict[int, Optional[int]]:
+    """Compute physical old-link release times for one switch.
+
+    A row's ``s_a`` is the new-link building start for that row's owner. Under
+    the ``latest`` strategy, an owner may build its new link late while its old
+    link already blocks another owner's target left port. Therefore the old
+    link release time is the earliest time at which either the owner starts its
+    own transition or another owner starts building into the old link's right
+    endpoint.
+    """
+
+    by_owner = {int(row.owner): row for row in rows}
+    release: dict[int, Optional[int]] = {}
+
+    for owner, row in by_owner.items():
+        if row.old_right is None or row.s_a is None:
+            release[owner] = None
+        else:
+            release[owner] = int(row.s_a)
+
+    old_left_owner: dict[int, int] = {}
+    for owner, right in r_minus.items():
+        if right is not None:
+            old_left_owner[int(right)] = int(owner)
+
+    for row in rows:
+        if row.new_right is None or row.s_a is None:
+            continue
+        blocker = old_left_owner.get(int(row.new_right))
+        if blocker is None or blocker not in by_owner:
+            continue
+        current = release.get(blocker)
+        candidate = int(row.s_a)
+        release[blocker] = candidate if current is None else min(int(current), candidate)
+
+    return release
+
+
 def rows_to_transitions(
     rows: Sequence[PlanRow],
     *,
     switch_index: int,
     from_name: str,
     to_name: str,
+    old_release_by_owner: Optional[Mapping[int, Optional[int]]] = None,
 ) -> list[NodeTransition]:
+    release_map = old_release_by_owner or {}
     return [
         NodeTransition(
             switch_index=int(switch_index),
@@ -459,6 +530,7 @@ def rows_to_transitions(
             conflict=bool(row.conflict),
             delta_lag=int(row.delta_lag),
             reason=str(row.reason),
+            old_release=release_map.get(int(row.owner), None if row.s_a is None else int(row.s_a)),
         )
         for row in rows
     ]
@@ -475,6 +547,7 @@ def apply_switch_static_z(
     threshold: float = 0.0,
     strategy: str = "latest",
     switch_index: int = 1,
+    latest_ready: Optional[int] = None,
 ) -> AppliedSwitch:
     """Apply one nominal static-z switch and return its plan rows."""
 
@@ -490,7 +563,13 @@ def apply_switch_static_z(
         delta=int(delta),
         threshold=float(threshold),
     )
-    rows = reschedule_plan_rows(rows, lst=int(lst), strategy=strategy, tau=int(tau))
+    rows = reschedule_plan_rows(
+        rows,
+        lst=int(lst),
+        strategy=strategy,
+        tau=int(tau),
+        latest_ready=latest_ready,
+    )
     summary = summarize_plan_rows(rows, lst=int(lst))
     summary.update(
         {
@@ -499,6 +578,7 @@ def apply_switch_static_z(
             "to": str(to_profile.name),
             "tau": int(tau),
             "strategy": str(strategy),
+            "latest_ready": None if latest_ready is None else int(latest_ready),
         }
     )
     return AppliedSwitch(
@@ -539,6 +619,10 @@ def apply_switch_chain_static_z(
     for index, event in enumerate(ordered_events, start=1):
         if event.target not in profiles:
             raise KeyError(f"target profile not found: {event.target}")
+        next_tau = None
+        if index < len(ordered_events):
+            next_tau = int(ordered_events[index].tau)
+        latest_ready = None if next_tau is None else int(next_tau) - int(lst)
         applied = apply_switch_static_z(
             steps=steps_array,
             from_profile=profiles[current],
@@ -549,6 +633,7 @@ def apply_switch_chain_static_z(
             threshold=float(threshold),
             strategy=strategy,
             switch_index=index,
+            latest_ready=latest_ready,
         )
         adjusted_rows: list[PlanRow] = []
         for row in applied.rows:
@@ -595,18 +680,24 @@ def apply_switch_chain_static_z(
                     "to": applied.to_name,
                     "tau": int(applied.tau),
                     "strategy": str(strategy),
+                    "latest_ready": None if latest_ready is None else int(latest_ready),
                     "enforce_previous_ready": bool(enforce_previous_ready),
                 }
             )
             applied = replace(applied, rows=adjusted_rows, summary=summary)
 
         switches.append(applied)
+        old_release_by_owner = compute_old_release_by_owner(
+            applied.rows,
+            r_minus=profiles[current].right,
+        )
         transitions.extend(
             rows_to_transitions(
                 applied.rows,
                 switch_index=index,
                 from_name=applied.from_name,
                 to_name=applied.to_name,
+                old_release_by_owner=old_release_by_owner,
             )
         )
         current = str(event.target)
@@ -668,14 +759,23 @@ def materialize_chain_static_z(
 
         start_row = int(np.searchsorted(steps_array, int(transition.start), side="left"))
         ready_row = int(np.searchsorted(steps_array, int(transition.ready), side="left"))
+        old_release = transition.old_release
+        if old_release is None:
+            old_release = transition.start
+        release_row = int(np.searchsorted(steps_array, int(old_release), side="left"))
         start_row = max(0, min(total_rows, start_row))
         ready_row = max(0, min(total_rows, ready_row))
+        release_row = max(0, min(total_rows, release_row))
+        release_row = min(release_row, start_row)
 
         if transition.new_right is None:
-            active[owner][start_row:] = -1
-            building[owner][start_row:] = -1
+            active[owner][release_row:] = -1
+            building[owner][release_row:] = -1
             continue
 
+        if release_row < start_row:
+            active[owner][release_row:start_row] = -1
+            building[owner][release_row:start_row] = -1
         if ready_row > start_row:
             active[owner][start_row:ready_row] = -1
             building[owner][start_row:ready_row] = int(transition.new_right)

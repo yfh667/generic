@@ -39,6 +39,7 @@ from .static_z_switch import (
     apply_switch_chain_static_z,
     apply_switch_static_z,
     chain_summary,
+    compute_old_release_by_owner,
     eta_plus,
     find_blocker,
     materialize_chain_static_z,
@@ -50,6 +51,13 @@ from .static_z_switch import (
     summarize_plan_rows,
     transition_to_dict,
     z_callable,
+)
+from .static_z_outputs import (
+    build_edge_key_index,
+    build_edge_state_masks_from_transitions,
+    edge_key,
+    write_dict_rows_csv,
+    write_static_z_chain_plan,
 )
 
 __all__ = [
@@ -69,12 +77,16 @@ __all__ = [
     "apply_switch_chain_static_z",
     "apply_switch_static_z",
     "build_dynamic_region_internal_option_constraint_series",
+    "build_edge_key_index",
     "build_edge_presence_runs",
+    "build_edge_state_masks_from_transitions",
     "build_port_index",
     "build_region_internal_target_series",
     "chain_summary",
     "compute_link_setup_counts_for_lst",
     "compute_link_state_masks",
+    "compute_old_release_by_owner",
+    "edge_key",
     "eta_plus",
     "expand_group_data_for_link_setup_time",
     "find_blocker",
@@ -92,8 +104,10 @@ __all__ = [
     "transition_to_dict",
     "sweep_link_setup_times",
     "write_dynamic_region_constraint_series",
+    "write_dict_rows_csv",
     "write_sweep_outputs",
     "write_sweep_summary_csv",
+    "write_static_z_chain_plan",
     "write_timeseries_csv",
     "z_callable",
 ]

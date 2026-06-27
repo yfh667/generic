@@ -75,6 +75,48 @@ shortest-path edge usage:
 The algorithm should accept an already-built adjacency list when the caller is
 looping over many states.
 
+### Dynamic Edge-Mask Shortest Timeseries
+
+Use `group_pair_shortest_timeseries.py` when the topology itself changes over
+time, for example a static-z switching plan with per-step `active/building`
+edge masks.
+
+Core input:
+
+- `edge_table: EdgeTable`
+- `steps: Sequence[int]`
+- `edge_active_mask: bool array`, shaped `(time, edge)` or `(edge,)`
+- `group_data` or prebuilt `GroupPairNodeArrays`
+- `source_group_id`, `target_group_id`
+- optional `edge_weights_ms`, shaped `(time, edge)` or `(edge,)`
+
+Core output:
+
+- `mean_shortest_hops`
+- `mean_shortest_delay_ms` when weights are provided
+- per-step reachable pair counts and min/max values
+
+The reusable entry point is:
+
+```python
+from src.topology_metrics.module import compute_group_pair_shortest_timeseries
+```
+
+For command-line use with saved arrays:
+
+```powershell
+& 'C:\ProgramData\miniconda3\envs\paper11\python.exe' `
+  'E:\paper11\generic\src\topology_metrics\examples\run_dynamic_edge_group_pair_metrics.py' `
+  --edges-csv <edges.csv> `
+  --steps-npy <steps.npy> `
+  --active-mask-npy <edge_active_mask.npy> `
+  --weights-npy <edge_weights_ms.npy> `
+  --group-data-json <group_cache.json> `
+  --source-group-id 2 --target-group-id 3 `
+  --total-nodes 648 `
+  --out-dir <output_dir>
+```
+
 ### Metric Store
 
 Minimum stable files:
