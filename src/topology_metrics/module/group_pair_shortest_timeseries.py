@@ -39,10 +39,12 @@ class GroupPairShortestTimeseries:
     hop_reachable_pairs: np.ndarray
     mean_shortest_hops: np.ndarray
     min_shortest_hops: np.ndarray
+    p90_shortest_hops: np.ndarray
     max_shortest_hops: np.ndarray
     delay_reachable_pairs: np.ndarray
     mean_shortest_delay_ms: np.ndarray
     min_shortest_delay_ms: np.ndarray
+    p90_shortest_delay_ms: np.ndarray
     max_shortest_delay_ms: np.ndarray
 
     @property
@@ -153,11 +155,17 @@ def build_group_pair_node_arrays(
     )
 
 
-def _finite_summary(values: np.ndarray) -> tuple[float, int, float, float]:
+def _finite_summary(values: np.ndarray) -> tuple[float, int, float, float, float]:
     finite = np.asarray(values[np.isfinite(values)], dtype=np.float64)
     if finite.size == 0:
-        return float("nan"), 0, float("nan"), float("nan")
-    return float(np.mean(finite)), int(finite.size), float(np.min(finite)), float(np.max(finite))
+        return float("nan"), 0, float("nan"), float("nan"), float("nan")
+    return (
+        float(np.mean(finite)),
+        int(finite.size),
+        float(np.min(finite)),
+        float(np.percentile(finite, 90.0)),
+        float(np.max(finite)),
+    )
 
 
 def compute_group_pair_shortest_step(
@@ -188,10 +196,12 @@ def compute_group_pair_shortest_step(
         "hop_reachable_pairs": 0,
         "mean_shortest_hops": float("nan"),
         "min_shortest_hops": float("nan"),
+        "p90_shortest_hops": float("nan"),
         "max_shortest_hops": float("nan"),
         "delay_reachable_pairs": 0,
         "mean_shortest_delay_ms": float("nan"),
         "min_shortest_delay_ms": float("nan"),
+        "p90_shortest_delay_ms": float("nan"),
         "max_shortest_delay_ms": float("nan"),
     }
     if sources.size == 0 or targets.size == 0 or active_edges == 0:
@@ -205,7 +215,7 @@ def compute_group_pair_shortest_step(
     )
     hop_dist = shortest_path(hop_graph, directed=False, unweighted=True, indices=sources)
     hop_values = np.atleast_2d(hop_dist)[:, targets]
-    hop_mean, hop_count, hop_min, hop_max = _finite_summary(hop_values)
+    hop_mean, hop_count, hop_min, hop_p90, hop_max = _finite_summary(hop_values)
 
     out = dict(empty)
     out.update(
@@ -213,6 +223,7 @@ def compute_group_pair_shortest_step(
             "hop_reachable_pairs": int(hop_count),
             "mean_shortest_hops": float(hop_mean),
             "min_shortest_hops": float(hop_min),
+            "p90_shortest_hops": float(hop_p90),
             "max_shortest_hops": float(hop_max),
         }
     )
@@ -230,12 +241,13 @@ def compute_group_pair_shortest_step(
     )
     delay_dist = dijkstra(delay_graph, directed=False, indices=sources)
     delay_values = np.atleast_2d(delay_dist)[:, targets]
-    delay_mean, delay_count, delay_min, delay_max = _finite_summary(delay_values)
+    delay_mean, delay_count, delay_min, delay_p90, delay_max = _finite_summary(delay_values)
     out.update(
         {
             "delay_reachable_pairs": int(delay_count),
             "mean_shortest_delay_ms": float(delay_mean),
             "min_shortest_delay_ms": float(delay_min),
+            "p90_shortest_delay_ms": float(delay_p90),
             "max_shortest_delay_ms": float(delay_max),
         }
     )
@@ -251,10 +263,12 @@ def _blank_result(steps: np.ndarray) -> dict[str, np.ndarray]:
         "hop_reachable_pairs": np.zeros(count, dtype=np.int32),
         "mean_shortest_hops": np.full(count, np.nan, dtype=np.float32),
         "min_shortest_hops": np.full(count, np.nan, dtype=np.float32),
+        "p90_shortest_hops": np.full(count, np.nan, dtype=np.float32),
         "max_shortest_hops": np.full(count, np.nan, dtype=np.float32),
         "delay_reachable_pairs": np.zeros(count, dtype=np.int32),
         "mean_shortest_delay_ms": np.full(count, np.nan, dtype=np.float32),
         "min_shortest_delay_ms": np.full(count, np.nan, dtype=np.float32),
+        "p90_shortest_delay_ms": np.full(count, np.nan, dtype=np.float32),
         "max_shortest_delay_ms": np.full(count, np.nan, dtype=np.float32),
     }
 
@@ -292,10 +306,12 @@ def _compute_rows_serial(
         out["hop_reachable_pairs"][local_i] = int(item["hop_reachable_pairs"])
         out["mean_shortest_hops"][local_i] = float(item["mean_shortest_hops"])
         out["min_shortest_hops"][local_i] = float(item["min_shortest_hops"])
+        out["p90_shortest_hops"][local_i] = float(item["p90_shortest_hops"])
         out["max_shortest_hops"][local_i] = float(item["max_shortest_hops"])
         out["delay_reachable_pairs"][local_i] = int(item["delay_reachable_pairs"])
         out["mean_shortest_delay_ms"][local_i] = float(item["mean_shortest_delay_ms"])
         out["min_shortest_delay_ms"][local_i] = float(item["min_shortest_delay_ms"])
+        out["p90_shortest_delay_ms"][local_i] = float(item["p90_shortest_delay_ms"])
         out["max_shortest_delay_ms"][local_i] = float(item["max_shortest_delay_ms"])
     return rows.astype(np.int64), out
 
@@ -383,6 +399,7 @@ def compute_group_pair_shortest_timeseries(
                     flush=True,
                 )
     else:
+        done_chunks = 0
         payloads = []
         for rows in chunks:
             local_rows = np.arange(int(rows.size), dtype=np.int64)
@@ -445,9 +462,15 @@ def result_summary(result: GroupPairShortestTimeseries) -> dict:
         "mean_hops": finite_mean(result.mean_shortest_hops),
         "min_hops": finite_min(result.mean_shortest_hops),
         "max_hops": finite_max(result.mean_shortest_hops),
+        "mean_p90_hops": finite_mean(result.p90_shortest_hops),
+        "min_p90_hops": finite_min(result.p90_shortest_hops),
+        "max_p90_hops": finite_max(result.p90_shortest_hops),
         "mean_shortest_delay_ms": finite_mean(result.mean_shortest_delay_ms),
         "min_delay_ms": finite_min(result.mean_shortest_delay_ms),
         "max_delay_ms": finite_max(result.mean_shortest_delay_ms),
+        "mean_p90_delay_ms": finite_mean(result.p90_shortest_delay_ms),
+        "min_p90_delay_ms": finite_min(result.p90_shortest_delay_ms),
+        "max_p90_delay_ms": finite_max(result.p90_shortest_delay_ms),
     }
 
 
@@ -470,7 +493,9 @@ def write_group_pair_shortest_timeseries(
     out.mkdir(parents=True, exist_ok=True)
     np.save(out / "time_indices.npy", result.steps.astype(np.int64))
     np.save(out / "mean_shortest_hops.npy", result.mean_shortest_hops.astype(np.float32))
+    np.save(out / "p90_shortest_hops.npy", result.p90_shortest_hops.astype(np.float32))
     np.save(out / "mean_shortest_delay_ms.npy", result.mean_shortest_delay_ms.astype(np.float32))
+    np.save(out / "p90_shortest_delay_ms.npy", result.p90_shortest_delay_ms.astype(np.float32))
 
     with (out / "timeseries.csv").open("w", encoding="utf-8-sig", newline="") as f:
         fields = [
@@ -482,10 +507,12 @@ def write_group_pair_shortest_timeseries(
             "hop_reachable_pairs",
             "mean_shortest_hops",
             "min_shortest_hops",
+            "p90_shortest_hops",
             "max_shortest_hops",
             "delay_reachable_pairs",
             "mean_shortest_delay_ms",
             "min_shortest_delay_ms",
+            "p90_shortest_delay_ms",
             "max_shortest_delay_ms",
         ]
         writer = csv.DictWriter(f, fieldnames=fields)
@@ -501,10 +528,12 @@ def write_group_pair_shortest_timeseries(
                     "hop_reachable_pairs": int(result.hop_reachable_pairs[idx]),
                     "mean_shortest_hops": _json_float(float(result.mean_shortest_hops[idx])),
                     "min_shortest_hops": _json_float(float(result.min_shortest_hops[idx])),
+                    "p90_shortest_hops": _json_float(float(result.p90_shortest_hops[idx])),
                     "max_shortest_hops": _json_float(float(result.max_shortest_hops[idx])),
                     "delay_reachable_pairs": int(result.delay_reachable_pairs[idx]),
                     "mean_shortest_delay_ms": _json_float(float(result.mean_shortest_delay_ms[idx])),
                     "min_shortest_delay_ms": _json_float(float(result.min_shortest_delay_ms[idx])),
+                    "p90_shortest_delay_ms": _json_float(float(result.p90_shortest_delay_ms[idx])),
                     "max_shortest_delay_ms": _json_float(float(result.max_shortest_delay_ms[idx])),
                 }
             )
@@ -518,7 +547,9 @@ def write_group_pair_shortest_timeseries(
         "timeseries": str(out / "timeseries.csv"),
         "time_indices": str(out / "time_indices.npy"),
         "mean_shortest_hops": str(out / "mean_shortest_hops.npy"),
+        "p90_shortest_hops": str(out / "p90_shortest_hops.npy"),
         "mean_shortest_delay_ms": str(out / "mean_shortest_delay_ms.npy"),
+        "p90_shortest_delay_ms": str(out / "p90_shortest_delay_ms.npy"),
         "summary": str(out / "summary.json"),
     }
 
